@@ -99,9 +99,23 @@ separately as `monero_head` / `scout_head`.
 
 - **Never** in source, tests, docs, or a bundle. Use environment
   variables or the deployment's secret store.
-- `XMRJ_PROXY_API_TOKEN` — xmrig-proxy API token
-  (was hard-coded `xmrjackpot2026`; treat that value as compromised and
-  rotate it in `monero/proxy_config.json`).
+- `XMRJ_PROXY_API_TOKEN` — xmrig-proxy API token (was hard-coded
+  `xmrjackpot2026`; treat that value as compromised). One reader since
+  Oct 30: `pool/operator_config.proxy_token()`, resolved in one order
+  for every call site (the poller, the server's payment scanner and
+  the engine's miner count)
+  — env > operator token file `monero/proxy_api_token.txt` >
+  `monero/proxy_config.json` `http.access-token` > legacy db setting
+  `PROXY_API_TOKEN` — and the poller and engine resolve it per call,
+  so a rotation lands there on the next cycle with no restart (the
+  server's scanner thread copies both knobs at thread start and needs
+  a pool restart instead; see `docs/proxy-api-runbook.md`). Rotate by setting the env (what a
+  fresh boot supplies) **and** `monero/proxy_config.json`
+  `http.access-token` (the value xmrig-proxy itself enforces), or drop
+  the rotated secret into the token file for the running box.
+- `XMRJ_PROXY_API` — xmrig-proxy API base URL, one reader
+  `pool/operator_config.proxy_api_base()` (defaults to the loopback
+  `http://127.0.0.1:9090`).
 - `XMRJ_HOUSE_WALLET`, `XMRJ_KRAKEN_DEPOSIT_ADDRESS` — operator payout
   addresses, read when the settings table is first created.
 - `PUSH_OPERATOR_TOKEN` — generated server-side by `provision_push.py`
@@ -112,7 +126,9 @@ separately as `monero_head` / `scout_head`.
 - `APP_PORT` (required), `APP_HOST` (defaults to `127.0.0.1`),
   `XMRJ_ALLOW_PRIVILEGED_PORT` (opt-in only), `XMRJ_STRATUM_URL`.
 
-Rotation after any exposure: proxy token, database password, ntfy topic
+Rotation after any exposure: proxy token (see the one-reader order
+above: env and `monero/proxy_config.json` together, or the token
+file), database password, ntfy topic
 (`push_topic.txt`, untracked), push operator token, Cloudflare tunnel
 credentials. Check the old value is gone from git history and from
 `dist/` before rebuilding.

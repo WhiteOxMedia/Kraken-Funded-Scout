@@ -46,6 +46,12 @@ HERE = Path(__file__).resolve().parent
 SEEN_KEY_TAIL = "kcWK"
 
 sys.path.insert(0, str(HERE / "pool"))
+
+import os
+# XMR_PRICE_LIVE=0 keeps the rate reader on the fallback, off the
+# network (this drive reaches it transitively through a gateway
+# import below - the top-level pin test_rate_pin_fleet.py enforces).
+os.environ["XMR_PRICE_LIVE"] = "0"
 import kraken_referral as kr                       # noqa: E402
 
 sys.path.insert(0, str(HERE / "src"))
@@ -61,6 +67,40 @@ def check(n, cond, why=""):
 
 
 # ── resolve BOTH seams against the REAL machine ──────────────────────
+# THE SETTINGS-TIER PREREQUISITE: both seams resolve through tiered
+# lookups (env -> pool settings -> keyring), and the settings tier reads
+# the live pool/jackpot.db — operator state the checkout does not carry.
+# On a box whose DB is absent/uninitialized the tier lookup crashes
+# (`no such table: settings`) before the probe's own "nothing "
+# "provisioned" skip contract can run, so when the settings DB is not
+# a database the probe says so honestly and yields to the hermetic
+# drives (8b/8c), exactly as the no-pair skip below does.
+def _settings_ready():
+    if not (HERE / "pool" / "jackpot.db").exists():
+        return False
+    try:
+        import sqlite3
+        _c = sqlite3.connect(
+            f"file:{(HERE / 'pool' / 'jackpot.db').as_posix()}?mode=ro",
+            uri=True)
+        try:
+            _t = {r[0] for r in _c.execute(
+                "SELECT name FROM sqlite_master WHERE type='table'")}
+        finally:
+            _c.close()
+        return "settings" in _t
+    except sqlite3.Error:
+        return False
+
+
+if not _settings_ready():
+    print("SKIP: the pool settings tier is unreadable in this checkout "
+          "(no initialized pool/jackpot.db), so the operational seam "
+          "cannot be resolved here — the hermetic drives (8b/8c) own "
+          "the logic contract")
+    print("RESULT: 0 passed, 0 failed")
+    sys.exit(0)
+
 pk, ps, ptier = kr.kraken_credentials()
 ck, cs = kc._get_kraken_credentials()
 

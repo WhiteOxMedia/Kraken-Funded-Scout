@@ -76,6 +76,35 @@ LABELS = ("tickets_of_dead_miners", "tickets_of_dead_drawings",
 SANDBOX = Path(tempfile.mkdtemp(prefix="sweep_cli_drive_"))
 
 
+def _live_ready():
+    """The default-target checks rehearse against THE LIVE
+    pool/jackpot.db (sweep_db.py's DEFAULT_DB), operator state the
+    checkout does not carry: gitignored, absent in a fresh clone (and
+    an empty file any previous drive's unguarded connect created once
+    crashed this very section on `no such table: sessions`). Sections
+    2-4 grade the CLI entirely on sandboxes; when the live file holds
+    no schema, the default-target checks name the gap and keep going,
+    and WHERE the live DB is present they run unchanged.
+    """
+    if not (HERE / "pool" / "jackpot.db").exists():
+        return False
+    try:
+        raw = sqlite3.connect(
+            f"file:{(HERE / 'pool' / 'jackpot.db').as_posix()}?mode=ro",
+            uri=True)
+        try:
+            _t = {r[0] for r in raw.execute(
+                "SELECT name FROM sqlite_master WHERE type='table'")}
+        finally:
+            raw.close()
+    except sqlite3.Error:
+        return False
+    return {"users", "sessions", "audit_log"}.issubset(_t)
+
+
+_LIVE_OK = _live_ready()
+
+
 def _mk_db(name, *, with_orphans=False, with_extra_edge=False):
     path = SANDBOX / name
     raw = sqlite3.connect(str(path))
@@ -124,11 +153,18 @@ def _logical(path):
 print("== 1. DRY-RUN DEFAULT: the receipt without the write ==")
 clean = _mk_db("clean.db")
 before = _logical(clean)
-r = _run([])
-check(1.1, r.returncode == 0 and all(l in r.stdout for l in LABELS)
-      and "would COMMIT" in r.stdout and "was not written" in r.stdout,
-      f"the bare CLI prints every labeled statement and the commit "
-      f"verdict (rc {r.returncode})")
+if _LIVE_OK:
+    r = _run([])
+    check(1.1, r.returncode == 0 and all(l in r.stdout for l in LABELS)
+          and "would COMMIT" in r.stdout and "was not written" in r.stdout,
+          f"the bare CLI prints every labeled statement and the commit "
+          f"verdict (rc {r.returncode})")
+else:
+    print("SKIP: 1.1 the live pool/jackpot.db is absent in this checkout "
+          "— the bare CLI's default target is the operator DB "
+          "(tools/sweep_db.py DEFAULT_DB), so there is nothing to "
+          "rehearse against; sections 2-4 grade the same drive on "
+          "sandboxes and 4.3 pins the missing-file refusal")
 check(1.2, _logical(clean) == before,
       "the target DB's logical state is identical after the dry-run")
 ro = _mk_db("readonly.db")
@@ -197,24 +233,30 @@ check(4.3, r.returncode == 1 and "no such database" in r.stdout,
       "a missing database exits 1")
 
 print("== 5. THE LIVE CANARY (read-only) ==")
-live = sqlite3.connect(
-    f"file:{(HERE / 'pool' / 'jackpot.db').as_posix()}?mode=ro", uri=True)
-_live_before = (len(live.execute("PRAGMA foreign_key_check").fetchall()),
-                live.execute("SELECT COUNT(*) FROM sessions").fetchone()[0],
-                live.execute("SELECT COUNT(*) FROM audit_log").fetchone()[0])
-live.close()
-r = _run([])     # the DEFAULT: pool/jackpot.db, dry-run
-check(5.1, r.returncode == 0 and "jackpot.db" in r.stdout
-      and "would COMMIT" in r.stdout and "was not written" in r.stdout,
-      "the bare CLI against the LIVE db exits 0 with the dry-run receipt")
-live = sqlite3.connect(
-    f"file:{(HERE / 'pool' / 'jackpot.db').as_posix()}?mode=ro", uri=True)
-_live_after = (len(live.execute("PRAGMA foreign_key_check").fetchall()),
-               live.execute("SELECT COUNT(*) FROM sessions").fetchone()[0],
-               live.execute("SELECT COUNT(*) FROM audit_log").fetchone()[0])
-live.close()
-check(5.2, _live_before == _live_after,
-      "the live DB's logical state is identical after the dry-run")
+if not _LIVE_OK:
+    print("SKIP: 5.x the live pool/jackpot.db is absent in this checkout "
+          "— the read-only canary has no operator database to open, so "
+          "the default-target rehearsal (5.1) and the state-snapshot "
+          "comparison (5.2) cannot grade anything here")
+if _LIVE_OK:
+    live = sqlite3.connect(
+        f"file:{(HERE / 'pool' / 'jackpot.db').as_posix()}?mode=ro", uri=True)
+    _live_before = (len(live.execute("PRAGMA foreign_key_check").fetchall()),
+                    live.execute("SELECT COUNT(*) FROM sessions").fetchone()[0],
+                    live.execute("SELECT COUNT(*) FROM audit_log").fetchone()[0])
+    live.close()
+    r = _run([])     # the DEFAULT: pool/jackpot.db, dry-run
+    check(5.1, r.returncode == 0 and "jackpot.db" in r.stdout
+          and "would COMMIT" in r.stdout and "was not written" in r.stdout,
+          "the bare CLI against the LIVE db exits 0 with the dry-run receipt")
+    live = sqlite3.connect(
+        f"file:{(HERE / 'pool' / 'jackpot.db').as_posix()}?mode=ro", uri=True)
+    _live_after = (len(live.execute("PRAGMA foreign_key_check").fetchall()),
+                   live.execute("SELECT COUNT(*) FROM sessions").fetchone()[0],
+                   live.execute("SELECT COUNT(*) FROM audit_log").fetchone()[0])
+    live.close()
+    check(5.2, _live_before == _live_after,
+          "the live DB's logical state is identical after the dry-run")
 
 print("== 6. THE ORPHAN REPORT (--report: plan before you sweep) ==")
 clean2 = _mk_db("report_clean.db")
@@ -238,10 +280,21 @@ check(6.3, r.returncode == 2 and "UNPLANNED" in r.stdout
       and "extend the statement set" in r.stdout,
       "an edge outside EDGE_PLAN exits 2 - the plan needs a human, "
       "which outranks the violations themselves")
-r = _run(["--report"])
-check(6.4, r.returncode == 0 and "jackpot.db" in r.stdout
-      and "ORPHAN REPORT" in r.stdout and "0 violating row(s)" in r.stdout,
-      "the live default --report exits 0 with the all-clear receipt")
+def _default_live_report():
+    """The live-default --report receipt (6.4): only meaningful where the
+    live DB exists; see _live_ready's note above."""
+    return _run(["--report"])
+
+
+if _LIVE_OK:
+    r = _default_live_report()
+    check(6.4, r.returncode == 0 and "jackpot.db" in r.stdout
+          and "ORPHAN REPORT" in r.stdout and "0 violating row(s)" in r.stdout,
+          "the live default --report exits 0 with the all-clear receipt")
+else:
+    print("SKIP: 6.4 the live pool/jackpot.db is absent in this checkout "
+          "— the default --report has no live file to report on; 6.1-6.3 "
+          "pinned the same receipt, edges and UNPLANNED gate on sandboxes")
 
 import shutil
 shutil.rmtree(SANDBOX, ignore_errors=True)

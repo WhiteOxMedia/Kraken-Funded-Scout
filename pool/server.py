@@ -565,10 +565,17 @@ async def downloads_bundle(request: Request):
         raise HTTPException(
             status_code=503,
             detail="this artifact is quarantined by the release manifest")
+    try:
+        counted = db.record_download("KrakenScoutBundle.zip")
+    except Exception as exc:
+        counted = None
+        print(f"[Downloads] counter write failed: {exc}", flush=True)
     # revalidate per request, 304 when the bytes are unchanged: a
     # checksum-pinned artifact must NEVER be served stale (Cloudflare
     # proved this within the hour).
     _log_serving("GET", request, f, f.stat().st_size)
+    if counted is not None:
+        print(f"[Downloads] counter={counted}", flush=True)
     # Sharing-safe read: the response streams from a handle that grants
     # unlink/rename share, so a rebuild's delete during a slow download
     # succeeds instead of tripping Explorer's permission dialog.
@@ -626,6 +633,10 @@ async def downloads_bundle_info():
     zip_path = _dist_dir / "KrakenScoutBundle.zip"
     if zip_path.exists():
         info["bytes_on_disk"] = zip_path.stat().st_size
+    try:
+        info["downloads"] = db.download_stats()
+    except Exception as exc:
+        info["downloads"] = {"error": type(exc).__name__}
     return JSONResponse(info)
 
 # Initialize database
@@ -1193,17 +1204,35 @@ def _scout_offer() -> dict:
             "usd": "%.2f" % usd, "days": days}
 
 
+def _onboarding_shots() -> dict[int, str]:
+    """Screenshot URLs for the /download walkthrough: a step gets a shot
+    only when the PNG actually exists on disk, so the page never renders
+    a broken image while a capture is still missing.
+    """
+    shots: dict[int, str] = {}
+    for n in range(1, 7):
+        path = static_dir / "onboarding" / f"step{n}.png"
+        if path.is_file():
+            shots[n] = f"/static/onboarding/step{n}.png"
+    return shots
+
+
 def _render_lang_page(lang: str, page: str, request: Request) -> str:
     if page == "download":
         html = i18n_pages.render_download(
             lang, SITE_ORIGIN, i18n.region_from_headers(request.headers),
             _download_bundle(), _qr_svg(STRATUM_URL, scale=3), _site_chrome(),
-            _scout_offer())
+            _scout_offer(), shots=_onboarding_shots())
         # Site + product entities, appended once the copy exists: the version
         # inside them comes from the manifest, so markup cannot claim a build
         # the artifact is not.
         return html.replace("</head>", _site_jsonld() + chr(10)
                             + _download_jsonld() + chr(10) + "</head>", 1)
+    if page == "scout-pro":
+        html = i18n_pages.render_scout_pro(
+            lang, SITE_ORIGIN, _site_chrome(), _scout_offer())
+        return html.replace("</head>", _site_jsonld() + chr(10)
+                            + "</head>", 1)
     snap = _relay_snapshot()
     return i18n_pages.render_status(lang, SITE_ORIGIN, snap,
                                     _relay_verdict(snap),
@@ -1227,6 +1256,24 @@ def _auto_language(request: Request, page: str):
     return RedirectResponse(target, status_code=302,
                             headers={"Vary": "Accept-Language, Cookie",
                                      "Cache-Control": "no-store"})
+
+
+@app.get("/scout-pro", response_class=HTMLResponse)
+@app.get("/scout-pro/", response_class=HTMLResponse)
+async def scout_pro_page(request: Request):
+    """The Kraken Pro page the shipped installer's setup window points at.
+    xmrjackpot.com/scout-pro was a 404 until now — the upsell text in
+    install.ps1/installer_ui.py named a page the site never served.
+    English-only for this launch: the walk-in target of the installer's
+    instructions, so it is never behind a language redirect here.
+    """
+    return _serve_page(i18n.DEFAULT_LANG, "scout-pro", request)
+
+
+@app.get("/en/scout-pro")
+async def en_scout_pro():
+    """One URL per page per language, so English lives unprefixed."""
+    return RedirectResponse("/scout-pro", status_code=301)
 
 
 @app.get("/status", response_class=HTMLResponse)
@@ -1438,7 +1485,7 @@ async def winners_page():
 # got the HTML shell at /robots.txt and /sitemap.xml: no rules, no URLs,
 # and the pages that do exist were never submitted. The sitemap lists
 # exactly the URLs that serve their own title, canonical and copy.
-SITEMAP_PATHS = ("/", "/how-to-play", "/winners", "/download")
+SITEMAP_PATHS = ("/", "/how-to-play", "/winners", "/download", "/scout-pro")
 ROBOTS_TXT = (
     "User-agent: *\n"
     "Allow: /\n"
@@ -2330,7 +2377,12 @@ def _vrsc_miner_installer(w: str):
     add = payload.append
     add('@echo off\r\n')
     add('title ' + name + ' - Miner Installer\r\n')
-    add('cd /d "%USERPROFILE%\\Desktop"\r\n')
+    # THE DESKTOP RESOLVER (Nov 2): %USERPROFILE%\Desktop does not exist for
+    # OneDrive-redirected desktops, which left installs landing in whatever
+    # cwd the user launched the .bat from. Resolve the real Desktop through
+    # the shell known-folder API instead, with a plain profile fallback.
+    add('for /f "delims=" %%D in (\'powershell -NoProfile -Command "[Environment]::GetFolderPath(\'Desktop\')"\') do cd /d "%%D"\r\n')
+    add('if errorlevel 1 cd /d "%USERPROFILE%"\r\n')
     add('echo ============================================\r\n')
     add('echo   ' + name + ' - Auto Installer\r\n')
     add('echo   Wallet: ' + (w[:20] if w else "") + '...\r\n')
@@ -2424,7 +2476,9 @@ def _vrsc_miner_installer(w: str):
     add('echo Writing auto-start.bat (launches miner on Windows startup)...\r\n')
     add('(echo @echo off\r\n')
     add('echo title ' + name + ' Miner - Auto Start\r\n')
-    add('echo cd /d "%%USERPROFILE%%\\Desktop\\Verus Jackpot Miner"\r\n')
+    # At install time the cwd IS the install folder, so %CD% bakes the
+    # absolute install path into auto-start.bat.
+    add('echo cd /d "%CD%"\r\n')
     add('echo start "" /min ccminer.exe -o stratum+tcp://'
         + stratum + ' -u "' + w + '" -p x\r\n')
     add('echo) > auto-start.bat\r\n')
@@ -2448,8 +2502,8 @@ def _vrsc_miner_installer(w: str):
     add('echo   (ccminer is open-source, false positives are common)\r\n')
     add('echo ============================================\r\n')
     add('echo Starting miner in 3 seconds...\r\n')
-    add('timeout /t 3 >nul\r\n')
-    add('start.bat\r\n')
+    add('%SystemRoot%\\System32\\timeout.exe /t 3 >nul\r\n')
+    add('call start.bat\r\n')
     return PlainTextResponse(
         "".join(payload),
         headers={"Content-Disposition":
@@ -2464,6 +2518,10 @@ async def api_miner_download(request: Request):
     VRSC_TERRITORIES rule receive the Verus-side ccminer installer; the
     visitor can force the Monero branch with ?coin=xmr."""
     from fastapi.responses import PlainTextResponse
+    try:
+        counted = db.record_download("KrakenMiner.bat")
+    except Exception as exc:
+        print(f"[Downloads] counter write failed: {exc}", flush=True)
     coin = (request.query_params.get("coin") or "").strip().lower()
     _terr = _vrsc_territories()   # ONE chain resolution per request
     if coin not in ("xmr", "monero") and _terr:
@@ -2493,7 +2551,9 @@ async def api_miner_installer(wallet_address: str):
 
     installer = '@echo off\r\n'
     installer += 'title XMR Daily Jackpot - Miner Installer\r\n'
-    installer += 'cd /d "%USERPROFILE%\\Desktop"\r\n'
+    # THE DESKTOP RESOLVER (Nov 2): see the Verus installer comment above.
+    installer += 'for /f "delims=" %%D in (\'powershell -NoProfile -Command "[Environment]::GetFolderPath(\'Desktop\')"\') do cd /d "%%D"\r\n'
+    installer += 'if errorlevel 1 cd /d "%USERPROFILE%"\r\n'
     installer += 'echo ============================================\r\n'
     installer += 'echo   XMR Daily Jackpot Pool - Auto Installer\r\n'
     installer += 'echo   Wallet: ' + w[:20] + '...\r\n'
@@ -2575,7 +2635,9 @@ async def api_miner_installer(wallet_address: str):
     installer += 'echo Writing auto-start.bat (launches miner on Windows startup)...\r\n'
     installer += '(echo @echo off\r\n'
     installer += 'echo title XMR Jackpot Miner - Auto Start\r\n'
-    installer += 'echo cd /d "%%USERPROFILE%%\\Desktop\\XMR Jackpot Miner"\r\n'
+    # Same trick as the Verus auto-start: %CD% bakes the absolute install
+    # folder into the child script at install time.
+    installer += 'echo cd /d "%CD%"\r\n'
     installer += 'echo start "" /min xmrig.exe --config=config.json\r\n'
     installer += 'echo) > auto-start.bat\r\n'
     installer += 'echo Adding to Windows Startup...\r\n'
@@ -2598,8 +2660,8 @@ async def api_miner_installer(wallet_address: str):
     installer += 'echo   (xmrig is open-source, false positives are common)\r\n'
     installer += 'echo ============================================\r\n'
     installer += 'echo Starting miner in 3 seconds...\r\n'
-    installer += 'timeout /t 3 >nul\r\n'
-    installer += 'start.bat\r\n'
+    installer += '%SystemRoot%\\System32\\timeout.exe /t 3 >nul\r\n'
+    installer += 'call start.bat\r\n'
 
     return PlainTextResponse(
         installer,

@@ -19,6 +19,12 @@ db.DB_PATH = _tmp / "jackpot.db"
 db.init_db()
 
 import push_service as ps                          # noqa: E402
+
+import os
+# XMR_PRICE_LIVE=0 keeps the rate reader on the fallback, off the
+# network (this drive reaches it transitively through a gateway
+# import below - the top-level pin test_rate_pin_fleet.py enforces).
+os.environ["XMR_PRICE_LIVE"] = "0"
 import server as srv                               # noqa: E402
 from fastapi.testclient import TestClient          # noqa: E402
 

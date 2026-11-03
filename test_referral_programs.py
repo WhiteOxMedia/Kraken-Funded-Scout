@@ -42,6 +42,20 @@ os.environ["XMR_PRICE_LIVE"] = "0"
 
 # hermetic DB before the app import touches database
 _tmp = Path(tempfile.mkdtemp(prefix="referral_programs_"))
+
+# HERMETIC FIELD KEY (the fk_regression pattern): section 2/4's coin award
+# rides the entry award, which resolves the referrer through get_user_by_email
+# — the keyed blind index. A fresh checkout has no at-rest key (pool/.keys
+# is operator-local), the index is empty, the lookup returns None, and the
+# award is refused on a working implementation. The drive provisions its own
+# throwaway key before the import and grades the seam on every checkout.
+_keys = Path(tempfile.mkdtemp(prefix="refkey_"))
+import field_crypto as _fc  # noqa: E402
+_fc.KEY_DIR = _keys
+_fc.KEY_FILE = _keys / "field_key"
+_fc._KEY_CACHE = None
+_fc.generate_key_file()
+
 import address_check as ac  # noqa: E402
 import database as db  # noqa: E402
 

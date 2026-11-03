@@ -217,6 +217,12 @@ def init_db():
                 last_jackpot_day TEXT,
                 FOREIGN KEY (miner_id) REFERENCES miners(id)
             );
+
+            CREATE TABLE IF NOT EXISTS download_events (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                artifact TEXT NOT NULL,
+                downloaded_at REAL DEFAULT (strftime('%s','now'))
+            );
         """)
 
         # OPERATOR ADDRESSES COME FROM THE DEPLOYMENT (Oct 25). These were
@@ -887,6 +893,42 @@ def set_setting(key, value, conn=None):
         return
     with get_db() as c:
         c.execute(sql, args)
+
+
+def record_download(artifact: str, conn=None) -> int:
+    """Count one artifact download. Anonymous by design: an event is a
+    row of (artifact, timestamp) and nothing else — no IP, no country,
+    no header echoes, matching the /download page's privacy promise.
+    Returns the artifact's running total so the caller can log it.
+    """
+    if conn is not None:
+        conn.execute(
+            "INSERT INTO download_events (artifact) VALUES (?)",
+            (artifact,))
+        row = conn.execute(
+            "SELECT COUNT(*) AS n FROM download_events WHERE artifact = ?",
+            (artifact,)).fetchone()
+        return int(row["n"])
+    with get_db() as own:
+        return record_download(artifact, conn=own)
+
+
+def download_stats() -> dict:
+    """Totals for the public bundle-info surface: all-time and last 24h.
+    A counter that cannot be read is a counter that has stopped, so this
+    always answers, with zeros on a fresh database.
+    """
+    with get_db() as conn:
+        rows = conn.execute(
+            "SELECT artifact, COUNT(*) AS n FROM download_events "
+            "GROUP BY artifact").fetchall()
+        today_rows = conn.execute(
+            "SELECT artifact, COUNT(*) AS n FROM download_events "
+            "WHERE downloaded_at >= strftime('%s','now') - 86400 "
+            "GROUP BY artifact").fetchall()
+    totals = {r["artifact"]: int(r["n"]) for r in rows}
+    today = {r["artifact"]: int(r["n"]) for r in today_rows}
+    return {"total": totals, "today": today}
 
 
 def safe_pos_int(raw, fallback=100):

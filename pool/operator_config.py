@@ -291,8 +291,8 @@ def xmrig_pin():
 #
 # The token tiers' roles, as the repo already documents them:
 #   1. XMRJ_PROXY_API_TOKEN env -- the deployment secret (docs
-#      release-manifest.md: set it on the operator box, rotate it in
-#      monero/proxy_config.json; the env is what a fresh boot supplies).
+#      release-manifest.md: rotate env and the proxy's config
+#      access-token together; the env is what a fresh boot supplies).
 #   2. monero/proxy_api_token.txt -- the operator's token file, the
 #      tier the Oct 25 fold in server.py reads.
 #   3. monero/proxy_config.json http.access-token -- the value the

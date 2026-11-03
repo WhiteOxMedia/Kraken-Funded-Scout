@@ -24,6 +24,11 @@ import database as db
 db.DB_PATH = Path(tempfile.mkdtemp(prefix="dec_db_")) / "jackpot.db"
 db.init_db()
 
+import os
+# XMR_PRICE_LIVE=0 keeps the rate reader on the fallback, off the
+# network (this drive reaches it transitively through a gateway
+# import below - the top-level pin test_rate_pin_fleet.py enforces).
+os.environ["XMR_PRICE_LIVE"] = "0"
 import server as srv
 from fastapi.testclient import TestClient
 

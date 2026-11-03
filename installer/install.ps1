@@ -82,10 +82,17 @@ if (-not $uv -and $SkipVenv) {
 # install is supported: the trees are replaced, opt-in state is not
 # touched (it lives in monero_project\installer\install_config.json).
 Write-Host "[2/4] staging app trees ..."
+# THE $Rc PIN (the winget race class): $LASTEXITCODE is one global slot
+# - a native call that runs between the tool and the verdict hands the
+# verdict the WRONG rc (the Oct 30 carry leg died exactly this way on
+# winget). Capture on the line after the call, judge the capture; a
+# verdict never names $LASTEXITCODE again.
 robocopy (Join-Path $PayDir "scout") $DstScout /MIR /NFL /NDL /NJH /NJS /NP | Out-Null
-if ($LASTEXITCODE -ge 8) { throw "robocopy scout failed rc=$LASTEXITCODE" }
+$Rc = $LASTEXITCODE
+if ($Rc -ge 8) { throw "robocopy scout failed rc=$Rc" }
 robocopy (Join-Path $PayDir "monero_project") $DstMonero /MIR /NFL /NDL /NJH /NJS /NP | Out-Null
-if ($LASTEXITCODE -ge 8) { throw "robocopy monero failed rc=$LASTEXITCODE" }
+$Rc = $LASTEXITCODE
+if ($Rc -ge 8) { throw "robocopy monero failed rc=$Rc" }
 Write-Host ("  staged: " + $DstScout)
 Write-Host ("  staged: " + $DstMonero)
 
@@ -95,7 +102,8 @@ $DstXmrig = Join-Path $Target "xmrig\xmrig-6.26.0"
 if (Test-Path (Join-Path $PayDir "xmrig-6.26.0\xmrig.exe")) {
     New-Item -ItemType Directory -Force -Path (Split-Path -Parent $DstXmrig) | Out-Null
     robocopy (Join-Path $PayDir "xmrig-6.26.0") $DstXmrig /MIR /NFL /NDL /NJH /NJS /NP | Out-Null
-    if ($LASTEXITCODE -ge 8) { throw "robocopy xmrig failed rc=$LASTEXITCODE" }
+    $Rc = $LASTEXITCODE
+    if ($Rc -ge 8) { throw "robocopy xmrig failed rc=$Rc" }
     Write-Host "  staged local xmrig 6.26.0"
 } else {
     # THE RELEASE ASSET THAT EXISTS. This used to point at
@@ -133,12 +141,14 @@ if ($SkipVenv) {
     Push-Location $DstScout
     try {
         & uv sync
-        if ($LASTEXITCODE -ne 0) { throw "uv sync failed rc=$LASTEXITCODE" }
+        $Rc = $LASTEXITCODE
+        if ($Rc -ne 0) { throw "uv sync failed rc=$Rc" }
     } finally {
         Pop-Location
     }
     & (Join-Path $DstScout ".venv\Scripts\python.exe") -m py_compile (Join-Path $DstScout "app.py")
-    if ($LASTEXITCODE -ne 0) { throw "staged app.py does not compile" }
+    $Rc = $LASTEXITCODE
+    if ($Rc -ne 0) { throw "staged app.py does not compile (py_compile rc=$Rc)" }
     # NO LOCAL POOL DATABASE (Oct 25). The installer used to create one
     # so the checkbox could "grant a welcome ticket" — into a database on
     # the customer's own machine, which no drawing ever reads. Registration
@@ -167,7 +177,8 @@ Write-Host "== staged and compiled - opening the setup window (the checkbox) =="
 Push-Location $DstMonero
 try {
     & $PyExe $UiPy
-    if ($LASTEXITCODE -ne 0) { Write-Warning ("setup window exited " + $LASTEXITCODE + " - headless path: installer.py --opt-in --wallet <address>") }
+    $Rc = $LASTEXITCODE
+    if ($Rc -ne 0) { Write-Warning ("setup window exited " + $Rc + " - headless path: installer.py --opt-in --wallet <address>") }
 } finally {
     Pop-Location
 }

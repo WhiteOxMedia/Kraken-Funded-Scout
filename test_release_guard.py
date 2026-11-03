@@ -125,8 +125,8 @@ with tempfile.TemporaryDirectory() as td:
           "a listed zip entry is not reported")
 
 # ── 6. version discipline ────────────────────────────────────────────
-check(6.1, guard.release_version(manifest) == "1.0.0",
-      "the production version is 1.0.0 without markers")
+check(6.1, guard.release_version(manifest) == "1.1.0",
+      "the production version is 1.1.0 without markers")
 for bad_version in ("v1.0.0-preprod", "1.0.0-rc1", "dev-2026"):
     try:
         guard.release_version({"version": bad_version})
