@@ -172,7 +172,7 @@ if ZIP.exists():
     # `git describe` (whose preprod/-g<hash> suffixes used to reach the page).
     # The build's commit is published separately as monero_head/scout_head, and
     # the Product markup states this same string as softwareVersion.
-    check(2.5, j.get("version") == "1.0.0",
+    check(2.5, j.get("version") == "1.1.0",
           f"manifest publishes the production version: {j.get('version')}")
     check(2.6, "preprod" not in str(j.get("version", "")).lower()
           and bool(j.get("monero_head")) and bool(j.get("scout_head")),
