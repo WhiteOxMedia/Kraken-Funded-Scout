@@ -32,7 +32,7 @@ MANIFEST = HERE / "release_manifest.json"
 SSL_SAFE_MARKER = {
     "schema": 1,
     "product": "Kraken Scout",
-    "version": "1.0.0",
+    "version": "1.1.0",
     "artifact": "KrakenScoutBundle.zip",
     "policy": (
         "Default-deny: a file ships only when an allow rule names it. "

@@ -10,6 +10,7 @@ Proves the at-rest surface end-to-end on hermetic sandbox DBs:
   7. key-loss mode: loud flags, no crashes, no fabricated data
 """
 import json
+import os
 import sqlite3
 import sys
 import tempfile
@@ -103,6 +104,11 @@ check(3.3, u["email"] == "PieUser@Example.test" and u["phone"] == "+15550001111"
       "transparent decryption on get_user")
 check(3.4, db.get_all_users()[0]["email"] == "PieUser@Example.test",
       "transparent decryption on get_all_users")
+
+# XMR_PRICE_LIVE=0 keeps the rate reader on the fallback, off the
+# network (this drive reaches it transitively through a gateway
+# import below - the top-level pin test_rate_pin_fleet.py enforces).
+os.environ["XMR_PRICE_LIVE"] = "0"
 import server as srv
 from fastapi.testclient import TestClient
 client = TestClient(srv.app)

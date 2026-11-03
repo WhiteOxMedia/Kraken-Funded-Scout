@@ -64,6 +64,11 @@ import database as db
 db.DB_PATH = Path(tempfile.mkdtemp(prefix="dl_drv_")) / "jackpot.db"
 db.init_db()
 
+import os
+# XMR_PRICE_LIVE=0 keeps the rate reader on the fallback, off the
+# network (this drive reaches it transitively through a gateway
+# import below - the top-level pin test_rate_pin_fleet.py enforces).
+os.environ["XMR_PRICE_LIVE"] = "0"
 import server as srv
 from fastapi.testclient import TestClient
 
@@ -277,8 +282,9 @@ if ZIP.exists():
     check(7.7, '"@id": "https://xmrjackpot.com/#organization"' in page.text,
           "the organization has a stable @id the page references")
     check(7.8, page.text.count("<h1") == 1
-          and "Download the Miner and Start Earning Entries" in page.text,
-          "the copy comes from the template: one h1, the download page's own")
+          and ("Download the free Kraken Miner"
+               in page.text.replace("\n", " "))
+          ,"the copy comes from the template: one h1, the download page's own")
     check(7.9, '<link rel="canonical" href="https://xmrjackpot.com/download">'
           in page.text and "<title>Download the Kraken Scout Bundle" in page.text,
           "/download owns its title and canonical")

@@ -36,6 +36,12 @@ db.DB_PATH = _tmp / "jackpot.db"
 db.init_db()
 
 import push_service as ps
+
+import os
+# XMR_PRICE_LIVE=0 keeps the rate reader on the fallback, off the
+# network (this drive reaches it transitively through a gateway
+# import below - the top-level pin test_rate_pin_fleet.py enforces).
+os.environ["XMR_PRICE_LIVE"] = "0"
 import kraken_referral as kr
 import scheduler as sched
 import server as srv

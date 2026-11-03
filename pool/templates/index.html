@@ -64,6 +64,24 @@
       <button class="btn btn-gold btn-lg" id="btnOneClickMine">⛏️ Download One-Click Miner &amp; Start Earning Entries</button>
       <a class="btn btn-outline btn-lg" style="text-decoration:none;" href="/downloads/KrakenScoutBundle.zip" download>Download Kraken Scout</a>
     </div>
+    <!-- THE MINER CHOICE STRIP (Nov 3): the hero CTA downloads through JS
+         only (window.open), which crawlers and copy-link users never see.
+         These plain anchors defer to the existing routes:
+         /api/miner-download keeps its region branch (VRSC_TERRITORIES
+         decides, ?coin=xmr forces Monero anywhere), and
+         /api/miner-download-vrsc is the explicit Verus route. The strip
+         promises no jackpot entries: each installer's .bat carries the
+         honesty-gated wording for its own branch. -->
+    <div class="miner-choose" style="margin-top:12px;font-size:0.92em;line-height:1.7;">
+      ⬇ <b>Free miner installer:</b>
+      <a href="/api/miner-download" style="color:var(--lapis);text-decoration:none;">the one for your region</a>
+      <span aria-hidden="true" style="margin:0 8px;">·</span>
+      pick a coin:
+      <a href="/api/miner-download?coin=xmr" style="color:var(--lapis);text-decoration:none;">Monero (XMR)</a>
+      <span aria-hidden="true" style="margin:0 6px;">·</span>
+      <a href="/api/miner-download-vrsc" style="color:var(--lapis);text-decoration:none;">Verus (VRSC)</a>
+      <span style="display:block;color:var(--text-dim);font-size:0.95em;">Not every country reaches the Monero routes; the first link is served as the Verus installer there. The installer window names the pool it mines and what its shares earn before anything starts.</span>
+    </div>
     <p style="margin-top:12px;">
       <a class="btn btn-outline" style="text-decoration:none;" href="/#dashboard">Unlock Kraken Scout Pro — ${{PRO_PRICE_USD}} (≈{{PRO_PRICE_XMR}} XMR at today's rate). 70% of it goes into the daily jackpot, 30% is kept by the operator, and it earns you an entry</a>
     </p>

@@ -1,6 +1,8 @@
 """test_kraken_referral_unit.py — normalization, formula, signing,
 provider honesty + posture (setup_kraken.py's read), the notification
-leg (sandbox, hermetic)."""
+leg (sandbox, hermetic), and the static exclusivity contract for the
+KRAKEN_REFERRAL rows (endpoint_mode/set_endpoint_mode are the ONLY
+readers and writers, everywhere)."""
 import os
 import sys, tempfile
 from pathlib import Path
@@ -200,6 +202,114 @@ check(6.2, p["processed"] == 0 and p["errors"] == 0 and p["mode"] == "unconfigur
 est = projection_ad.read_estimate(projection_ad.AdSlot.HERO)
 check(6.3, est is not None and est.referral_seed_usd == 0.0,
       "projection row persisted even for the zero run")
+
+print("== 7. THE ACCESSOR IS THE ONLY READER (static contract) ==")
+import ast as _ast
+import re as _re
+
+# The two non-secret rows (endpoint + simulate) are owned by the
+# accessor in pool/kraken_referral.py — endpoint_mode() reads them,
+# set_endpoint_mode() writes them, and NOTHING else (production code,
+# not test drives: tests legitimately seed raw state) may touch them
+# directly, up to and including reads that piggyback on kr's key
+# constants. The key literals and their consts live in ONE place.
+ROW_KEYS = _re.compile(r"KRAKEN_REFERRAL_(?:ENDPOINT|MODE)")
+ROW_ACCESS = _re.compile(
+    r"(?:get|set)_setting\s*\(\s*f?['\"]"
+    r"KRAKEN_REFERRAL_(?:ENDPOINT|MODE)['\"]")
+KEY_CONST = _re.compile(r"\bPROJECTION_(?:ENDPOINT|MODE)_KEY\b")
+ROW_ARG_NAMES = {"PROJECTION_ENDPOINT_KEY", "PROJECTION_MODE_KEY",
+                 "KRAKEN_REFERRAL_ENDPOINT", "KRAKEN_REFERRAL_MODE"}
+SCAN_DIRS = ("pool", "scout", "src", "tools", "installer", "relay",
+             "xmrjackpot-seo")
+
+
+def _production_texts(base, is_root=False):
+    out = {}
+    it = base.glob("*.py") if is_root else base.rglob("*.py")
+    for p in it:
+        if is_root and p.parent != base:
+            continue
+        name = p.name
+        if name.startswith(("test_", "conftest.", "_", "setup")):
+            continue
+        out[str(p.relative_to(HERE)).replace(chr(92), "/")] = \
+            p.read_text(encoding="utf-8", errors="strict")
+    return out
+
+
+def _direct_row_hits(files):
+    # A direct literal-key access: db.get_setting("KRAKEN_REFERRAL_...",
+    # ...) or db.set_setting("KRAKEN_REFERRAL_...", ...) in any module
+    # outside pool/kraken_referral.py — the bypass this contract forbids.
+    return [f"{label}: direct get_setting/set_setting on a KRAKEN_REFERRAL "
+            "row (read through kr.endpoint_mode(), write through "
+            "kr.set_endpoint_mode())"
+            for label, text in files.items()
+            for _m in ROW_ACCESS.finditer(text)]
+
+
+def _const_hits(files):
+    # A piggyback read: kr.PROJECTION_ENDPOINT_KEY used from outside —
+    # the same row by another route, so the same Not Allowed applies.
+    return [f"{label}: uses kr's PROJECTION_(ENDPOINT|MODE)_KEY from "
+            "outside the accessor"
+            for label, text in files.items() if KEY_CONST.search(text)]
+
+
+def _row_violations(files):
+    return _direct_row_hits(files) + _const_hits(files)
+
+
+prog_files = {}
+for _d in SCAN_DIRS:
+    prog_files.update(_production_texts(HERE / _d))
+prog_files.update(_production_texts(HERE, is_root=True))
+prog_files.pop("pool/kraken_referral.py", None)
+
+v = _row_violations(prog_files)
+check(7.1, not v,
+      "no production module outside pool/kraken_referral.py reads or "
+      "writes the measured KRAKEN_REFERRAL rows directly"
+      + ("; violations: " + "; ".join(v)[:200] if v else ""))
+
+acc_path = HERE / "pool" / "kraken_referral.py"
+tree = _ast.parse(acc_path.read_text(encoding="utf-8"), "kraken_referral.py")
+touched = {}
+for node in tree.body:
+    if isinstance(node, (_ast.FunctionDef, _ast.AsyncFunctionDef)):
+        for c in _ast.walk(node):
+            if (isinstance(c, _ast.Call)
+                    and isinstance(c.func, _ast.Attribute)
+                    and c.func.attr in ("get_setting", "set_setting")):
+                for a in c.args:
+                    nm = None
+                    if isinstance(a, _ast.Name):
+                        nm = a.id
+                    elif (isinstance(a, _ast.Constant)
+                          and isinstance(a.value, str)):
+                        nm = a.value
+                    if nm in ROW_ARG_NAMES:
+                        touched.setdefault(node.name, set()).add(nm)
+check(7.2, set(touched) == {"endpoint_mode", "set_endpoint_mode"},
+      "inside the accessor itself, the rows are touched ONLY inside "
+      "endpoint_mode (the read) and set_endpoint_mode (the write)"
+      + ("; functions seen touching the rows: " + str(sorted(touched))
+         if set(touched) != {"endpoint_mode", "set_endpoint_mode"}
+         else ""))
+
+# RED-FIRST: a probe copy of pool/server.py holding one raw row read
+# and one piggybacked key constant must catch both, not either.
+probe = dict(prog_files)
+probe["pool/server.py (probe copy)"] = (prog_files.get("pool/server.py", "")
+                                        or "") + (
+    "\n_p = db.get_setting(\"KRAKEN_REFERRAL_MODE\", \"\")"
+    "\n_q = kr.PROJECTION_ENDPOINT_KEY\n")
+c = _row_violations(probe)
+check(7.3, len(c) == 2,
+      "RED-FIRST: a raw read AND a piggybacked const in a probe copy of "
+      "pool/server.py are both caught"
+      + ("; caught: " + "; ".join(c)[:200] if len(c) != 2 else ""))
 
 passed, failed = results.count(True), results.count(False)
 print(f"RESULT: {passed} passed, {failed} failed")

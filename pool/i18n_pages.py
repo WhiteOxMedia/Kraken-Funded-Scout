@@ -163,7 +163,8 @@ def _owner_strip(lang: str) -> str:
 def render_download(lang: str, origin: str, region: dict | None = None,
                     bundle: dict | None = None, qr_svg: str = "",
                     chrome: dict | None = None,
-                    offer: dict | None = None) -> str:
+                    offer: dict | None = None,
+                    shots: dict | None = None) -> str:
     """The download page: two products, the endpoint, the fixes."""
     b = bundle or {}
     region = region or {}
@@ -210,7 +211,8 @@ def render_download(lang: str, origin: str, region: dict | None = None,
                          days=offer.get("days", 30))) + "</p>\n"
         '    <p><a class="btn btn-gold" href="/downloads/KrakenScoutBundle.zip" '
         "download>" + escape(i18n.t(lang, "download.cta")) + "</a>\n"
-        '    <a class="btn btn-outline" href="/#dashboard">'
+        '    <a class="btn btn-outline" href="'
+        + i18n.page_path(lang, "scout-pro") + '">'
         + escape(i18n.t(lang, "download.scoutUnlock")) + "</a></p>\n"
         '    <p class="seo-meta" style="font-size:0.8em;">'
         + escape(i18n.t(lang, "download.scoutNote")) + "</p>\n"
@@ -273,6 +275,8 @@ def render_download(lang: str, origin: str, region: dict | None = None,
         + '<p class="seo-meta" style="font-size:0.8em;">'
         + escape(i18n.t(lang, "download.englishOnlyNote")) + "</p>\n</div>\n"
 
+        + _steps_card(lang, shots)
+
         + CARD_OPEN + "\n<h2>" + escape(i18n.t(lang, "download.troubleTitle"))
         + "</h2>\n<ul>\n"
         + "".join("<li>" + escape(i18n.t(lang, f"download.trouble{n}")) + "</li>\n"
@@ -282,6 +286,84 @@ def render_download(lang: str, origin: str, region: dict | None = None,
     return _shell(lang, origin, "download",
                   i18n.t(lang, "download.title"),
                   i18n.t(lang, "download.description"), body, chrome)
+
+
+def _steps_card(lang: str, shots: dict | None) -> str:
+    """The beginner walkthrough: six numbered steps from download to the
+    first entries, each with its screenshot when one has been captured.
+    Steps without a shot yet simply read on — the page never shows a
+    broken image while the capture is pending.
+    """
+    rows = []
+    for n in range(1, 7):
+        title = i18n.t(lang, f"download.step{n}Title")
+        body_text = i18n.t(lang, f"download.step{n}Body")
+        image = ""
+        url = (shots or {}).get(n)
+        if url:
+            image = ('<img src="' + escape(url) + '"'
+                     ' alt="' + escape(title) + '" loading="lazy"'
+                     ' style="width:100%;max-width:760px;'
+                     'border:1px solid var(--bg-cobble);'
+                     'border-radius:8px;margin:10px 0;">')
+        rows.append(
+            '<li style="margin-bottom:18px;">'
+            "<h3 style=\"margin:0 0 6px;\">" + escape(title)
+            + "</h3>\n<p style=\"margin:0\">" + escape(body_text)
+            + "</p>" + ("\n" + image if image else "") + "</li>")
+    return (CARD_OPEN + "\n<h2>" + escape(i18n.t(lang, "download.stepsTitle"))
+            + "</h2>\n<ol>\n" + "\n".join(rows) + "\n</ol>\n</div>\n")
+
+
+def render_scout_pro(lang: str, origin: str, chrome: dict | None = None,
+                     offer: dict | None = None) -> str:
+    """The /scout-pro page: the Kraken Pro upsell the installer points at.
+    The offer dict carries the same price facts the checkout charges, so
+    this page cannot quote anything the paywall does not enforce.
+    """
+    offer = offer or {}
+    perks = []
+    for n in (1, 2, 3):
+        perks.append(
+            "<li><strong>"
+            + escape(i18n.t(lang, f"scoutpro.perk{n}Title"))
+            + "</strong> — "
+            + escape(i18n.t(lang, f"scoutpro.perk{n}Body"))
+            + "</li>")
+    price = escape(i18n.t(lang, "scoutpro.priceBody",
+                          usd=offer.get("usd", "95.00"),
+                          xmr=offer.get("price", "0.01"),
+                          days=offer.get("days", 30)))
+    body = (
+        "<h1>" + escape(i18n.t(lang, "scoutpro.h1")) + "</h1>\n"
+        '<p class="lead">' + escape(i18n.t(lang, "scoutpro.lead"))
+        + "</p>\n\n"
+        + CARD_OPEN + "\n<h2>"
+        + escape(i18n.t(lang, "scoutpro.perksTitle"))
+        + "</h2>\n<ul>\n" + "\n".join(perks) + "\n</ul>\n<p>"
+        + escape(i18n.t(lang, "scoutpro.entryNote"))
+        + "</p>\n</div>\n\n"
+        + CARD_OPEN + "\n<h2>"
+        + escape(i18n.t(lang, "scoutpro.priceTitle"))
+        + "</h2>\n<p>" + price + "</p>\n\n"
+        '<p><a class="btn btn-gold" href="/#dashboard">'
+        + escape(i18n.t(lang, "scoutpro.ctaCheckout"))
+        + "</a>\n"
+        '<a class="btn btn-outline" href="/#signup">'
+        + escape(i18n.t(lang, "scoutpro.ctaSignup")) + "</a></p>\n"
+        "</div>\n\n"
+        + CARD_OPEN + "\n<h2>"
+        + escape(i18n.t(lang, "scoutpro.signupTitle"))
+        + "</h2>\n<p>" + escape(i18n.t(lang, "scoutpro.signupBody"))
+        + "</p>\n<p>\n"
+        '<a href="/how-to-play">' + escape(i18n.t(lang, "scoutpro.howtoLink"))
+        + "</a> ·\n"
+        '<a href="/download">'
+        + escape(i18n.t(lang, "download.cta")) + "</a>\n</p>\n</div>\n"
+    )
+    return _shell(lang, origin, "scout-pro",
+                  i18n.t(lang, "scoutpro.title"),
+                  i18n.t(lang, "scoutpro.description"), body, chrome)
 
 
 def render_status(lang: str, origin: str, snap: dict, verdict: str,

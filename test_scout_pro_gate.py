@@ -49,6 +49,11 @@ _wallet.get_transfer_by_txid = lambda txid: None
 sys.modules["monero_wallet"] = _wallet
 sys.modules["pool.monero_wallet"] = _wallet
 
+import os
+# XMR_PRICE_LIVE=0 keeps the rate reader on the fallback, off the
+# network (this drive reaches it transitively through a gateway
+# import below - the top-level pin test_rate_pin_fleet.py enforces).
+os.environ["XMR_PRICE_LIVE"] = "0"
 import server                                                # noqa: E402
 import push_service as push                                  # noqa: E402
 from fastapi.testclient import TestClient                    # noqa: E402

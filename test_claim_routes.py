@@ -117,6 +117,12 @@ sys.modules["monero_wallet"] = _BlockedWallet
 
 # NOW import the server: its import-time init_db lands in the sandbox,
 # and its `import monero_wallet` picks up the blocked stub
+
+import os
+# XMR_PRICE_LIVE=0 keeps the rate reader on the fallback, off the
+# network (this drive reaches it transitively through a gateway
+# import below - the top-level pin test_rate_pin_fleet.py enforces).
+os.environ["XMR_PRICE_LIVE"] = "0"
 import server  # noqa: E402
 import jackpot_engine as engine  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402

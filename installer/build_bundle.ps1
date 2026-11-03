@@ -92,11 +92,17 @@ New-Item -ItemType Directory -Force -Path $Bundle, (Join-Path $Bundle "payload")
 # remote host ("Cannot connect to C: resolve failed")
 $TAR = Join-Path $env:SystemRoot "System32\tar.exe"
 Write-Host "[1/6] scout: git archive HEAD ..."
+# THE $Rc PIN (the winget race class, same discipline the smoke stage's
+# robocopy pairs carry): $LASTEXITCODE is one global slot - a native
+# call between the tool and the verdict hands it the WRONG rc. Capture
+# on the line after the call, judge the capture.
 $TarF = Join-Path $Dist "_archive.tar"
 git -C $Scout archive --format=tar -o $TarF HEAD
-if ($LASTEXITCODE -ne 0) { throw "scout archive failed" }
+$Rc = $LASTEXITCODE
+if ($Rc -ne 0) { throw "scout archive failed (git rc=$Rc)" }
 & $TAR -xf $TarF -C $Stage
-if ($LASTEXITCODE -ne 0) { throw "scout untar failed" }
+$Rc = $LASTEXITCODE
+if ($Rc -ne 0) { throw "scout untar failed (bsdtar rc=$Rc)" }
 $vpy = Join-Path $Stage ".venv"
 if (Test-Path $vpy) { Remove-Item -Recurse -Force $vpy }   # never ships
 Move-Item $Stage (Join-Path $Bundle "payload\scout")
@@ -106,9 +112,11 @@ New-Item -ItemType Directory -Force -Path $Stage | Out-Null   # the stage
 
 Write-Host "[2/6] monero: git archive HEAD ..."
 git -C $Root archive --format=tar -o $TarF HEAD
-if ($LASTEXITCODE -ne 0) { throw "monero archive failed" }
+$Rc = $LASTEXITCODE
+if ($Rc -ne 0) { throw "monero archive failed (git rc=$Rc)" }
 & $TAR -xf $TarF -C $Stage
-if ($LASTEXITCODE -ne 0) { throw "monero untar failed" }
+$Rc = $LASTEXITCODE
+if ($Rc -ne 0) { throw "monero untar failed (bsdtar rc=$Rc)" }
 Remove-Item -Recurse -Force -Path (Join-Path $Stage "dist") -ErrorAction SilentlyContinue
 Remove-Item -Recurse -Force -Path (Join-Path $Stage "xmrig") -ErrorAction SilentlyContinue
 Move-Item $Stage (Join-Path $Bundle "payload\monero_project")
@@ -163,6 +171,10 @@ $Enc = New-Object System.Text.UTF8Encoding($false)
 $Readme = @"
 KRAKEN SCOUT BUNDLE (built from committed heads: scout $ScoutHead, monero $MoneroHead)
 
+THE JACKPOT IS FREE. Kraken Miner inside this bundle is free, and it
+is the only way to win the daily Jackpot: every valid batch of shares
+mines one entry. Free and legal in all 50 states, no purchase required.
+
 INSTALL   double-click  Install Kraken Scout.bat  (here in the bundle folder)
           (or:  powershell -NoProfile -ExecutionPolicy Bypass -File install.ps1)
           One flow: preflight uv, stage the two app trees into
@@ -172,6 +184,12 @@ INSTALL   double-click  Install Kraken Scout.bat  (here in the bundle folder)
 RUN       %LOCALAPPDATA%\KrakenScout\scout\Launch Kraken.bat   (console + scanner)
           %LOCALAPPDATA%\KrakenScout\scout\Kraken - STOP.bat   (stop both)
 
+KRAKEN PRO  Scout runs locally and is free. Kraken Pro is the optional
+          donation upgrade that unlocks the live push alerts for
+          trading; 70% of each Pro order goes into the daily Jackpot,
+          and Pro accounts earn one extra jackpot entry.
+          See https://xmrjackpot.com/scout-pro after you install.
+
 UNINSTALL double-click  Uninstall Kraken Scout.bat  (here in the bundle folder)
           Self-deleting: removes %LOCALAPPDATA%\KrakenScout and this
           bundle folder. No registry keys, no services, no scheduled
@@ -180,8 +198,9 @@ UNINSTALL double-click  Uninstall Kraken Scout.bat  (here in the bundle folder)
 
 NOTES     The Miner Bot is OPTIONAL (the checkbox default is ON; uncheck
           it and nothing miner-related is configured or registered).
-          Payouts require manual registration at xmrjackpot.com - the
-          setup window shows the start-here note when it finishes.
+          A free sign-up at xmrjackpot.com covers the dashboard, the
+          entry controls and account settings; claiming a prize then
+          happens there within seven days of a draw.
           PHONE PUSH  The scout's private ntfy topic is NOT shipped -
           the operator provisions push_topic.txt in the scout folder
           after install (rotation hygiene, Oct 7).
@@ -204,7 +223,8 @@ Write-Host "[6/6] topic guard + public artifact (installer\finalize_bundle.py) .
 $Py = Join-Path $Root ".venv\Scripts\python.exe"
 if (-not (Test-Path $Py)) { $Py = "python" }
 & $Py (Join-Path $PSScriptRoot "finalize_bundle.py") $Bundle $Dist $Scout $Root
-if ($LASTEXITCODE -ne 0) { throw "bundle finalize failed (topic guard hit, or the zip/manifest step)" }
+$Rc = $LASTEXITCODE
+if ($Rc -ne 0) { throw "bundle finalize failed (python rc=$Rc - topic guard hit, or the zip/manifest step)" }
 
 $ScoutFiles = (Get-ChildItem -Recurse -File (Join-Path $Bundle "payload\scout")).Count
 $MoneroFiles = (Get-ChildItem -Recurse -File (Join-Path $Bundle "payload\monero_project")).Count
