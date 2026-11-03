@@ -189,8 +189,13 @@ def start_local_relay(args):
         return
     if not (POOL / "vrsc_relay.py").is_file():
         die("pool/vrsc_relay.py is missing; nothing to bring up")
-    subprocess.Popen(["cmd", "/c", "start", "vrsc-relay", "/min",
-                      str(RELAY_DIR / CMD_NAME)])
+    # THE START COMMAND IS ONE LINE, NOT AN ARGV LIST (Nov 3): cmd's `start`
+    # takes a quoted TITLE first; list2cmdline only quotes argv items that
+    # contain whitespace, so the bare "vrsc-relay" landed as the COMMAND and
+    # Windows answered "cannot find the file vrsc-relay". Spawning as a single
+    # command line keeps the title quoted where cmd reads it as a title.
+    subprocess.Popen('cmd /c start "vrsc-relay" /min "%s"' % (RELAY_DIR / CMD_NAME),
+                     cwd=str(REPO), shell=True)
     for _ in range(30):                                  # ~15 s
         if local_netstat(args.port):
             _log("relay LISTENING on :%d" % args.port)
