@@ -3,6 +3,8 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
+import pytest
+
 import bounce_live as bl
 
 BASE = 1_790_000_100          # epoch seconds, aligned to the 5m grid
@@ -127,6 +129,25 @@ def test_take_reads_the_bar_high():
     assert out.startswith("TAKE IT") and "high" in out
 
 
+def test_go_big_marks_are_net_of_fee_and_slippage():
+    """The $100 stop / $500 take are NET: the mark carries the round trip."""
+    entry, size, stop, take = bl._levels({**_watch(), "go_big": True})
+    fee = size * bl.FEE_PCT
+    assert stop == pytest.approx(entry * (1.0 - (20.0 - fee - size * bl.SLIP) / size))
+    assert take == pytest.approx(entry * (1.0 + (30.0 + fee) / size) / (1.0 - bl.SLIP))
+    # Both marks sit above the gross levels the ledger's cost would eat into.
+    assert stop > 98.0 and take > 103.0
+
+
+def test_five_minute_stop_uses_the_net_mark():
+    rows = _rows()
+    rows[21] = _row(21, open_=99.0, high=99.5, low=98.05, close=99.0)
+    out = bl.exit_signal(_Exchange(rows), "PEPE/USD", _watch(go_big=True),
+                         now=BASE + 22 * 300)
+    # $98.05 clears the net $98.12 stop but not the old gross $98.00 one.
+    assert out.startswith("STOPPED OUT") and "low" in out
+
+
 def test_bounce_reads_only_the_first_six_bars():
     rows = _rows()
     rows[26] = _row(26, open_=100.0, high=110.0, low=100.0, close=109.0)
@@ -190,6 +211,21 @@ def test_ticker_fallback_reads_stop_and_take():
     assert bl.ticker_exit(w, 0.0, now=BASE) is None
     assert bl.ticker_exit({"entry": 0.0, "size": 0.0}, 101.0,
                           now=BASE) is None
+
+
+def test_ticker_stop_and_take_use_the_net_marks():
+    w = {**_watch(), "go_big": True}          # net $98.12 stop / $103.12 take
+    assert bl.ticker_exit(w, 98.05, now=BASE).startswith("STOPPED OUT")
+    assert bl.ticker_exit(w, 98.15, now=BASE) is None
+    assert bl.ticker_exit(w, 103.05, now=BASE) is None
+    assert bl.ticker_exit(w, 103.13, now=BASE).startswith("TAKE IT")
+
+
+def test_bounce_marks_stay_gross_percentages():
+    """The bounce tape rule is -2% / +3% on price, not net dollars."""
+    entry, _size, stop, take = bl._levels(_watch())
+    assert stop == pytest.approx(entry * 0.98)
+    assert take == pytest.approx(entry * 1.03)
 
 
 def test_ticker_fallback_still_runs_the_six_bar_time_exit():

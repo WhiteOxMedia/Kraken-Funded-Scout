@@ -8,7 +8,8 @@ Rule A -- liquid capitulation bounce:
 Rule B -- PEPE GO BIG:
   * fresh EMA9/21 cross up on a green 5m bar
   * contest_account.go_big_supported / go_big_plan decide the entry
-  * hard $100 stop, $500 take, momentum-death exit
+  * hard $100 net stop, $500 net take (fee + slippage carried in the mark),
+    momentum-death exit
 
 One all-in slot.  This module only proposes an entry; the scanner's contest
 watch and exit watch own the position and the death floor.
@@ -19,6 +20,8 @@ import json
 import time
 from datetime import datetime, timezone
 from pathlib import Path
+
+import contest_account as ca
 
 ROOT = Path(__file__).resolve().parent
 WATCH_JSON = ROOT / "contest_watch.json"
@@ -33,6 +36,13 @@ BOUNCE_TAKE_PCT = 3.0
 PEPE_STOP_USD = 100.0
 PEPE_TAKE_USD = 500.0
 PEPE_MIN_BUFFER_USD = 250.0
+
+# The validated replay's cost model (contest_replay): 0.08% round trip on the
+# notional, plus 2 bps of exit slippage.  GO BIG's stop and take are NET
+# dollars, so their price marks carry this cost — at the raw mark a "-$100"
+# stop books worse than -$100 once the fee is charged.
+FEE_PCT = ca.COST_ROUNDTRIP_PCT / 100.0
+SLIP = 0.0002
 
 ASSETS = [
     "BTC", "ETH", "ZEC", "XRP", "SOL", "PEPE", "NEAR", "HYPE", "SUI", "LTC",
@@ -122,14 +132,30 @@ def _entry_epoch(w: dict) -> float | None:
 
 
 def _levels(w: dict) -> tuple[float, float, float, float]:
+    """Entry, notional, stop mark, take mark for one watch row.
+
+    GO BIG books a net dollar stop and take, so its marks subtract the
+    round-trip fee (and add the exit slippage back into the take) — the same
+    arithmetic contest_replay uses.  The bounce marks are gross percentages
+    by design (+3% / -2% on the tape) and stay gross.
+    """
     entry = float(w.get("entry") or 0.0)
     size = float(w.get("size") or 0.0)
     stop_usd = float(w.get("hard_stop_usd") or 0.0)
     goal_usd = float(w.get("goal_usd") or 0.0)
     goal_pct = float(w.get("goal_pct") or 0.0)
-    stop = entry * (1.0 - stop_usd / size) if entry > 0 and size > 0 and stop_usd > 0 else 0.0
-    take = (entry * (1.0 + goal_usd / size) if entry > 0 and size > 0 and goal_usd > 0
-            else entry * (1.0 + goal_pct / 100.0) if entry > 0 and goal_pct > 0 else 0.0)
+    sized = entry > 0 and size > 0
+    net = bool(w.get("go_big"))
+    cost = size * (FEE_PCT + SLIP) if net else 0.0
+    stop = (entry * (1.0 - (stop_usd - cost) / size)
+            if sized and stop_usd > 0 else 0.0)
+    if sized and goal_usd > 0:
+        take = (entry * (1.0 + (goal_usd + (size * FEE_PCT if net else 0.0)) / size)
+                / (1.0 - SLIP) if net else entry * (1.0 + goal_usd / size))
+    elif entry > 0 and goal_pct > 0:
+        take = entry * (1.0 + goal_pct / 100.0)
+    else:
+        take = 0.0
     return entry, size, stop, take
 
 
@@ -212,7 +238,6 @@ def tick(exchange, track, logger=None, now: float | None = None) -> dict | None:
         _last_bar_scanned = bar
         return None
 
-    import contest_account as ca
     try:
         state = ca.load_state()
         balance = float(state["current_balance"])
