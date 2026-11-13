@@ -67,12 +67,17 @@ def _hard_stop_breached(w: dict, live: float) -> tuple[bool, str]:
             return False, ""
         import contest_account as _ca_hs
         _acct = _ca_hs.load_state()
-        _stop = max(_ca_hs.buffer(_acct) * 0.5, 5.0)
+        _stop = float(w.get("hard_stop_usd") or 0.0)
+        if _stop <= 0.0:
+            _stop = _hard_stop_usd(entry, size, _ca_hs.buffer(_acct))
         _usd = (float(live) / entry - 1.0) * size
         if _usd <= -_stop:
+            _stop_note = ("the row's GO BIG hard dollar stop"
+                          if w.get("go_big") else
+                          "half the platform death-line buffer")
             return True, (
                 f"STOPPED OUT — down ${abs(_usd):.0f} (the stop is "
-                f"-${_stop:.0f} — half the platform death-line buffer). "
+                f"-${_stop:.0f} — {_stop_note}). "
                 f"The trade failed — get out, wait for the next one.")
         return False, ""
     except Exception:
@@ -916,6 +921,244 @@ CONTEST_WATCH_JSON = os.path.join(os.path.dirname(os.path.abspath(__file__)), "c
 # backup/restore windows). Default = the module dir, unchanged in
 # production; the env seam is the sandbox shortcut.
 CONTEST_TRADES_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "contest_trades.jsonl")
+
+
+# ── THE CONTEST STANDING (Nov 11, user rule): pass = the balance reaches
+#    +12% of the contest's STARTING balance, at ANY time -- no per-window
+#    deadline. The death line is -3% of that SAME start and never moves, so
+#    profit becomes buffer. The scout prints this every cycle (the standing is
+#    not a console-only truth) and prompts ONCE per contest at the win line.
+CONTEST_PAYCHECK_STATE = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                                      "contest_paycheck_state.json")
+
+
+def contest_standing_text(acct=None) -> str:
+    """One log line: the contest graded against its FIXED baseline."""
+    import contest_account as _ca
+    st = _ca.standing(acct)
+    tail = "WON — take the paycheck" if st["won"] else "NOT WON"
+    return ("CONTEST STANDING: start $%s | win $%s (+%.0f%%) | "
+            "death $%s (-%.0f%%, anchored) | now $%s | "
+            "progress %+.2f%% of +%.0f%% (%.1f%% there, $%s to go) | %s"
+            % (f"{st['start_balance']:,.2f}", f"{st['win_line']:,.2f}",
+               st["target_pct"], f"{st['death_line']:,.2f}",
+               _ca.MAX_LOSS_PCT, f"{st['current_balance']:,.2f}",
+               st["progress_pct"], st["target_pct"], st["percent_to_win"],
+               f"{st['to_go_usd']:,.2f}", tail))
+
+
+def contest_paycheck_check(acct=None) -> dict:
+    """THE PAYCHECK PROMPT — exactly once per contest, never below the line.
+
+    Re-anchors FIRST (a failed write leaves the prompt for the next cycle, and
+    a successful re-anchor makes the standing below the new line by itself),
+    then logs the prompt and the new baseline, then stamps the marker file as
+    the belt-and-braces dedupe keyed on the finished contest's id.
+    """
+    import json as _json          # the scanner's own json import is aliased
+    import contest_account as _ca
+    s = acct or _ca.load_state()
+    st = _ca.standing(s)
+    if not st["won"]:
+        return {"prompted": False, "won": False, "standing": st}
+    cid = str(s.get("contest_id") or "")
+    try:
+        with open(CONTEST_PAYCHECK_STATE, "r", encoding="utf-8") as _fh:
+            seen = _json.loads(_fh.read())
+    except Exception:
+        seen = {}
+    if cid and str(seen.get("contest_id") or "") == cid:
+        return {"prompted": False, "won": True, "duplicate": True,
+                "standing": st}
+    new = _ca.reanchor_after_win(s)
+    logger.info("💰 PAYCHECK: CONTEST WON — $%s reached the win line $%s "
+                "(+%.0f%% of the $%s contest start). TAKE A PAYCHECK and "
+                "start the next contest.",
+                f"{st['current_balance']:,.2f}", f"{st['win_line']:,.2f}",
+                st["target_pct"], f"{st['start_balance']:,.2f}")
+    nst = _ca.standing(new)
+    logger.info("  CONTEST RE-ANCHORED: new start $%s | new win $%s (+%.0f%%) "
+                "| new death $%s (-%.0f%%, anchored) — the profit is the buffer",
+                f"{nst['start_balance']:,.2f}", f"{nst['win_line']:,.2f}",
+                nst["target_pct"], f"{nst['death_line']:,.2f}",
+                _ca.MAX_LOSS_PCT)
+    # THE ALERT (not just a log line): the crossing is the one event the user
+    # must act on by hand — take the paycheck. Best-effort phone push through
+    # the scanner's own ntfy route; a dead topic must never eat the prompt or
+    # the re-anchor, so this cannot raise past here.
+    try:
+        # NOT _push_to_phone: its classifier forwards only BUY / GET OUT
+        # text (user rule, Aug 30) — the paycheck wording matched neither and
+        # was dropped before ntfy ever saw it. This is the same ntfy pipe,
+        # called directly, because a crossed win line is exactly the alert
+        # that must reach the phone.
+        _send_ntfy(
+            f"CONTEST WON — ${st['current_balance']:,.2f} crossed the "
+            f"+{st['target_pct']:.0f}% win line (${st['win_line']:,.2f}). "
+            f"TAKE A PAYCHECK now — the next contest starts at "
+            f"${nst['start_balance']:,.2f} (win ${nst['win_line']:,.2f}, "
+            f"death ${nst['death_line']:,.2f}).",
+            "high", "paycheck", tag="moneybag",
+            title="Kraken Scout - CONTEST WON - take a paycheck")
+    except Exception as _pc_push_exc:
+        logger.warning("paycheck phone alert failed (%s) — the log line and "
+                       "the re-anchor stand", _pc_push_exc)
+    # THE WATCHDOG (user rule, Nov 11): every win is graded out of the ledger
+    # — how long it took, how many trades, which shapes paid, which exits
+    # bled — so the next contest starts from the lesson instead of a blank
+    # page. Best-effort: a watchdog fault can never eat the prompt, the
+    # re-anchor or the dedupe marker below.
+    try:
+        import contest_watchdog as _cw
+        _cwrec = _cw.report_win(
+            contest_id=cid, start_balance=st["start_balance"],
+            final_balance=st["current_balance"],
+            won_at=new.get("updated_at"), closes_path=CONTEST_TRADES_FILE)
+        logger.info("📊 WATCHDOG REPORT: %s", _cw.report_text(_cwrec))
+        logger.info("📊 WATCHDOG PLAYBOOK: %s",
+                    _cw.playbook_text(_cwrec.get("playbook")))
+        for _lesson in (_cwrec.get("lessons") or [])[:3]:
+            logger.info("📊 WATCHDOG LESSON: %s", _lesson)
+        for _miss in (_cwrec.get("mistakes") or [])[:2]:
+            logger.info("📊 WATCHDOG MISTAKE: %s", _miss)
+    except Exception as _cw_exc:
+        logger.warning("watchdog contest report failed (%s) — the prompt, "
+                       "re-anchor and marker stand", _cw_exc)
+    try:
+        with open(CONTEST_PAYCHECK_STATE, "w", encoding="utf-8") as _fh:
+            _fh.write(_json.dumps(
+                {"contest_id": cid,
+                 "prompted_at": time.strftime("%Y-%m-%d %H:%M:%S")}))
+    except Exception as _pc_exc:
+        logger.warning("paycheck marker write failed (%s) — the re-anchor "
+                       "is the primary dedupe", _pc_exc)
+    return {"prompted": True, "won": True, "standing": nst}
+
+
+_DEATH_FLOOR_SEEN = {"halted": None}
+
+
+def death_floor_gate(acct: dict | None = None, watch: dict | None = None,
+                     marks: dict | None = None) -> dict:
+    """THE DEATH FLOOR (Nov 11) — deterministic, not probabilistic.
+
+    The survival guard pauses after a drawdown and resumes on a clock; the tape
+    still produced paths that ended $1.30 and $1.50 above the $9,700 line.
+    This gate is arithmetic only.  It is WATCH-ONLY for entries: at/below the
+    halt line (1.5% band above the death line, $9,850 on a 10k contest) every
+    tracked row is named as an exit/flatten call, but no BUY signal is vetoed
+    here.  With live watch rows it uses mark-to-market equity so an unrealized
+    loss cannot hide behind the last realized ledger balance.  A broken read
+    returns halted=True with an empty flatten list: the monitor says it cannot
+    see, and the ordinary guards still stand.
+    """
+    try:
+        import contest_account as _ca_df
+        _acct = acct or _ca_df.load_state()
+        if watch is not None or marks is not None:
+            import live_death_guard as _ldg
+            return _ldg.assess(_acct, watch or {}, marks or {})
+        import death_floor as _df
+        return _df.state(_acct)
+    except Exception as exc:
+        logger.error("death floor read failed (%s) — refusing (fail closed)", exc)
+        return {"halted": True, "why": f"death floor read failed: {exc}",
+                "flatten_calls": [], "close_only": True}
+
+
+
+def death_floor_refusal(asset: str, acct: dict | None = None,
+                        watch: dict | None = None, marks: dict | None = None):
+    """The death-floor line the live funnel speaks, or None when clear.
+
+    The name is kept for callers and tests, but the verdict is ADVISORY: it
+    never refuses an entry.  When the floor is hot it names the exit watch so
+    the operator hears the same GET OUT warning the exit monitor will fire.
+    The optional watch/marks pair is the live mark-to-market form; the plain
+    ledger form remains for callers that have no watch snapshot.
+    """
+    st = death_floor_gate(acct, watch, marks)
+    if st.get("halted"):
+        _exit = st.get("exit_reason") or st.get("why") or "the floor is hot"
+        return ("  DEATH FLOOR WATCH: %s — %s. Entries stay open; the exit "
+                "monitor owns the GET OUT call and will flatten on risk."
+                % (asset, _exit))
+    return None
+
+
+def death_floor_boot() -> dict:
+    """Boot: print the floor and the arithmetic that makes it a guarantee."""
+    try:
+        import death_floor as _df
+        import contest_account as _ca
+        st = death_floor_gate()
+        _acct = _ca.load_state()
+        pr = _df.floor_proof(float(_acct.get("start_balance") or 10000.0))
+        logger.info(
+            "🛑 DEATH FLOOR: halt at $%s (%.1f%% band above the $%s death "
+            "line, $%.2f of buffer) | one worst-sized loss from the floor "
+            "lands at $%s, $%.2f above death | sizing envelope %.1f%% of "
+            "buffer (tape worst) | %s",
+            f"{st['halt_line']:,.2f}", st["band_pct"], f"{st['death_line']:,.2f}",
+            pr["band_usd"], f"{pr['worst_after_one_loss_usd']:,.2f}",
+            pr["margin_usd"], 100.0 * pr["buffer_frac"],
+            "GET OUT WATCH" if st["halted"] else "clear")
+        if pr["margin_usd"] < 0.25 * pr["band_usd"]:
+            logger.warning("🛑 DEATH FLOOR: margin thin ($%.2f) — the sizing "
+                           "envelope is eating the band", pr["margin_usd"])
+        return st
+    except Exception as exc:
+        logger.warning("death floor unavailable at boot (%s) — the survival "
+                       "guard still stands", exc)
+        return {"halted": False, "error": str(exc)}
+
+
+def death_floor_cycle() -> dict:
+    """Once per cycle: speak the exit watch on the edge and name the exits.
+
+    Entries are never vetoed here.  The real-time mark-to-market warning runs
+    in contest_light (where every open row already has a live mark); this
+    ledger-only cycle is the standing state line and the flatten naming.
+    """
+    st = death_floor_gate()
+    halted = bool(st.get("halted"))
+    if _DEATH_FLOOR_SEEN["halted"] != halted:
+        _DEATH_FLOOR_SEEN["halted"] = halted
+        if halted:
+            logger.warning("🛑 DEATH FLOOR WATCH — %s. Entries are NOT "
+                           "vetoed; the exit monitor is arming GET OUT.",
+                           st.get("why"))
+            try:
+                import json as _dfj
+                _wp = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                                   "watch.json")
+                with open(_wp, "r", encoding="utf-8") as _fh:
+                    _watch = _dfj.load(_fh) or {}
+                import death_floor as _df
+                for _c in _df.flatten_calls(_watch):
+                    logger.warning("🛑 DEATH FLOOR: EXIT WATCH %s (entry $%.6g, "
+                                   "size $%.2f) — GET OUT when holding risk "
+                                   "reaches the line",
+                                   _c["pair"], _c["entry"], _c["size"])
+            except Exception as _dfw:
+                logger.debug("death floor flatten list unavailable: %s", _dfw)
+        else:
+            logger.info("🛑 DEATH FLOOR: clear — %s", st.get("why"))
+    return st
+
+
+def contest_watchdog_boot() -> dict:
+    """BOOT: the watchdog's standing lessons, so a restart cannot hide them.
+    Read-only: a missing playbook is simply the empty record."""
+    try:
+        import contest_watchdog as _cw
+        doc = _cw.playbook()
+    except Exception as _cw_exc:
+        logger.warning("📊 WATCHDOG unavailable at boot (%s) — each win still "
+                       "records its report", _cw_exc)
+        return {"ok": False}
+    logger.info("📊 WATCHDOG: %s", _cw.playbook_text(doc))
+    return {"ok": True, "playbook": doc}
 TRADES_ENV = "CONTEST_TRADES_FILE"
 POPUPS_JSONL = os.path.join(os.path.dirname(os.path.abspath(__file__)), "popups.jsonl")
 
@@ -946,6 +1189,215 @@ def popup_journal(kind: str, title: str, text: str):
             _pjf.write(_pj_json.dumps(row) + "\n")
     except Exception:
         logger.debug("popup journal write failed", exc_info=True)
+# ── THE POPUP-FAMINE GUARD (Nov 7, user: "flag when no popup has fired
+#    for N hours while the death line is the blocking gate") ────────────
+# Silence is ambiguous: a dead scanner and a market the gates buried both
+# look like an empty popup history. This guard separates them for the one
+# cause that has a name — when the silence runs past the bar AND the
+# funnel's own ledger says the death line buried the most candidates since
+# that last popup, it says so. Silence with NO recorded burial is never
+# blamed on the death line: that shape is "the scanner may be down", and
+# dressing it as a gated market is the lie this guard exists to avoid.
+POPUP_FAMINE_HOURS = 6.0        # silence that earns a check, not an alarm
+POPUP_FAMINE_EVERY_S = 900.0    # the check's own cadence (it rides the tick)
+POPUP_FAMINE_DEATH_GATES = ("death-line", "death-mandate")
+_popup_famine_seen = {"ts": 0.0, "flagged": None, "last": None, "over": None}
+
+
+def _iso_epoch(stamp):
+    """Epoch seconds for one of the ledgers' ISO stamps (None when junk).
+
+    The rows carry local-time ISO strings; a naive stamp is read in the
+    local zone, which is exactly what _now_mst() wrote.
+    """
+    try:
+        _dt = datetime.fromisoformat(str(stamp))
+    except (TypeError, ValueError):
+        return None
+    try:
+        if _dt.tzinfo is None:
+            _dt = _dt.astimezone()
+        return float(_dt.timestamp())
+    except (OSError, OverflowError, ValueError):
+        return None
+
+
+def _ledger_rows(path):
+    """Parseable rows of an append-only jsonl ledger; torn lines skipped."""
+    import json as _lf_json
+    rows = []
+    try:
+        with open(path, "r", encoding="utf-8") as _lf:
+            for _line in _lf:
+                _line = _line.strip()
+                if not _line:
+                    continue
+                try:
+                    _row = _lf_json.loads(_line)
+                except ValueError:
+                    continue            # a torn append costs one row, never the read
+                if isinstance(_row, dict):
+                    rows.append(_row)
+    except OSError:
+        return []
+    return rows
+
+
+def _popup_famine(now=None, hours=None, popups_path=None,
+                  supp_path=None, since=None) -> dict:
+    """Is the popup silence explained by the death line? (pure decision)
+
+    Flags only when BOTH hold:
+      1. the newest popup in the ledger is older than `hours`
+         (default POPUP_FAMINE_HOURS), and
+      2. among the burials recorded SINCE that popup, the gate that buried
+         the most candidates is a death-line gate (a tie goes to the most
+         recent burial — the gate blocking right now).
+
+    Returns {flagged, silent_h, gate, burials, by_gate, why}. Never raises
+    on junk input; an unreadable or empty popup ledger is not a famine
+    claim either (the guard cannot time a silence it never saw start).
+    """
+    _now = datetime.now().timestamp() if now is None else float(now)
+    _hours = float(POPUP_FAMINE_HOURS if hours is None else hours)
+    _popups = POPUPS_JSONL if popups_path is None else popups_path
+    _supp = SUPPRESSION_LOG_FILE if supp_path is None else supp_path
+    _out = {"flagged": False, "silent_h": None, "gate": None,
+            "burials": 0, "by_gate": {}, "why": ""}
+
+    _stamps = [s for s in (_iso_epoch(r.get("ts"))
+                           for r in _ledger_rows(_popups)) if s is not None]
+    if not _stamps:
+        _out["why"] = ("the popup ledger has no timestamped rows — nothing "
+                       "to time a silence against")
+        return _out
+    _last = max(_stamps)
+    # A NEW CONTEST RESETS THE CLOCK (Nov 7): the dead window's silence and
+    # its burials are not this window's evidence. When the contest began
+    # after the last popup, the famine window starts at the contest, never
+    # at the old book's final popup — otherwise the fresh window opens on a
+    # false "the death line is the blocking gate" coped from the grave.
+    _fresh = since is not None and float(since) > _last
+    _anchor = float(since) if _fresh else _last
+    _silent_h = max(0.0, (_now - _anchor) / 3600.0)
+    _out["silent_h"] = round(_silent_h, 2)
+    _out["anchored"] = "contest" if _fresh else "popup"
+    if _silent_h < _hours:
+        _out["why"] = (f"silent {_silent_h:.1f}h"
+                       + (" since the contest began" if _fresh else "")
+                       + f", under the {_hours:g}h bar")
+        return _out
+
+    # every burial SINCE the anchor is the set that explains the silence
+    _since = []
+    for _row in _ledger_rows(_supp):
+        _ts = _iso_epoch(_row.get("ts"))
+        if _ts is None or _ts < _anchor:
+            continue
+        _since.append((_ts, str(_row.get("gate") or "?")))
+    _out["burials"] = len(_since)
+    if not _since:
+        if _fresh:
+            _out["why"] = (f"silent {_silent_h:.1f}h since the contest began "
+                           f"with NO recorded burial — no blocker is named "
+                           f"this early")
+        else:
+            _out["why"] = (f"silent {_silent_h:.1f}h with NO recorded burial "
+                           f"since the last popup — the scanner may be down, "
+                           f"not gated")
+        return _out
+
+    _by = {}
+    for _ts, _gate in _since:
+        _by[_gate] = _by.get(_gate, 0) + 1
+    _out["by_gate"] = dict(sorted(_by.items(), key=lambda kv: -kv[1]))
+    _newest_gate = max(_since, key=lambda t: t[0])[1]
+    _top = max(_by.values())
+    _leaders = [g for g, n in _by.items() if n == _top]
+    _gate = _newest_gate if _newest_gate in _leaders else _leaders[0]
+    _out["gate"] = _gate
+    _share = f"{_by[_gate]}/{len(_since)} burials since it"
+    if _gate in POPUP_FAMINE_DEATH_GATES:
+        _out["flagged"] = True
+        _out["why"] = (f"NO POPUP IN {_silent_h:.1f}h — the DEATH LINE is the "
+                       f"blocking gate ({_share})")
+    else:
+        _out["why"] = (f"silent {_silent_h:.1f}h — the blocking gate is "
+                       f"'{_gate}' ({_share}), not the death line")
+    return _out
+
+
+def _deathline_state():
+    """(buffer_usd, line, balance, contest_started_epoch) or None.
+
+    Read-only and fail-soft: a broken read must never invent a breach (the
+    guard's other branch would then shout a false 'over'), so an exception
+    is simply 'no verdict'. The 4th element is the contest's own start, the
+    anchor a fresh window times its silence from.
+    """
+    try:
+        import contest_account as _dl_ca
+        _st = _dl_ca.load_state()
+        return (_dl_ca.buffer(_st), _dl_ca.death_line(_st),
+                float(_st.get("current_balance")),
+                _iso_epoch(_st.get("contest_id")))
+    except Exception:
+        return None
+
+
+def _popup_famine_guard(now=None, deathline=None):
+    """Run the famine check on its own 15-minute clock and FLAG a death-line
+    famine once per state change (a warning, not a per-tick chorus). Rides
+    the tick body; never raises — a broken read must not stop the scan.
+
+    A buffer at or below zero outranks the famine: once the account is under
+    the line NO entry can be sized (max_entry_usd returns 0), so the silence
+    is the dead account, not the funnel. Saying 'the death line is the
+    blocking gate' there would dress a lost contest up as a gated market —
+    the same lie the famine guard exists to prevent, one level up.
+    """
+    try:
+        _now = time.time() if now is None else float(now)
+        if _now - float(_popup_famine_seen.get("ts") or 0.0) < POPUP_FAMINE_EVERY_S:
+            return _popup_famine_seen.get("last")
+        _dl = _deathline_state() if deathline is None else deathline
+        if _dl and float(_dl[0]) <= 0:
+            _v = {"flagged": False, "silent_h": None, "gate": "death-line",
+                  "burials": 0, "by_gate": {}, "contest_over": True,
+                  "why": (f"CONTEST OVER — balance ${float(_dl[2]):,.2f} is "
+                          f"${abs(float(_dl[0])):,.2f} BELOW the "
+                          f"${float(_dl[1]):,.2f} death line; no entry can be "
+                          f"sized, so the silence is the dead account, not "
+                          f"the funnel. A new contest is the only way back.")}
+            if _popup_famine_seen.get("over") is not True:
+                logger.warning("☠ %s", _v["why"])
+            _popup_famine_seen["over"] = True
+            _popup_famine_seen["flagged"] = False
+            _popup_famine_seen["ts"] = _now
+            _popup_famine_seen["last"] = _v
+            return _v
+        if _dl and _popup_famine_seen.get("over") is True:
+            logger.info("DEATH LINE CLEARED: buffer back to $%.2f above the "
+                        "$%.2f line — sizing is live again (new contest)",
+                        float(_dl[0]), float(_dl[1]))
+        _popup_famine_seen["over"] = False
+        _since = _dl[3] if (_dl and len(_dl) > 3) else None
+        _v = _popup_famine(now=_now, since=_since)
+        _v["contest_over"] = False
+        _was = _popup_famine_seen.get("flagged")
+        if _v["flagged"] and not _was:
+            logger.warning("🚩 POPUP FAMINE: %s", _v["why"])
+        elif _was and not _v["flagged"]:
+            logger.info("POPUP FAMINE CLEARED: %s", _v["why"])
+        _popup_famine_seen["flagged"] = bool(_v["flagged"])
+        _popup_famine_seen["ts"] = _now
+        _popup_famine_seen["last"] = _v
+        return _v
+    except Exception as _pf_exc:
+        logger.debug("popup-famine guard skipped: %s", _pf_exc)
+        return None
+
+
 CONSOLE_STATE_JSON = os.path.join(os.path.dirname(os.path.abspath(__file__)), "console_state.json")
 CONTEST_TRAIL_PCT = 3.0   # BASE trail off the peak — ratchets tighter as the
 # THE HALF-GOAL ARM (user rule, Sep 22: "trigger the profit guard half the
@@ -1025,8 +1477,9 @@ def _armed_cap_base(goal_pct: float) -> float:
 
 
 CONTEST_SELL_BAR = 50
-TAKE_IT_USD = 20  # the user's scalp target: out at +$20, take it every chance
-SCALP_TARGET_PCT = 0.4  # +$20 on $5,000 — the take the user actually plays for
+SCALP_TARGET_PCT = 0.4  # legacy pace heuristic for discovery ETA only; it is
+                        # NOT a take and never caps an exit (GO BIG has no
+                        # fixed dollar take — momentum owns the exit).
 VOICE_PREFIX = "Mic check one, two. Testing, testing. "
 # GIVEBACK/LOSS WARNINGS — tier-aware since Sep 1 ("everything should auto
 # adjust when the contest is selected"): the threshold is 1.5% of the ENTRY
@@ -1039,7 +1492,6 @@ GIVEBACK_WARN_PCT_OF_SIZE = 1.5  # giveback threshold: 1.5% of the entry size
 LOSS_WARN_PCT_OF_SIZE = 1.5      # loss-warning threshold: same scaling
 BIG_PAYOUT_USD = 100     # TAKE IT at/above this = the move is mature; QC blocks
 REENTRY_BLOCK_MIN = 60   # re-entries on that pair for this long
-_take_level = {}       # last announced $20 multiple per pair
 _giveback_level = {}   # last announced giveback step per pair
 _loss_level = {}       # last announced loss step per pair
 _last_allgood_ts = 0.0 # all-good voice cadence gate (TAKE IT fires anytime)
@@ -1068,6 +1520,12 @@ TIDE_RISING_MIN = 75.0
 # standing background hum the position was born into never kills it.
 FRESH_GRACE_EXIT_MIN = 15.0   # a fresh position needs NEW exit pressure
 EXIT_GRACE_RISE = 0.05        # ...exit_mod this much above the entry stamp
+# THE LOST-ROW CLOCK (Nov 6, the nine-day ride): how long a row may go
+# unseen before the watch recovers it instead of riding it. `checked_ts`
+# is stamped on a SUCCESSFUL price read only, so the gap since it is
+# exactly the time this row spent off the watcher's books. 60 min = four
+# checks a minute missing for an hour; override with SCOUT_LOST_ROW_MIN.
+LOST_ROW_MIN = float(os.environ.get("SCOUT_LOST_ROW_MIN") or 60.0)
 TIDE_OUT_MAX = 35.0
 _tide_cache = {"ts": 0.0, "pct": None, "state": None}
 _tide_last_state = None
@@ -2099,7 +2557,9 @@ def _window_goal_pct(pair: str) -> float:
     """The trade's % goal: the Volatility Engine's expected move (standard
     threshold) for this coin at this rotation/day — the 'market analysis'
     that sets 1-3% goals. Clamped to the band; moderate default when the
-    profile is young."""
+    profile is young. The overwatch's micro goal bias applies to NEW goals
+    only, so an already-stamped watch row keeps the target it was fired on."""
+    base = GOAL_DEFAULT_PCT
     try:
         from volatility_engine import get_move_threshold
         now = _now_mst()
@@ -2108,11 +2568,48 @@ def _window_goal_pct(pair: str) -> float:
         sched = _schedule_for_dow(now.weekday())
         thr = get_move_threshold(pair, rot, sched, level="standard")
         if thr and float(thr) > 0.2:
-            return max(GOAL_MIN_PCT, min(GOAL_MAX_PCT, float(thr)))
+            base = float(thr)
     except Exception as exc:
         logger.warning("move_threshold read failed for %s (%s) — the "
                        "goal ships at the moderate default", pair, exc)
-    return GOAL_DEFAULT_PCT
+    try:
+        import overwatch_governor as _og
+        base = float(base) + _og.goal_bias_pct()
+    except Exception:
+        pass
+    return max(GOAL_MIN_PCT, min(GOAL_MAX_PCT, float(base)))
+
+
+def _operative_goal_pct(goal, pair: str) -> float:
+    """The goal a rule works to: the stamp when it is a real goal, else the
+    window goal this pair is carrying right now.
+
+    Never a null and never a zero. Both exit readers already use exactly
+    `float(stamp or 0) or _window_goal_pct(pair)`, so this is the value they
+    act on — not a second derivation that could drift from theirs. The entry
+    stamp and the close record both go through here.
+    """
+    try:
+        _g = float(goal or 0.0)
+    except (TypeError, ValueError):
+        _g = 0.0
+    if _g > 0:
+        return _g
+    try:
+        return float(_window_goal_pct(pair) or 0.0)
+    except Exception:
+        return 0.0
+
+
+def _close_goal_pct(w: dict, pair: str) -> float:
+    """The goal a close records: the entry's own stamp, or — when the watch
+    row was never stamped — the goal the exit logic actually manages to.
+
+    A watch entry without a goal stamp used to ship a null goal_pct into the
+    ledger, and the studies classify that row as goal_unknown: invisible to
+    the clip and to every composition read.
+    """
+    return _operative_goal_pct(w.get("goal_pct"), pair)
 
 
 # ── THE MARKET CAP ON THE GOAL (user rule, Sep 4: "target each market
@@ -2127,80 +2624,6 @@ def _window_goal_pct(pair: str) -> float:
 # a generous week keeps the engine number untouched. Broken week read:
 # the engine number stands alone (fail-open to yesterday's logic).
 # Cached 15 min per pair — daily candles don't move faster than that.
-# THE SURE THING JOINS IT (user rule, Sep 8: "the breakout should aim at
-# what the market can actually give, not a flat default"): the fire path
-# calls the SAME machinery — and the per-fire goal_pct stamp keeps
-# diag_surething.py accountable for whatever it picks.
-# ── THE GOAL TILT (user rule, Sep 8: "let the goal bands calibrate
-# back"): the weekly diag measures whether the big asks REACH (the
-# aim-gap section); when its verdict says the market goal over-aims for
-# breakouts, the seam tilts the pick DOWN by the evidence's own ratio
-# (median gave / median asked), clamped [0.80, 1.0] -- gentle, only
-# down, never up (a verdict that the goal tracks writes evidence too
-# and the seam stands neutral). The evidence expires after 8 days (the
-# weekly cadence + slack): a stale squeeze must not outlive its
-# measurement -- the machinery's own pick resumes. Fail-open everywhere:
-# no file, expired evidence, small sample, or any broken read = 1.0.
-ST_GOAL_TILT_MIN = 0.80
-ST_GOAL_TILT_TTL_S = 8 * 86400.0
-ST_GOAL_TILT_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                                 "surething_goal_tilt.json")
-
-
-def _sure_thing_goal_tilt(path=None) -> float:
-    """The diag's aim-gap evidence -> the goal tilt (the SEAM owns the
-    policy: the clamp, the freshness, the sample guard -- the file is
-    the measurement). 1.0 = the machinery's own pick stands."""
-    try:
-        import json as _json
-        _p = path or ST_GOAL_TILT_FILE
-        with open(_p, "r", encoding="utf-8") as _f:
-            _d = _json.load(_f)
-        _ts = datetime.fromisoformat(str(_d.get("ts")))
-        _age_s = (datetime.now(_ts.tzinfo) - _ts).total_seconds()
-        if _age_s > ST_GOAL_TILT_TTL_S:
-            return 1.0
-        if "OVER-AIM" in str(_d.get("verdict") or ""):
-            _gave = float(_d.get("median_gave") or 0.0)
-            _asked = float(_d.get("median_asked") or 0.0)
-            if float(_d.get("big_n") or 0) >= 5 and _asked > 0 and _gave > 0:
-                return max(ST_GOAL_TILT_MIN, min(1.0, _gave / _asked))
-    except Exception as exc:
-        logger.warning("goal-tilt verdict unreadable (%s) — the Sure "
-                       "Thing aim ships untilted", exc)
-    return 1.0
-
-
-def _sure_thing_goal(exchange, pair: str) -> float:
-    """The Sure Thing fire's % goal: the champion funnel's live market
-    goal call (engine rotation cell, capped by the coin's own week,
-    x the live tide, clamped [1, 3]), then tilted by the goal bands'
-    calibration when the diag's evidence says the big asks over-aim.
-    Fail-open to the engine constant -- a broken goal read must never
-    stall the fire path (the fire gates are the safety net; the goal
-    is an aim)."""
-    try:
-        _g = float(_market_goal_pct(exchange, pair))
-        if _g > 0:
-            _tilt = _sure_thing_goal_tilt()
-            if _tilt < 1.0:
-                logger.info("  SURE THING %s: GOAL TILT %.2f (the aim-gap "
-                            "verdict: the big asks came down)", pair, _tilt)
-            return max(GOAL_MIN_PCT, min(GOAL_MAX_PCT, _g * _tilt))
-    except Exception as exc:
-        logger.warning("Sure Thing goal read failed for %s (%s) — "
-                       "shipping the constant", pair, exc)
-    # THE ENGINE CONSTANT (the rot census, Oct 3): the old line read
-    # the constant THROUGH the unbound alias `st` — no such module-level
-    # binding existed anywhere in this file, so the documented fail-open
-    # path (a broken read, or a 0.0 market goal) died into the caller's
-    # broad except instead of shipping the constant it named. The
-    # constant lives in sure_thing (83d5b69); the function-local import
-    # is the fleet convention.
-    from sure_thing import SURE_THING_GOAL_PCT
-    return SURE_THING_GOAL_PCT
-
-
 MARKET_GOAL_TTL_S = 900.0
 _market_goal_cache: dict = {}   # pair -> (ts, goal_pct)
 
@@ -2258,6 +2681,51 @@ def _rotation_window_min(now=None) -> float:
     now = now or _now_mst()
     _mins_left = (4 - (now.hour % 4)) * 60 - now.minute
     return min(180.0, max(60.0, float(_mins_left)))
+
+
+def _goal_plan_min(goal_pct, pace_pct_per_hour=None) -> float:
+    """The fire's OWN plan: the goal's horizon at the engine's 1%/hour
+    assumption (goal x 60 minutes), clamped to the [60, 180] window the
+    goal bands can even ask for. NOT the rotation clock.
+
+    (Nov 7) The old derivation was min(180, max(60, minutes to the next
+    rotation boundary)) — a pure function of the WALL CLOCK. The same 1.2%
+    fire planned 180 minutes at 08:55 and 60 at 11:50, so the death
+    mandate's 90-minute hold cap admitted champions only in the last 90
+    minutes of every 4-hour block and refused every fire the rest of the
+    time: eleven of eleven mandate refusals this morning read "a
+    180-minute window rides into the hold band that bled". A verdict that
+    turns on when the scanner happened to look is a degenerate interval
+    reading as a measurement.
+
+    The Sep 4 rule ("the goal should reach before the rotation happens")
+    is answered by the goal's own horizon; a plan that crosses the
+    boundary stays the documented exception the boundary warning covers.
+    An unreadable goal plans the LONGEST window: a degenerate goal never
+    reads as short enough to clear a hold cap.
+    """
+    try:
+        _g = float(goal_pct)
+    except (TypeError, ValueError):
+        return 180.0
+    if not (_g > 0.0) or _g > 1e6:
+        return 180.0          # unknown / NaN / infinite — the longest plan
+    # THE COIN'S OWN TAPE (Nov 7): the engine's 1%/hour is an ASSUMPTION. When
+    # the coin's own hourly closes prove it moves faster, the goal's horizon is
+    # the coin's pace, not the constant — a 2.6% goal on a 2.1%/h mover plans 74
+    # minutes, not 156, and fits under the mandate's hold cap because the tape,
+    # not the calendar, says it gets there. The pace may only ever SHORTEN a
+    # plan: a quiet six hours does not prove a breakout cannot happen, and
+    # lengthening one against a cap priced at 1%/h would be moving the
+    # threshold this plan is judged against.
+    _pace = 1.0
+    try:
+        _p = float(pace_pct_per_hour)
+        if _p > _pace:
+            _pace = _p
+    except (TypeError, ValueError):
+        _pace = 1.0
+    return max(60.0, min(180.0, (_g / _pace) * 60.0))
 
 
 def _stale_move(exchange, pair: str):
@@ -2915,6 +3383,13 @@ def _climb_out_check(exchange, pair: str, entry: float, goal_pct: float,
     never yields; climb-out protects quality, not existence)."""
     try:
         from climb_out import climb_out_gate
+        # THE GOAL IS THE OPERATIVE ONE (Nov 7): every caller on the fire
+        # path — the champion signal, the mover — hands
+        # this wrapper whatever it happens to carry, and a missing/zero stamp
+        # used to become a hard 1.5 inside the gate. Route it the way the
+        # entry stamp and the close record already route theirs, so the gate
+        # prices clearance/floor/runway against the goal the plan will manage.
+        goal_pct = _operative_goal_pct(goal_pct, pair)
         _tide = "FLAT"
         try:
             _tp, _ts = _fleet_tide()
@@ -2998,7 +3473,7 @@ def _recent_fired_popups(window_min=POPUP_CAP_WINDOW_MIN) -> int:
 #    than when you're flat... We already have some of this so just
 #    modify it and build only what we need") — the THIN-BOOK OPTIMIZED
 #    popup panel. ONE builder, appended to every BUY popup (champion +
-#    mover + sure-thing): balance overview (total/available/committed),
+#    mover): balance overview (total/available/committed),
 #    position status (the "am I already wet?" read), auto-adjusted
 #    purchase power (full 25% flat vs reduced in-trade vs effective),
 #    danger-zone metrics (drawdown, distance, this trade's impact),
@@ -3036,6 +3511,1106 @@ def _recent_fired_popups_dollars(window_min=POPUP_CAP_WINDOW_MIN) -> float:
         return _tot
     except Exception:
         return 0.0
+
+# ── THE RISK ENVELOPE (Nov 6, the getout-cascade review's four majors):
+#    the ledger says the BOOK lost the money, not the gates — 19 longs at
+#    ~173% of balance flushed in one candle, the $5 stop on an $1,800 row
+#    is 0.28% (noise, so every row stopped in the same tick), and every
+#    "MIN SIZE" fire booked its MAX because the weaken was a floor, not a
+#    clamp. Four dials fix the envelope; all read LIVE at call time and
+#    SCOUT_STRICT_FIRES=0 restores the old funnel verbatim.
+STRICT_FIRES_DEFAULT = True          # env SCOUT_STRICT_FIRES
+MAX_AGGREGATE_EXPOSURE_FRAC = 0.60   # of balance, across every open row
+MAX_FIRES_PER_DAY = 8                # daily count (advisory; kept for mandate/probe)
+HARD_STOP_MAX_PCT = 2.5              # of position size — its ceiling
+HARD_STOP_ABS_FLOOR_USD = 0.50
+
+
+def _strict_fires() -> bool:
+    """The risk-envelope dial (default ON): marginal setups are refused
+    instead of fired at minimum size, and the aggregate book + the daily
+    fire count are capped. Fail-open to the default on a broken env."""
+    try:
+        return os.environ.get("SCOUT_STRICT_FIRES", "").strip().lower() not in (
+            "0", "false", "off", "no")
+    except Exception:
+        return STRICT_FIRES_DEFAULT
+
+
+# ── THE DEATH-LINE LESSON (Nov 6, user rule: "if the death line is reached
+#    then the brain needs to learn from that so it goes the complete other
+#    direction"): a breach is the one fully-observed feedback event this book
+#    produces, so it is allowed to change the policy without a backtest. The
+#    autopsy (death_lessons.py) reads the ledger, convicts the size and hold
+#    bands that bled, and arms a mandate the fire gate obeys: the condemned
+#    shapes are refused outright and the book learns on ONE small, short-window
+#    PROBE a day until its own audit confirms or revokes the flip.
+_DM_CACHE = {"t": 0.0, "doc": None}
+_DM_ARMED_FOR = None
+
+
+def _death_mandate() -> dict | None:
+    """The armed lesson, cached ~30s (the gate runs per candidate). None when
+    the book has never breached. An UNREADABLE mandate returns the sentinel
+    doc and the gate stands closed — a corrupt lesson must never silently
+    restore the behaviour that died."""
+    global _DM_CACHE
+    try:
+        import time as _time
+        _now = _time.time()
+        if _now - float(_DM_CACHE.get("t") or 0.0) < 30.0:
+            return _DM_CACHE.get("doc")
+        import death_lessons as _dl
+        _doc, _err = _dl.load_mandate()
+        if _err:
+            logger.warning("death mandate unreadable (%s) — the fire gate "
+                           "stands CLOSED until it is fixed", _err)
+        _DM_CACHE = {"t": _now, "doc": _doc}
+        return _doc
+    except Exception as exc:
+        logger.debug("death mandate loader unavailable: %s", exc)
+        return None
+
+
+def _audit_death_mandate() -> dict | None:
+    """Re-audit the armed lesson against the ledger (boot-time, once per
+    process). The flip must pay for its own life: at AUDIT_MIN_CLOSES closes
+    it CONFIRMS or REVOKES itself, and the verdict is persisted."""
+    global _DM_CACHE
+    try:
+        import death_lessons as _dl
+        _doc = _death_mandate()
+        if not isinstance(_doc, dict) or _doc.get("status") != "armed":
+            return _doc
+        _closes = _dl.load_closes(CONTEST_TRADES_FILE)
+        _new = _dl.audit(_doc, closes=_closes)
+        # THE WIDENING: re-read which stamped families have earnt the lift.
+        _new = _dl.apply_evidence(_new, _closes)
+        if _new != _doc:
+            _dl.save_mandate(_new)
+            _DM_CACHE = {"t": 0.0, "doc": _new}
+            logger.warning("  DEATH MANDATE AUDIT: %s", _dl.describe(_new))
+        return _new
+    except Exception as exc:
+        logger.debug("death mandate audit skipped: %s", exc)
+        return None
+
+
+def _arm_death_mandate(state: dict | None) -> dict | None:
+    """Run the autopsy at the breach (once per contest per process) and arm
+    the flip. Never raises: a failed lesson must not break the refusal that
+    carries it — the death line still stands."""
+    global _DM_ARMED_FOR, _DM_CACHE
+    try:
+        import contest_account as _ca
+        import death_lessons as _dl
+        _cid = str(_ca.current_contest_id(state) or "")
+        if _DM_ARMED_FOR == _cid:
+            return _DM_CACHE.get("doc")
+        _doc, _new = _dl.record_breach(
+            state=state, line=_ca.death_line(state), contest_id=_cid,
+            closes_path=CONTEST_TRADES_FILE)
+        _DM_ARMED_FOR = _cid
+        _DM_CACHE = {"t": 0.0, "doc": _doc}      # force the next read fresh
+        if _new:
+            _f = _doc.get("flip") or {}
+            logger.warning("  DEATH MANDATE ARMED: %s", _dl.describe(_doc))
+            logger.warning("  THE FLIP: spend under $%s, windows under %s min, "
+                           "%s probe(s)/day — the condemned shape is refused "
+                           "outright (the lesson is audited after %s closes)",
+                           _f.get("size_cap_usd"), _f.get("hold_cap_min"),
+                           _f.get("probes_per_day"), _dl.AUDIT_MIN_CLOSES)
+        return _doc
+    except Exception as exc:
+        logger.warning("death mandate could not be armed (%s) — the death "
+                       "line still refuses every fire", exc)
+        return None
+
+
+DOLLAR_GOAL_EXIT_KEY = "DOLLAR_GOAL_EXIT"
+
+
+def _dollar_goal_armed() -> bool:
+    """THE DOLLAR-GOAL DIAL, read LIVE (no import freeze — the profit_guard
+    lesson). Absence = ARMED: the user's Nov 10 rule is that the dollar goal
+    triggers the exit check, replacing the % goal that only announced. "0"
+    (or false/off/no) reverts every open row to the incumbent % behaviour on
+    the next cycle, no restart."""
+    try:
+        return str(os.environ.get(DOLLAR_GOAL_EXIT_KEY, "1")).strip().lower() \
+            not in ("0", "false", "off", "no", "")
+    except Exception:
+        return True
+
+
+KNIFE_BLOCK_KEY = "KNIFE_BLOCK"
+# THE DIAL THE RUNNING PROCESS CAN HEAR. os.environ is fixed at spawn, so an
+# env var alone cannot be flipped in a live scanner without a restart -- and a
+# dial that needs a restart is not a dial. This file is re-read on EVERY knife
+# evaluation (cheap: one small stat/read per candidate, and only on the
+# candidates that reach the deep pre-check).
+KNIFE_BLOCK_DIAL_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                                     "KNIFE_BLOCK.dial")
+_KNIFE_BLOCK_SEEN = {"raw": "\x00unset"}
+
+
+def _knife_block_raw():
+    """(value, source) -- the DIAL FILE wins, then env, then None (armed).
+
+    FILE FIRST (Nov 10): the file is the dial the running process re-reads
+    every cycle, so it is the one in force. An env var is frozen at launch;
+    letting it outrank the file meant a stale `KNIFE_BLOCK=0` in a launcher
+    could keep the gate disarmed no matter what the dial said -- a dial you
+    cannot flip back is not a dial."""
+    try:
+        with open(KNIFE_BLOCK_DIAL_FILE, "r", encoding="utf-8") as fh:
+            return fh.read().strip(), "file"
+    except OSError as exc:
+        # NO DIAL FILE IS THE NORMAL ARMED DEFAULT (see the docstring), so the
+        # miss is logged once per distinct error instead of once per cycle --
+        # a trace exists, and the scanner log stays readable.
+        if _KNIFE_BLOCK_SEEN.get("file_err") != str(exc):
+            _KNIFE_BLOCK_SEEN["file_err"] = str(exc)
+            logger.debug("  KNIFE_BLOCK dial unreadable (%s) -- falling back "
+                         "to env/default", exc)
+    try:
+        v = os.environ.get(KNIFE_BLOCK_KEY)
+    except (OSError, ValueError) as exc:
+        # an unreadable environment cannot arm or disarm the gate; the
+        # default (armed) stands and the reason is named, not swallowed
+        v = None
+        logger.debug("  KNIFE_BLOCK env unreadable (%s) -- default stands", exc)
+    if v is not None and str(v).strip() != "":
+        return str(v).strip(), "env"
+    return None, "default"
+
+
+def _knife_blocks_entry() -> bool:
+    """THE DOWNTREND KNIFE, ARMED AS A REFUSAL (user decision, Nov 10).
+
+    The Oct 9 unified rule made a broken-trend fire ADVERSITY: it landed at
+    0.10x and was never refused. Measured on the three contest windows (net
+    of fees, 1 slot at 10%, `_chain_lab`), that policy ends w1 +7.61 /
+    w2 +2.43 / **w3 -0.70**; refusing the fire outright ends w1 +5.34 /
+    w2 +5.76 / **w3 +2.76** -- the window that kills the account turns green,
+    at the cost of ~2.3 points of window-1 upside. The user chose the
+    refusal, so this defaults ARMED: no env var and no dial file = block.
+
+    FLIP WITHOUT A RESTART: write "0" (or false/off/no) to KNIFE_BLOCK.dial —
+    or set env KNIFE_BLOCK=0 before launch — and the next knife evaluation
+    falls back to the Oct 9 min-size behaviour. Write "1" and it re-arms. The
+    read is logged when the value CHANGES, so a flip is visible in the scanner
+    log on the next cycle even if no candidate reaches the knife that cycle."""
+    raw, source = _knife_block_raw()
+    armed = str(raw if raw is not None else "1").strip().lower() \
+        not in ("0", "false", "off", "no", "")
+    if _KNIFE_BLOCK_SEEN.get("raw") != raw:
+        _KNIFE_BLOCK_SEEN["raw"] = raw
+        try:
+            logger.info("  KNIFE_BLOCK dial: %s (source: %s) — %s",
+                        "unset" if raw is None else raw, source,
+                        "ARMED — a broken-trend fire is REFUSED" if armed
+                        else "OFF — a broken-trend fire lands at MINIMUM SIZE (Oct 9 rule)")
+        except (TypeError, ValueError) as exc:
+            # a broken log call must never disturb the dial's answer; the
+            # failure itself is reported, not swallowed
+            logger.debug("  KNIFE_BLOCK dial change not logged: %s", exc)
+    return armed
+
+
+def entry_knife_verdict(*, asset, pair, cfg, df=None, floor=None, signal=None,
+                        deep=None, df_state=None, df_pct=None, rot=None,
+                        fetch_1h=None):
+    """THE ENTRY TREND GATE — the one place a fire is judged against its 1h
+    trend, and the only place the refusal line and its ledger row are written.
+
+    Returns (verdict, note): 'pass' | 'weaken' | 'block'.
+
+    WHY THIS IS A FUNCTION (Nov 10): the gate used to live inline, inside
+    `if _deep is not None:` AND inside a try whose handler said "desktop
+    pre-check unavailable ... alerting anyway". That is two fail-open holes in
+    a survival gate — a deep read returning None skipped the trend test
+    entirely, and any raise in the block let the fire land untested. It now
+    runs on its own, fetches its own 1h frame when the deep read never
+    produced one, and FAILS CLOSED: an unreadable trend is a refused fire.
+
+    Side effects (on purpose, so a proof can read them): one logger line, and
+    one row in the popup-suppression ledger."""
+    def _emit(verdict, note):
+        try:
+            _quick = float(getattr(signal, "confidence", 0) or 0) or None
+        except Exception:
+            _quick = None
+        try:
+            _brain = float(getattr(deep, "confidence", 0) or 0) or None
+        except Exception:
+            _brain = None
+        _tide = (f"{df_state} {df_pct:.0f}%" if (df_state and df_pct is not None)
+                 else df_state)
+        try:
+            if verdict == "block":
+                logger.info("  KNIFE (block): %s %s — the popup "
+                            "STANDS DOWN (no fire into a broken trend)", asset, note)
+            else:
+                logger.info("  KNIFE (weaken): %s %s — the fire LANDS at minimum size",
+                            asset, note)
+        except (TypeError, ValueError) as exc:
+            # 3795: the popup line is cosmetic; a garbled note must not stop
+            # the gate from returning its verdict, but the reason is named
+            logger.debug("  KNIFE note line skipped: %s", exc)
+        try:
+            _log_suppression(pair, "knife",
+                             f"{note} — " + ("refused outright (the downtrend knife "
+                                             "is a gate, not a size cut; KNIFE_BLOCK=0 reverts)"
+                                             if verdict == "block" else
+                                             "minimum size (KNIFE_BLOCK off: the Oct 9 rule)"),
+                             quick=_quick, brain=_brain,
+                             floor=(float(floor) if floor is not None else None),
+                             tide=_tide, rot=rot)
+        except (OSError, TypeError, ValueError) as exc:
+            # 3806: the suppression ledger is a report, not the gate -- a write
+            # failure is named here instead of vanishing
+            logger.debug("  KNIFE suppression log skipped: %s", exc)
+        return verdict, note
+
+    def _closes_from(frame):
+        try:
+            if frame is None:
+                return None
+            return frame["close"] if "close" in frame else None
+        except Exception:
+            return None
+
+    try:
+        _short = int(getattr(cfg, "ema_short", 9) or 9)
+        _long = int(getattr(cfg, "ema_long", 21) or 21)
+    except Exception:
+        _short, _long = 9, 21
+
+    closes = _closes_from(df)
+    if closes is None or len(closes) < _long + 2:
+        # the deep read never produced a frame (or produced a stub): read the
+        # trend independently rather than skipping the test
+        if fetch_1h is not None:
+            try:
+                import pandas as _pd
+                _ohl = fetch_1h()
+                if _ohl and len(_ohl) >= _long + 2:
+                    closes = _pd.DataFrame(
+                        _ohl, columns=["timestamp", "open", "high", "low",
+                                       "close", "volume"])["close"]
+            except Exception:
+                closes = None
+    if closes is None:
+        return _emit("block", "trend unreadable (no 1h frame for the gate) — "
+                              "fail-closed, the fire is refused")
+    try:
+        from indicators import ema as _ema
+        _es = float(_ema(closes, _short).iloc[-1])
+        _el = float(_ema(closes, _long).iloc[-1])
+        _px = float(closes.iloc[-1])
+    except Exception as _exc:
+        return _emit("block", f"trend unreadable ({_exc}) — fail-closed, "
+                              "the fire is refused")
+    if not (_es < _el and _px < _el):
+        return "pass", ""
+    note = (f"downward trend (EMA{_short} {_es:.6f} < EMA{_long} {_el:.6f}, "
+            f"price {_px:.6f} under both)")
+    return _emit("block" if _knife_blocks_entry() else "weaken", note)
+
+
+def _hard_stop_usd(entry: float, size: float, buffer_usd: float) -> float:
+    """THE SMOOTH STOP (the cascade's $5 pathology): the stop is a
+    PERCENTAGE of the position (up to HARD_STOP_MAX_PCT), never a flat $5
+    that is 0.28% of an $1,800 row — and it still TIGHTENS inside half
+    the remaining death-line buffer, so the gradient runs smoothly from
+    2.5% of size on a healthy book to $0.50 at the line instead of
+    jumping to a $5 cliff. A zero buffer means the account is at its
+    floor: the stop is the absolute floor and the row exits on the next
+    tick, which is the correct answer there."""
+    try:
+        size = float(size or 0.0)
+        _half = max(float(buffer_usd or 0.0), 0.0) * 0.5
+        if size <= 0:
+            return max(HARD_STOP_ABS_FLOOR_USD, _half)
+        _pct_stop = size * HARD_STOP_MAX_PCT / 100.0
+        return max(HARD_STOP_ABS_FLOOR_USD, min(_pct_stop, _half))
+    except Exception:
+        return 5.0
+
+
+def configured_base_spend(balance: float, cfg=None) -> float:
+    """THE CONFIGURED ENTRY CEILING (Nov 11): `contest_size_frac` of the live
+    balance -- the base the scanner sizes from before the book carry, the 3%
+    guard cap and the weakened-size rules cut it (see
+    contest_account.sized_entry_usd for the whole rule in one place).
+
+    Before this the base was 100% of the balance, so no configured number could
+    bind and live's per-trade risk was whatever the guard cap happened to allow.
+    A missing/absurd value falls back to 1.0 (the old behaviour) rather than
+    silently sizing every entry at zero.
+    """
+    c = cfg if cfg is not None else DEFAULT_CONFIG
+    try:
+        frac = float(getattr(c, "contest_size_frac", 1.0) or 1.0)
+    except Exception:
+        frac = 1.0
+    frac = min(max(frac, 0.0), 1.0)
+    try:
+        bal = float(balance or 0.0)
+    except Exception:
+        bal = 0.0
+    if bal <= 0.0:
+        try:
+            bal = float(getattr(c, "challenge_balance", 0.0) or 0.0)
+        except Exception:
+            bal = 0.0
+    return bal * frac
+
+
+def _weakened_spend(spend: float, base_spend: float) -> float:
+    """THE MIN-SIZE CLAMP (the label/ledger mismatch): a weakened fire
+    books the MINIMUM viable size — min(spend, 10% of the sized base) —
+    never the base it was supposed to shrink from. The old max() was a
+    floor: it could RAISE a fire to 10% but never lower one, so every
+    "MIN SIZE" popup booked its MAX and no calibration layer could learn
+    from the sizing it thought it had made."""
+    try:
+        _spend = float(spend or 0.0)
+        _base = float(base_spend or 0.0)
+        if _base <= 0:
+            return _spend
+        _min = _base * 0.10
+        return (min(_spend, _min) if _spend > 0 else _min)
+    except Exception:
+        return spend
+
+
+def _weakened_fire_size(pair: str, base_spend: float,
+                        goal_pct: float) -> dict | None:
+    """THE WEAKENED SIZING, WIRED (Nov 7): the live account, the console's
+    worth-floor dial, the book already carried and this coin's beta are
+    handed to `contest_account.weakened_size_usd`, which returns the
+    smallest size that pays the pace bar inside what the death line can
+    still lose — or an explicit NO.
+
+    The allowance handed over is what is LEFT of the day's: the open book's
+    own stressed worst case is priced out of it exactly as the gap-stress
+    gate prices it. Returns None when the account or the watch cannot be
+    read — the caller then keeps the 10% floor. Fail-soft in the SAFE
+    direction: an unreadable account can never inflate a fire."""
+    try:
+        import contest_account as _ca_w
+        _st_w = _ca_w.load_state()
+        _bal_w = float(_st_w["current_balance"])
+        _bar_w = _ca_w.daily_pace_usd(_st_w) * _worth_floor_frac()
+        _allow_w = _ca_w.stress_allowance_usd(_bal_w)
+        _buf_w = _ca_w.stress_allowance_usd(_bal_w, frac=1.0)
+        _rows_w = _load_contest_watch() or {}
+        _legs_w = []
+        for _p_w, _r_w in _rows_w.items():
+            if not isinstance(_r_w, dict):
+                continue                      # a tombstone is not exposure
+            _sz_w = float(_r_w.get("size") or 0.0)
+            if _sz_w <= 0:
+                continue
+            _stp_w = _hard_stop_usd(float(_r_w.get("entry") or 0.0),
+                                    _sz_w, _buf_w)
+            _legs_w.append((_sz_w, _stp_w / _sz_w * 100.0,
+                            _ca_w.stress_beta(_p_w)))
+        _used_w = _ca_w.stress_loss_usd(_legs_w)
+        _room_w = max(0.0, MAX_AGGREGATE_EXPOSURE_FRAC * _bal_w
+                      - _open_exposure_usd(_rows_w))
+        return _ca_w.weakened_size_usd(
+            base_spend, goal_pct=goal_pct, pace_bar_usd=_bar_w,
+            allowance_usd=max(0.0, _allow_w - _used_w),
+            beta=_ca_w.stress_beta(pair), book_room_usd=_room_w)
+    except Exception as exc:
+        logger.debug("weakened sizing unavailable: %s", exc)
+        return None
+
+
+def _economics_plan_for(pair: str, goal_pct: float, stop_pct: float):
+    """The shared money verdict for every fire path (champion + Sure Thing).
+
+    Returns the strategy_economics.assess() plan, or None when the account or
+    ledger cannot be read (callers fail closed: no new risk). It never writes
+    state and never places an order.
+    """
+    try:
+        import contest_account as _ca_e
+        import strategy_economics as _econ_e
+        _acct = _ca_e.load_state()
+        _bal = float(_acct.get("current_balance") or 0.0)
+        _win = float(_ca_e.win_line(_acct))
+        _remaining = max(0.0, _win - _bal)
+        # THE CONTEST HAS NO TIME LIMIT (user rule, Nov 12): +12% is a
+        # progressive target, not a seven-day sprint. The economics gate
+        # must not refuse a positive edge because a fake deadline makes the
+        # pace look impossible; days_left=0 disables only the pace-size
+        # check, never the edge or reward/risk check.
+        _days = 0.0
+        try:
+            _cap = float(_ca_e.max_entry_usd(
+                _bal, _ca_e.window_drawdown_pct(pair),
+                float(_acct.get("start_balance") or _bal)))
+        except Exception:
+            _cap = None
+        _rows = _ca_e._rolling_trade_rows()
+        return _econ_e.assess(
+            _rows, remaining_usd=_remaining, days_left=_days,
+            cadence=_econ_e.recent_cadence(_rows), goal_pct=goal_pct,
+            stop_pct=stop_pct, max_size_usd=_cap,
+            max_cadence=float(MAX_FIRES_PER_DAY))
+    except Exception as exc:
+        logger.warning("economics plan unavailable (%s)", exc)
+        return None
+
+
+def _paying_tranche(pair: str, base_spend: float, goal_pct: float,
+                    ceiling_usd=None) -> dict | None:
+    """THE TRANCHE-TO-PAY, WIRED (Nov 7): the live account, the console's
+    worth-floor dial, the book already carried, this coin's beta and the
+    -3% guard's own ceiling are handed to
+    `contest_account.paying_tranche_usd`, which returns the smallest
+    tranche that pays the pace bar inside every cap the death line already
+    set — or an explicit NO with the arithmetic.
+
+    The allowance handed over is what is LEFT of the day's, net of the open
+    book's stressed worst case, exactly as the gap-stress gate prices it.
+    Returns None when the account or the watch cannot be read: the caller
+    then leaves the base exactly as the funnel sized it. Fail-soft in the
+    SAFE direction — an unreadable account can never inflate a tranche."""
+    try:
+        import contest_account as _ca_p
+        _st_p = _ca_p.load_state()
+        _bal_p = float(_st_p["current_balance"])
+        _bar_p = _ca_p.daily_pace_usd(_st_p) * _worth_floor_frac()
+        _allow_p = _ca_p.stress_allowance_usd(_bal_p)
+        _buf_p = _ca_p.stress_allowance_usd(_bal_p, frac=1.0)
+        _rows_p = _load_contest_watch() or {}
+        _legs_p = []
+        for _p_p, _r_p in _rows_p.items():
+            if not isinstance(_r_p, dict):
+                continue                      # a tombstone is not exposure
+            _sz_p = float(_r_p.get("size") or 0.0)
+            if _sz_p <= 0:
+                continue
+            _stp_p = _hard_stop_usd(float(_r_p.get("entry") or 0.0),
+                                    _sz_p, _buf_p)
+            _legs_p.append((_sz_p, _stp_p / _sz_p * 100.0,
+                            _ca_p.stress_beta(_p_p)))
+        _used_p = _ca_p.stress_loss_usd(_legs_p)
+        _room_p = max(0.0, MAX_AGGREGATE_EXPOSURE_FRAC * _bal_p
+                      - _open_exposure_usd(_rows_p))
+        return _ca_p.paying_tranche_usd(
+            base_spend, goal_pct=goal_pct, pace_bar_usd=_bar_p,
+            ceiling_usd=ceiling_usd,
+            allowance_usd=max(0.0, _allow_p - _used_p),
+            beta=_ca_p.stress_beta(pair), book_room_usd=_room_p)
+    except Exception as exc:
+        logger.debug("tranche-to-pay unavailable: %s", exc)
+        return None
+
+
+def _hold_window_cap() -> float | None:
+    """The armed death mandate's hold cap in minutes, or None when there is
+    no lesson to satisfy.
+
+    (Nov 7) The cap is a CONSTRAINT, not a threshold. The funnel reads it
+    here to resolve a candidate BEFORE a fire is sized; the gate reads the
+    same number afterwards to judge one. A mandate that cannot be read
+    returns None — the gate keeps its own fail-closed verdict on that file,
+    and the funnel must never invent a window neither of them can verify.
+    """
+    try:
+        _doc = _death_mandate()
+        if not isinstance(_doc, dict) or str(_doc.get("status") or "") != "armed":
+            return None
+        _flip = _doc.get("flip") if isinstance(_doc.get("flip"), dict) else {}
+        _cap = float(_flip.get("hold_cap_min"))
+        if not (_cap > 0.0):
+            return None
+        return _cap
+    except Exception:
+        return None
+
+
+PACE_TTL_S = 900.0          # a coin's pace is re-read every 15 minutes
+_pace_cache: dict = {}
+
+
+def _pace_basis_label(pace) -> str:
+    """How the plan's horizon was chosen, in words.
+
+    One place, so a log line can never disagree with the number it explains —
+    or crash the scan on a stray percent sign (the honest label "the goal at
+    1%/h" inside a %-format string aborted a whole ticker scan on Nov 7).
+    """
+    try:
+        _p = float(pace)
+    except (TypeError, ValueError):
+        return "the goal at 1%/h, unmeasured"
+    if _p != _p:                                   # NaN is not a pace
+        return "the goal at 1%/h, unmeasured"
+    if _p >= 1.25:
+        return "the coin's own %.2f%%/h" % _p
+    return "the goal at 1%%/h (the tape read %.2f%%/h)" % _p
+
+
+def _pace_pct_per_hour(exchange, pair: str):
+    """The coin's OWN measured hourly pace, or None when it cannot be read.
+
+    Median of the last hours' hourly returns (contest_account does the
+    arithmetic). Cached per pair for PACE_TTL_S so a scan cycle asks the
+    exchange once, not once per gate. None is the honest answer for a thin
+    tape or a failed fetch: the caller then plans on the engine's 1%/hour
+    assumption, exactly as every fire did before this rule existed.
+    """
+    try:
+        _now = time.time()
+        _hit = _pace_cache.get(pair)
+        if _hit and (_now - float(_hit[0])) < PACE_TTL_S:
+            return _hit[1]
+        if exchange is None:
+            return None
+        _ohl = exchange.fetch_ohlcv(pair, timeframe="1h", limit=8)
+        _closes = [float(_k[4]) for _k in (_ohl or [])
+                   if _k is not None and len(_k) > 4]
+        import contest_account as _ca_pc
+        _pace = _ca_pc.measured_pace_pct_per_hour(_closes)
+        _pace_cache[pair] = (_now, _pace)
+        return _pace
+    except Exception as exc:
+        logger.debug("pace read failed for %s (%s) — the 1%%/h assumption stands",
+                     pair, exc)
+        return None
+
+
+def _goal_clock_decide(*, asset: str, pair: str, exchange, goal_pct: float,
+                       hold_cap_min=None) -> dict:
+    """THE CHAMPION CLOCK'S DECISION - one function, so the live scan and a
+    test drive the SAME arithmetic (the block used to be a closure no test
+    could reach).
+
+    The rule the arc is built on: the plan is the coin's own measured hour
+    (goal / pace x 60), the 90-minute cap is never relaxed, and a goal that
+    does not fit inside the cap is capped to what the window can reach. When
+    even the engine's +GOAL_MIN_PCT floor does not fit, the candidate is
+    skipped at scan time with the arithmetic on the line - no fire is built
+    that the mandate is arithmetically certain to refuse.
+
+    A quiet or unreadable tape can only ever KEEP the 1%/hour assumption; it
+    can never lengthen a plan against a cap priced at 1%/h.
+    """
+    _pace = _pace_pct_per_hour(exchange, pair)
+    if _pace is not None and _pace >= 1.25:
+        logger.info("  PACE: %s moved %.2f%%/h across its last hours - "
+                    "the plan is the coin's own tape, not the 1%%/h assumption",
+                    asset, _pace)
+    _goal = float(goal_pct or 0.0)
+    # the plan the 1%/h assumption demanded for the ORIGINAL goal - kept
+    # before the cap so the refusal it caused stays auditable ("not 156")
+    _plan_1pct = _goal * 60.0
+    _basis_rate = 1.0 if _pace is None else max(1.0, float(_pace))
+    _capped_from = None
+    _reach = None
+    if hold_cap_min is not None:
+        try:
+            import contest_account as _ca_d
+            _reach = _ca_d.hold_reachable_goal_pct(
+                hold_cap_min, pace_pct_per_hour=_pace)
+            if not (_reach >= GOAL_MIN_PCT):
+                logger.info("  HOLD WINDOW: %s skipped at scan time - the armed "
+                            "lesson holds under %.0f min, which reaches only "
+                            "+%.2f%% at %.2f%%/h, below the engine's +%.1f%% "
+                            "floor (no fire is built)",
+                            asset, hold_cap_min, _reach, _basis_rate,
+                            GOAL_MIN_PCT)
+                return {"skipped": True, "reason": "hold-window",
+                        "goal_pct": _goal, "reach_pct": _reach,
+                        "pace_pct_per_hour": _pace, "hold_cap_min": hold_cap_min,
+                        "basis_rate": _basis_rate,
+                        "plan_min_at_1pct": _plan_1pct}
+            if _goal > _reach:
+                logger.info("  GOAL CAPPED TO THE HOLD WINDOW: %s - +%.1f%% -> "
+                            "+%.2f%% (plan %.0f min, not %.0f) - the armed lesson "
+                            "holds under %.0f min at %.2f%%/h",
+                            asset, _goal, _reach, _reach * 60.0, _goal * 60.0,
+                            hold_cap_min, _basis_rate)
+                _capped_from = _goal
+                _goal = _reach
+        except Exception as _d_exc:
+            logger.debug("hold-window goal cap skipped: %s", _d_exc)
+    _win = _goal_plan_min(_goal, pace_pct_per_hour=_pace)
+    return {"skipped": False, "goal_pct": _goal, "window_min": _win,
+            "pace_pct_per_hour": _pace, "basis": _pace_basis_label(_pace),
+            "capped_from": _capped_from, "hold_cap_min": hold_cap_min,
+            "reach_pct": _reach, "basis_rate": _basis_rate,
+            "plan_min_at_1pct": _plan_1pct}
+
+
+PLAN_DRIFT_TTL_S = 900.0        # an overdue fire is re-reported every 15 minutes
+_plan_drift_state: dict = {}
+
+
+def plan_drift(row, now=None):
+    """How far an open fire has drifted against its OWN planned window.
+
+    Pure, read-only: the row's planned minutes against the minutes it has
+    actually spent. Returns None when there is nothing honest to say — no
+    window (a legacy row), no timestamp, a garbled row, or a
+    negative elapsed time (clock skew) — never a zero or a guess.
+
+    Bands: "on plan" (<75% of the window), "drifting" (75-100%) and
+    "overdue" (past it). The report is context for the eye: the exit is
+    still the trend watch's call, never the clock's.
+    """
+    if not isinstance(row, dict):
+        return None
+    try:
+        _planned = float(row.get("window_min") or 0.0)
+    except (TypeError, ValueError):
+        return None
+    if not (_planned > 0.0):
+        return None
+    _opened = row.get("opened_ts") or row.get("added")
+    if not _opened:
+        return None
+    try:
+        _t0 = datetime.fromisoformat(str(_opened))
+        _now = now if now is not None else _now_mst()
+        _elapsed = (_now - _t0).total_seconds() / 60.0
+    except Exception:
+        return None
+    if _elapsed < 0.0 or _elapsed != _elapsed:     # NaN is not elapsed time
+        return None
+    _frac = _elapsed / _planned
+    if _frac < 0.75:
+        _band = "on plan"
+    elif _frac <= 1.0:
+        _band = "drifting"
+    else:
+        _band = "overdue"
+    return {"planned_min": _planned, "elapsed_min": _elapsed,
+            "frac": _frac, "band": _band,
+            "left_min": _planned - _elapsed,
+            "opened": str(_opened)}
+
+
+def _report_plan_drift(pair: str, row, pct=None, now=None):
+    """Say it out loud, once per band per fire. REPORT ONLY.
+
+    A fire crossing into "drifting" or "overdue" is a fire whose plan is
+    being outlived, and that must be visible BEFORE the exit watch has to
+    act on a reversal. Nothing here moves a stop, a goal or a row: the
+    report is a voice, the exit is hers (the clock is context, never an
+    order — the same rule that keeps a winning fire alive).
+    """
+    _d = plan_drift(row, now=now)
+    if not _d:
+        return None
+    try:
+        _st = _plan_drift_state.get(pair) or {}
+        _fresh_fire = str(_st.get("opened") or "") != _d["opened"]
+        _band_changed = _fresh_fire or _st.get("band") != _d["band"]
+        _now_s = time.time()
+        _due = (_now_s - float(_st.get("at") or 0.0)) >= PLAN_DRIFT_TTL_S
+        _speak = _band_changed or (_d["band"] != "on plan" and _due)
+        # The latch's clock runs from the last time it SPOKE. Re-stamping it
+        # on a silent call pushes the deadline out on every loop tick and
+        # makes the re-report unreachable (the Nov 7 soak: a 900 s TTL with
+        # 25 s calls — an overdue fire that held spoke once, then went dark).
+        _plan_drift_state[pair] = {
+            "opened": _d["opened"], "band": _d["band"],
+            "at": _now_s if _speak else float(_st.get("at") or _now_s)}
+        if not _speak:
+            return _d
+        _goal = None
+        try:
+            _goal = float(row.get("goal_pct") or 0.0) or None
+        except (TypeError, ValueError):
+            _goal = None
+        _where = ("%+.2f%% of +%.2f%%" % (pct, _goal)
+                  if (pct is not None and _goal is not None) else "move unread")
+        if _d["band"] == "overdue":
+            _tail = ("OVERDUE by %.0f min — the plan is spent; the exit is still "
+                     "the trend watch's call, never the clock's"
+                     % (_d["elapsed_min"] - _d["planned_min"]))
+        elif _d["band"] == "drifting":
+            _tail = ("%.0f min left — the trend watch calls the exit, this line "
+                     "is only the plan" % max(_d["left_min"], 0.0))
+        else:
+            _tail = "%.0f min left" % max(_d["left_min"], 0.0)
+        logger.info("  PLAN vs CLOCK: %s — %.0f/%.0f min (%.0f%%), %s (%s) — %s",
+                    pair.split("/")[0], _d["elapsed_min"], _d["planned_min"],
+                    _d["frac"] * 100.0, _d["band"].upper(), _where, _tail)
+    except Exception as _pd_exc:
+        logger.debug("plan-drift report skipped for %s: %s", pair, _pd_exc)
+    return _d
+
+
+PLAN_SPENT_EXIT_MOD = 0.25      # a trend read this damaged, on a SPENT plan, ends the thesis
+
+
+def plan_spent_exit(row, exit_mod=None, now=None):
+    """THE PLAN-SPENT TREND GATE: the clock reports, the TREND closes.
+
+    A fire whose planned window is spent and whose trend the exit watch has
+    since written off has no thesis left — holding it is just paying the
+    cost of the round trip twice. But this needs BOTH halves, always:
+
+      * the plan must be OVERDUE (plan_drift), so a healthy fire inside its
+        window is untouched at 95% of it;
+      * the exit watch's OWN read (ExitMod on the row) must be at least
+        PLAN_SPENT_EXIT_MOD and at least the read the fire was BORN with —
+        new deterioration, not the background hum a fire inherits. A fire
+        improving on a bad entry read is never killed by its clock.
+
+    Returns the arithmetic, or None when either half is missing or
+    unreadable. Missing/unreadable trend reads do NOT close: the clock alone
+    may never end a fire (user rule, Sep 21 — "the window NEVER exits by
+    itself"), so the failure mode is always to hold.
+    """
+    _d = plan_drift(row, now=now)
+    if not _d or _d["band"] != "overdue":
+        return None
+    if exit_mod is None:
+        _gate = row.get("exit_watch") if isinstance(row, dict) else None
+        exit_mod = _gate.get("exit_mod") if isinstance(_gate, dict) else None
+    try:
+        _em = float(exit_mod)
+    except (TypeError, ValueError):
+        return None
+    if _em != _em or _em < 0.0:          # NaN / negative read is not a read
+        return None
+    try:
+        _born = float((row or {}).get("entry_exit_mod"))
+    except (TypeError, ValueError):
+        _born = 0.0
+    _thr = max(PLAN_SPENT_EXIT_MOD, _born)
+    if _em < _thr:
+        return None
+    return {"plan": _d, "exit_mod": _em, "threshold": _thr}
+
+
+SETUP_TAGS_VERSION = 1
+
+
+def _setup_tags(*, route: str = "", tide_state=None, tide_pct=None,
+                conviction=None, brain=None, mult=None, climb=None,
+                clearance=None, er=None, weak="", size=None, base=None,
+                fast=False, reentry=False, hail=False, probe=False) -> dict:
+    """THE FIRE-TIME SETUP STAMP (Nov 6 — the expectancy study's ask).
+
+    The Nov 6 study had to reconstruct every trade's family by joining
+    closes to popup TEXT (pair + entry time) and parsing lines like
+    "TIDE: OUT 41%". 2,597 of 2,666 closes matched, and the 69 that did
+    not were silently unmeasurable. The stamp ends that: the fire writes
+    its own family onto the watch row, the close copies it into the
+    ledger, and expectancy is a group-by — no join, no text parsing, no
+    unmatched rows.
+
+    Pure and total: every field normalizes to a JSON-safe scalar. A None
+    is a real answer ("this route never read it"), never a raise — a
+    stamp failure must not cost the fire its live tracking."""
+    def _f(v):
+        try:
+            return float(v)
+        except (TypeError, ValueError):
+            return None
+
+    def _i(v):
+        try:
+            return int(round(float(v)))
+        except (TypeError, ValueError):
+            return None
+
+    _verdict, _why = None, ""
+    if isinstance(climb, dict):
+        _verdict = "PASS" if climb.get("ok") else "FAIL"
+        _why = str(climb.get("fail_reason") or climb.get("reason") or "")[:80]
+    elif isinstance(climb, str):
+        _verdict = climb.strip().upper()[:8] or None
+
+    return {
+        "v": SETUP_TAGS_VERSION,
+        "route": (str(route)[:24] or None) if route else None,
+        "tide": (str(tide_state).strip().upper()[:8]
+                 if tide_state else None),
+        "tide_pct": _i(tide_pct),
+        "conviction": _i(conviction),
+        "brain": _i(brain),
+        "mult": _f(mult),
+        "climb": _verdict,
+        "climb_why": _why or None,
+        "clearance": _f(clearance),
+        "er": _f(er),
+        # the weak-fire mark IS the min-size mark (the popup's own flag)
+        "weak": (str(weak)[:80] or None) if weak else None,
+        "min_size": bool(weak),
+        "size": _f(size),
+        "base": _f(base),
+        "fast": bool(fast),
+        "reentry": bool(reentry),
+        "hail": bool(hail),
+        # a probe is real money but not a full-risk trade; stamp it so the
+        # next edge read can separate probe outcomes from full-size ones.
+        "probe": bool(probe),
+    }
+
+
+def _setup_family(tags) -> str:
+    """The group-by key the expectancy report uses: route, tide and the
+    climb verdict — plus a MIN marker, because min-size fires were 94.5%
+    of the book and the entire loss. Untagged rows stay visible as their
+    own bucket instead of vanishing into a left join.
+
+    ONE IMPLEMENTATION (Nov 6): the key lives in death_lessons.family_key so
+    the fire gate's widening and the ledger's stamps can never disagree. The
+    inline copy stays as the import-failure fallback, not as a second brain."""
+    try:
+        import death_lessons as _dl
+        return _dl.family_key(tags)
+    except (ImportError, AttributeError, TypeError) as exc:
+        # 4369: the inline copy below is the documented fallback for a missing
+        # or broken death_lessons -- the fallback is the point, the reason is
+        # still traced
+        logger.debug("  family_key helper unavailable (%s) -- inline fallback", exc)
+    if not isinstance(tags, dict) or not tags:
+        return "untagged"
+    fam = "/".join([str(tags.get("route") or "?"),
+                    str(tags.get("tide") or "?"),
+                    "climb:" + str(tags.get("climb") or "?")])
+    if tags.get("min_size"):
+        fam += "/MIN"
+    return fam
+
+
+def _open_exposure_usd(watch: dict) -> float:
+    """The whole book's committed dollars — the aggregate the cascade
+    review found uncapped (19 rows, ~173% of balance). Rows carry the
+    USD cost basis in `size`; tombstones are skipped; any unreadable row
+    contributes nothing (fail-open — the per-row gates still stand)."""
+    _tot = 0.0
+    try:
+        for _w in (watch or {}).values():
+            if not isinstance(_w, dict):
+                continue
+            try:
+                _tot += max(float(_w.get("size") or 0.0), 0.0)
+            except Exception:
+                continue
+    except Exception:
+        return 0.0
+    return _tot
+
+
+def _mandate_probe_ok(spend: float, balance: float, win_min=None,
+                      fires_today: int = 0, family=None) -> tuple[bool, str]:
+    """Is this fire the armed lesson's ONE probe? (False, why) otherwise.
+
+    Never raises: no mandate, an unreadable one, or a verdict that cannot be
+    computed all answer False, so the caller keeps its own refusal.
+    """
+    try:
+        import death_lessons as _dlp
+        _doc = _death_mandate()
+        if not isinstance(_doc, dict):
+            return False, "no armed lesson"
+        _okp, _whyp = _dlp.fire_verdict(_doc, spend=spend, balance=balance,
+                                        win_min=win_min,
+                                        fires_today=fires_today, family=family)
+        return (bool(_okp) and "PROBE" in str(_whyp).upper()), str(_whyp)
+    except Exception as _pe:
+        return False, f"the mandate's verdict could not be computed ({_pe})"
+
+
+def _mandate_bridge_on() -> bool:
+    """THE PROMOTION BRIDGE DIAL: may a fire whose MEASURED worst case fits
+    what the death line has left to lose be admitted at its real size, or
+    does the armed lesson's size band ($200) keep capping every fire? On by
+    default (the band refuses every fire that could pay the contest);
+    SCOUT_MANDATE_BRIDGE=0 restores the hard band without touching code.
+    Read live on every verdict, never frozen at import."""
+    try:
+        _v = str(os.environ.get("SCOUT_MANDATE_BRIDGE", "1")).strip().lower()
+        return _v not in ("0", "false", "off", "no", "")
+    except Exception:
+        return True
+
+
+def _strict_fire_refusal(pair: str, asset: str, spend: float,
+                         balance: float, weak_reason: str = "",
+                         win_min: float | None = None,
+                         family: str | None = None,
+                         weak_paid: bool = False,
+                         go_big: bool = False) -> bool:
+    """THE RISK-ENVELOPE GATE (Nov 6; brakes re-audited Nov 12).
+    The remaining hard refusals are the aggregate book cap, the gap-stress
+    cap and the death-line mandate.  The daily fire count and the weak-fire
+    verdict are advisory now: they are logged, but they no longer suppress
+    the fire.  This keeps the measurable risk limits without letting the
+    old strict-fire envelope veto entries on churn or a min-size mark.
+
+    `weak_paid` is retained for callers and reporting; it no longer changes
+    whether the fire is admitted.  Returns True only when one of the
+    remaining hard risk limits refuses.  Never raises: a broken read falls
+    through to the ordinary funnel."""
+    try:
+        if not _strict_fires():
+            return False
+        _spend = float(spend or 0.0)
+        _bal = float(balance or 0.0)
+        if _bal <= 0:
+            _bal = float(DEFAULT_CONFIG.challenge_balance)
+        try:
+            _fires_today = int(_recent_fired_popups(window_min=1440.0))
+        except Exception:
+            _fires_today = 0
+        if go_big:
+            # GO BIG carries its own hard $30 net stop; the old per-trade
+            # envelope is superseded for this qualified entry. The only
+            # refusals left are arithmetic: never spend more than the account,
+            # and never add a second correlated all-in row to an open book.
+            if _spend > _bal + 1e-9:
+                logger.info("  GO BIG REFUSED: $%.0f does not fit $%.0f",
+                            _spend, _bal)
+                return True
+            try:
+                _gb_book = _open_exposure_usd(_load_contest_watch())
+            except Exception:
+                _gb_book = 0.0
+            if _gb_book > 0.0:
+                _log_suppression(pair, "go-big-book",
+                                 f"${_gb_book:,.0f} is already open — GO BIG "
+                                 "waits for the flat book")
+                logger.info("  GO BIG: %s waits — $%.0f already open",
+                            asset, _gb_book)
+                return True
+            logger.info("  GO BIG: %s admitted — $%.0f all-in, hard $30 net "\
+                        "stop, momentum exit; the old envelope does not apply",
+                        asset, _spend)
+            return False
+        if _fires_today >= MAX_FIRES_PER_DAY:
+            # The daily count is now advisory only.  The count remains for
+            # the death-mandate probe, but it no longer suppresses a fire.
+            logger.info("  FIRE CAP ADVISORY: %s — %d fires today (cap %d) "
+                        "— cap does not refuse",
+                        asset, _fires_today, MAX_FIRES_PER_DAY)
+        if weak_reason and weak_paid:
+            # THE PAID WEAKENED FIRE (Nov 7): the resize above found the
+            # size that pays — so the min-size mark is a story about the
+            # setup, not a verdict on its worth. Say both out loud and
+            # fall through to the book, stress and mandate gates.
+            logger.info("  STRICT FIRES: %s — weak (%s) but SIZED TO PAY "
+                        "$%.0f: the pace bar is paid and the line can lose "
+                        "it — LANDS", asset, weak_reason, _spend)
+        if weak_reason and not weak_paid:
+            # The weak verdict is now advisory.  The fire keeps the size the
+            # sizing path already booked and still faces the book, gap-stress
+            # and death-mandate gates below.
+            logger.info("  STRICT FIRES ADVISORY: %s — weak (%s) — the fire "
+                        "lands at the booked size", asset, weak_reason)
+        try:
+            _book_usd = _open_exposure_usd(_load_contest_watch())
+        except Exception:
+            _book_usd = 0.0
+        _cap_usd = MAX_AGGREGATE_EXPOSURE_FRAC * _bal
+        if _book_usd + _spend > _cap_usd:
+            _log_suppression(pair, "aggregate-exposure",
+                             f"${_book_usd:,.0f} already open + ${_spend:,.0f} "
+                             f"would pass the ${_cap_usd:,.0f} book cap "
+                             f"({MAX_AGGREGATE_EXPOSURE_FRAC:.0%} of "
+                             f"${_bal:,.0f}) — correlated rows are one trade")
+            logger.info("  EXPOSURE CAP: %s refused — book $%.0f + $%.0f > $%.0f",
+                        asset, _book_usd, _spend, _cap_usd)
+            return True
+        # ── THE GAP-STRESS CAP (Nov 7, the Nov 5 flush): the notional cap
+        #    above counts DOLLARS of book; a flush does not care about
+        #    notional — it asks what each row LOSES when the whole market
+        #    moves against it at once. So the book is priced row by row: its
+        #    size, its coin's profiled beta (POL rides a flush ~3x as hard
+        #    as BTC), and its REAL stop — credited at the 5x slip the Nov 5
+        #    cascade measured, which today's 2.5%-of-size stop never beats.
+        #    The sum may not exceed half the remaining buffer; the last
+        #    contest died to thirteen such rows summing to the whole line.
+        try:
+            import contest_account as _ca_g
+            _gs_buf = _ca_g.stress_allowance_usd(_bal, frac=1.0)
+            _gs_allow = _ca_g.stress_allowance_usd(_bal)
+            _gs_legs = []
+            for _gs_p, _gs_r in (_load_contest_watch() or {}).items():
+                if not isinstance(_gs_r, dict):
+                    continue          # a tombstone is not exposure
+                _gs_sz = float(_gs_r.get("size") or 0.0)
+                if _gs_sz <= 0:
+                    continue
+                _gs_st = _hard_stop_usd(float(_gs_r.get("entry") or 0.0),
+                                        _gs_sz, _gs_buf)
+                _gs_legs.append((_gs_sz, _gs_st / _gs_sz * 100.0,
+                                 _ca_g.stress_beta(_gs_p)))
+            _gs_book_loss = _ca_g.stress_loss_usd(_gs_legs)
+            _gs_cand_st = (_hard_stop_usd(0.0, _spend, _gs_buf) / _spend * 100.0
+                           if _spend > 0 else None)
+            _gs_cand_beta = _ca_g.stress_beta(pair)
+            _gs_legs.append((_spend, _gs_cand_st, _gs_cand_beta))
+            _gs_loss = _ca_g.stress_loss_usd(_gs_legs)
+        except Exception as _gs_exc:
+            _gs_loss, _gs_allow = None, 0.0
+            logger.debug("gap-stress cap unavailable: %s", _gs_exc)
+        if _gs_loss is not None and _gs_loss > _gs_allow:
+            _log_suppression(pair, "gap-stress",
+                             f"the book's worst case ${_gs_loss:,.0f} (this "
+                             f"row's beta {_gs_cand_beta:.2f} against a "
+                             f"{_ca_g.GAP_STRESS_PCT:g}% flush) passes the "
+                             f"${_gs_allow:,.0f} stress allowance — half the "
+                             f"buffer left above the death line")
+            logger.info("  GAP STRESS: %s refused — book $%.0f + this row "
+                        "$%.0f (beta %.2f) = $%.0f > the $%.0f allowance "
+                        "(a %.1f%% flush across $%.0f of book)",
+                        asset, _gs_book_loss, _gs_loss - _gs_book_loss,
+                        _gs_cand_beta, _gs_loss, _gs_allow,
+                        _ca_g.GAP_STRESS_PCT, _book_usd + _spend)
+            return True
+        # ── THE DEATH-LINE MANDATE (Nov 6): after a breach the autopsy's
+        #    flip is the admission rule — the condemned shape is refused and
+        #    the day's single probe is the only fire that may land.
+        #    The bridge (Nov 7): the gap-stress gate above has ALREADY priced
+        #    this book, so the fire's own stressed worst case and what is left
+        #    of the allowance are known here — the mandate judges the
+        #    measurement instead of the size band, and the death line keeps
+        #    the final word because the allowance SHRINKS with the buffer.
+        _dm = _death_mandate()
+        if _dm is not None:
+            _dm_stress = _dm_allow = None
+            if _mandate_bridge_on():
+                try:
+                    if _gs_loss is not None:
+                        _dm_stress = _gs_loss - _gs_book_loss
+                        _dm_allow = _gs_allow - _gs_book_loss
+                except Exception:
+                    _dm_stress = _dm_allow = None
+            try:
+                import death_lessons as _dl
+                _dm_ok, _dm_why = _dl.fire_verdict(
+                    _dm, spend=_spend, balance=_bal, win_min=win_min,
+                    fires_today=_fires_today, family=family,
+                    stress_usd=_dm_stress, allowance_usd=_dm_allow)
+            except Exception as _dm_exc:
+                _dm_ok, _dm_why = False, (f"the mandate's verdict could not "
+                                          f"be computed ({_dm_exc}) — the "
+                                          f"lesson fails CLOSED")
+            if not _dm_ok:
+                _log_suppression(pair, "death-mandate", _dm_why)
+                logger.info("  DEATH MANDATE: %s refused — %s", asset, _dm_why)
+                return True
+            logger.info("  DEATH MANDATE: %s — %s", asset, _dm_why)
+        return False
+    except Exception as exc:
+        logger.debug("strict-fire gate skipped for %s: %s", asset, exc)
+        return False
+
 
 def _recent_signal_events(window_min: float = 10.0) -> int:
     """Signals (fired + buried) inside the window — the cluster read."""
@@ -3309,6 +4884,40 @@ def _push_topic() -> str | None:
     except Exception:
         return None
 
+_push_no_topic_warned = {"done": False}
+
+
+def _warn_push_no_topic(where: str = "push") -> None:
+    """A missing topic is a BROKEN CHANNEL, not a quiet policy — say so once
+    per process at WARNING (greppable: PHONE PUSH DISABLED) instead of
+    discovering it at the first paycheck crossing."""
+    if _push_no_topic_warned["done"]:
+        logger.debug("phone push still disabled (%s) — already warned", where)
+        return
+    _push_no_topic_warned["done"] = True
+    logger.warning("📵 PHONE PUSH DISABLED — push_topic.txt is missing or empty "
+                   "next to the scanner (%s). Every BUY / GET OUT / paycheck "
+                   "alert will log here and NEVER reach the phone. Fix: write "
+                   "the ntfy topic into push_topic.txt.", where)
+
+
+def _push_channel_boot() -> dict:
+    """BOOT-TIME TRUTH about the phone pipe (Nov 11): the scanner can prove it
+    SENT (HTTP accept) and nothing more — ntfy has no delivery receipt. So the
+    one thing worth printing at every boot is whether the channel is even
+    configured, plus the last canary the server accepted."""
+    topic = _push_topic()
+    st = _canary_load()
+    if not topic:
+        _warn_push_no_topic("startup")
+        return {"ok": False, "topic": None, "last_canary": None}
+    last = (f"{st.get('last_sent_day', '?')} {st.get('sent_at', '?')}"
+            if st.get("sent_at") else "never")
+    logger.info("📲 PUSH CHANNEL: ntfy topic configured (%d chars) | last "
+                "server-accepted canary %s | ntfy has NO delivery receipt — "
+                "only the phone proves it landed", len(topic), last)
+    return {"ok": True, "topic": topic, "last_canary": last}
+
 
 # phone-push throttle state: identical texts (GET OUT repeats every 60s
 # until SOLD) push at most every 5 minutes so one stuck exit can't burn
@@ -3326,7 +4935,8 @@ _push_retry_q = []  # [{"text":…, "prio":…, "due": epoch, "why":…}]
 
 
 def _send_ntfy(text: str, prio: str, attempt: str, tag: str | None = None,
-               attach_path: str | None = None) -> bool:
+               attach_path: str | None = None,
+               title: str | None = None) -> bool:
     """One logged ntfy attempt. True only on an HTTP accept — which is
     delivery to the server, never proof the PHONE received it.
     attach_path: when given and readable, the call rides ntfy's file
@@ -3340,7 +4950,7 @@ def _send_ntfy(text: str, prio: str, attempt: str, tag: str | None = None,
         return False
     try:
         import urllib.request, urllib.parse, os as _os
-        _headers = {"Title": "Kraken Scout", "Priority": prio,
+        _headers = {"Title": title or "Kraken Scout", "Priority": prio,
                     "Tags": tag or ("rotating_light" if prio == "urgent" else "chart_with_upwards_trend")}
         if attach_path and os.path.exists(attach_path) and os.path.getsize(attach_path) > 0:
             with open(attach_path, "rb") as _af:
@@ -3357,8 +4967,22 @@ def _send_ntfy(text: str, prio: str, attempt: str, tag: str | None = None,
             req = urllib.request.Request(
                 f"https://ntfy.sh/{urllib.parse.quote(topic)}",
                 data=str(text).encode("utf-8"), headers=_headers)
-        urllib.request.urlopen(req, timeout=20 if attach_path else 10)
-        logger.info("📲 PUSHED (%s, %s)%s: %s", prio, attempt,
+        with urllib.request.urlopen(req, timeout=20 if attach_path else 10) as _resp:
+            _status = int(getattr(_resp, "status", 0) or 0)
+            try:
+                import json as _json
+                _ack = _json.loads(_resp.read().decode("utf-8", "replace") or "{}")
+            except Exception as _ack_exc:
+                _ack = {}
+                logger.debug("ntfy ack unreadable (%s) — status stands", _ack_exc)
+        _mid = str((_ack or {}).get("id") or "?")
+        if _status and not (200 <= _status < 300):
+            logger.warning("phone push REJECTED HTTP %s (%s) — the phone "
+                           "missed: %s", _status, attempt, str(text)[:90])
+            return False
+        logger.info("📲 PUSHED (%s, %s, HTTP %s, id %s, title %r)%s: %s",
+                    prio, attempt, _status or "?", _mid,
+                    _headers.get("Title", ""),
                     " +voice" if attach_path else "", str(text)[:90])
         return True
     except Exception as exc:
@@ -3432,7 +5056,8 @@ def _process_daily_canary():
     (capped at the canary window so a dead pipe can't nag all night)."""
     try:
         if not _push_topic():
-            return  # no topic configured — nothing to prove
+            _warn_push_no_topic("daily canary")
+            return  # nothing to prove — the startup warning already fired
         _n = datetime.now(MST)
         if _n.hour < _CANARY_HOUR:
             return  # before the window
@@ -3540,6 +5165,7 @@ def _push_to_phone(text: str, wav_path: str | None = None):
     native_ok = _charter_push("signal_exit" if is_sell else "signal_buy")
     topic = _push_topic()
     if not topic:
+        _warn_push_no_topic("_push_to_phone")
         if not native_ok:
             _push_state["text"] = ""   # REVIEW TRIAGE (Sep 25, the hook's own major):
             _push_state["ts"] = 0.0    # reached nowhere — un-arm the throttle, retry allowed
@@ -3840,12 +5466,42 @@ def _popup_already_watched(pair: str) -> bool:
 
 def auto_track_popup(pair: str, entry: float, size: float, goal_pct: float,
                      window_min: float, why: str, source: str,
-                     hm_mode: str | None = None) -> bool:
+                     hm_mode: str | None = None,
+                     setup: dict | None = None,
+                     plan_basis: str = "",
+                     pace_pct_per_hour=None, exchange=None,
+                     go_big: bool = False,
+                     hard_stop_usd: float | None = None,
+                     goal_usd: float | None = None,
+                     bounce_exit_ts: float | None = None) -> bool:
     """THE POPUP IS THE CONTRACT (Sep 21): every popup that fires —
     champion, Sure Thing, mover, DCA — auto-tracks at fire time. One
     writer for every route: never displaces an entry the user already
     has, never resurrects a row the machine itself closed (the GET OUT
-    auto-close removes it — a later fire re-adds fresh)."""
+    auto-close removes it — a later fire re-adds fresh).
+
+    THE DEATH FLOOR sits here too (Nov 12): this is the single writer for
+    every popup route, so a Sure Thing or mover cannot add a row while the
+    marked book is at/below $9,850 even if its own gates passed."""
+    try:
+        _at_watch = _load_contest_watch() or {}
+        _at_marks = {}
+        if exchange is not None:
+            for _at_pair in list(_at_watch):
+                try:
+                    _at_marks[_at_pair] = float(
+                        (exchange.fetch_ticker(_at_pair) or {}).get("last") or 0.0)
+                except Exception:
+                    pass
+        _at_refusal = death_floor_refusal(
+            pair.split("/")[0], watch=_at_watch, marks=_at_marks)
+        if _at_refusal:
+            # ADVISORY ONLY: never silently drop a row the operator can judge.
+            logger.warning("%s (advisory — the row still tracks)", _at_refusal)
+    except Exception as _at_exc:
+        logger.warning("auto-track death-floor read failed for %s (%s) — "
+                       "refusing the row (fail closed)", pair, _at_exc)
+        return False
     import json
     try:
         # THE WINDOW STAMP (Sep 22): the row carries the contest window it
@@ -3878,17 +5534,71 @@ def auto_track_popup(pair: str, entry: float, size: float, goal_pct: float,
                          "(%s) - grace rides held-time only", pair,
                          _tw_at_exc)
             _entry_em = None
+        # THE GOAL STAMP (Nov 6): a fire that names no goal (or names 0)
+        # is stamped with the goal the exit rules actually manage it to, so
+        # the row never lands unmeasurable. A named goal is untouched.
+        _goal_e = _operative_goal_pct(goal_pct, pair)
+        # ── THE DOLLAR GOAL STAMP (Nov 10, user rule: "the higher trade
+        #    amounts ... the goal will trigger an exit check when the dollar
+        #    goal is reached — the dollar goal is set by the entry logic").
+        #    Stated in dollars so a big row banks the same money on a smaller
+        #    move, but floored at its own 1R (a take cheaper than the risk
+        #    does not pay however often it fires) and capped by the plan's
+        #    own % goal (never demand a move the hold window cannot drain).
+        _goal_usd_e = 0.0
+        try:
+            import contest_account as _ca_gs
+            if goal_usd is not None:
+                # the validated 5m edge states its own dollars (0 = %-goal
+                # only) instead of inheriting the generic GO BIG take.
+                _goal_usd_e = float(goal_usd or 0.0)
+            elif go_big:
+                # GO BIG books the +$20 fixed take from the shared constant.
+                _goal_usd_e = float(_ca_gs.GO_BIG_TAKE_USD)
+            else:
+                _risk_e = _hard_stop_usd(float(entry or 0.0),
+                                         float(size or 0.0), _ca_gs.buffer())
+                _goal_usd_e = float(_ca_gs.row_goal_usd(
+                    float(size or 0.0), goal_pct=_goal_e,
+                    risk_usd=_risk_e).get("goal_usd") or 0.0)
+        except Exception as _gs_exc:
+            logger.debug("dollar goal stamp unavailable for %s (%s) — the "
+                         "%% goal stands", pair, _gs_exc)
+            _goal_usd_e = 0.0
         w[pair] = {"entry": float(entry or 0.0),
                    "high": float(entry or 0.0),
                    "added": _now_mst().isoformat(),
                    "opened_ts": _now_mst().isoformat(),
                    "contest_id": _ca_stamp,
                    "size": float(size or 0.0),
-                   "goal_pct": float(goal_pct or 0.0),
+                   "goal_pct": _goal_e,
+                   # the dollars this row takes (0 = unstamped, % goal only)
+                   "goal_usd": _goal_usd_e,
+                   # GO BIG rides the run: no fixed take; $30 net stop.
+                   # The 5m edge names its own stop/deadline instead.
+                   **({"go_big": True} if go_big else {}),
+                   **(({"hard_stop_usd": float(hard_stop_usd)})
+                      if hard_stop_usd is not None else
+                      ({"hard_stop_usd": 30.0} if go_big else {})),
+                   **(({"bounce_exit_ts": float(bounce_exit_ts)})
+                      if bounce_exit_ts is not None else {}),
                    "window_min": float(window_min or 0.0),
+                   # THE PLAN'S BASIS (Nov 7): the window alone cannot say
+                   # whether 78 minutes came from the coin's own tape or from
+                   # the 1%/h assumption. Recorded, so the fire carries the
+                   # plan it was admitted on instead of leaving it in a log.
+                   "plan_basis": str(plan_basis or ""),
+                   "pace_pct_per_hour": (None if pace_pct_per_hour is None
+                                         else float(pace_pct_per_hour)),
                    "why": [why],
                    "source": source,
-                   "entry_exit_mod": _entry_em}
+                   "entry_exit_mod": _entry_em,
+                   # THE SETUP STAMP (Nov 6): the fire's own family, carried
+                   # to the close so expectancy is a group-by. A route that
+                   # passes nothing lands "untagged", never unmeasurable.
+                   "setup": dict(setup) if isinstance(setup, dict) else {},
+                   "setup_v": (SETUP_TAGS_VERSION
+                               if isinstance(setup, dict) and setup else 0)}
         if hm_mode:
             # THE OPPORTUNISTIC STAMP (user ask, Oct 1): the exit watch
             # reads this key to judge the 2% hard stop — without it the
@@ -3900,9 +5610,10 @@ def auto_track_popup(pair: str, entry: float, size: float, goal_pct: float,
         # swallow the very entry the popup just promised the user.
         _save_contest_watch(w, fresh_keys=[pair])
         logger.info("AUTO-TRACK: %s watched at fire time (entry $%.4f, "
-                    "goal %.1f%%, window %.0fm, %s)",
+                    "goal %.1f%%, window %.0fm, %s, plan %s)",
                     pair.split("/")[0], float(entry or 0.0),
-                    float(goal_pct or 0.0), float(window_min or 0.0), source)
+                    _goal_e, float(window_min or 0.0), source,
+                    (str(plan_basis) if plan_basis else "unrecorded"))
         return True
     except Exception as exc:
         logger.warning("fire-time auto-track failed for %s (%s) — "
@@ -3927,7 +5638,7 @@ def _load_scanner_state() -> dict:
 def _save_scanner_state(state: dict, path: str | None = None) -> None:
     """MERGE-SAVE (the round-3 review): this file carries independent
     keys written at different times — the morning flatten date, the
-    sure-thing armed-coil memory, the exit-extension canary watermark.
+    legacy armed-coil memory, the exit-extension canary watermark.
     The old whole-file replace let the 20:00 flatten's one-key write
     ERASE the canary watermark (the next boundary tick re-evaluated the
     rotation) and the armed-coil memory (a restart re-announced it).
@@ -4145,6 +5856,27 @@ def _pulse_beat(phase: str = "done"):
             if _p.get("phase") != "scan":
                 _p["scan_started_ts"] = _now   # THIS hold starts the clock
             _p["phase"] = "scan"
+        elif phase == "light":
+            # A COMPLETED LIGHT PASS (Nov 7, its own clock): count it and
+            # time the gap, but NEVER touch the scan phase — the tournament's
+            # busy beat and its own finally own that clock, and a light beat
+            # from the watch thread (running exactly while a scan holds the
+            # loop) must not clear a scan that is still going.
+            if _p.get("pid") not in (None, os.getpid()):
+                # a NEW process: last run's gap record is not this run's
+                for _k in ("last_gap_s", "max_gap_s", "max_gap_ts",
+                           "last_pass_ts"):
+                    _p.pop(_k, None)
+            _p["cycles"] = int(_p.get("cycles", 0)) + 1
+            _prev_pass = _p.get("last_pass_ts")
+            if isinstance(_prev_pass, (int, float)) \
+                    and 0 < (_now - float(_prev_pass)) < 3600:
+                _gap = round(_now - float(_prev_pass), 1)
+                _p["last_gap_s"] = _gap
+                if _gap > float(_p.get("max_gap_s") or 0.0):
+                    _p["max_gap_s"] = _gap
+                    _p["max_gap_ts"] = _now
+            _p["last_pass_ts"] = _now
         else:
             if _p.get("phase") == "scan" and isinstance(
                     _p.get("scan_started_ts"), (int, float)):
@@ -4219,6 +5951,120 @@ def _cycle_slow_alarm(ep, completed_ts, scanning):
                              _m, _s)
     except Exception as exc:
         logger.debug("slow-cycle alarm check skipped: %s", exc)
+
+
+# ── THE EXIT WATCH'S OWN CLOCK (Nov 7, the starvation finding) ────────────
+# The light pass used to run inline in the loop, sequenced behind the mover
+# scan and the tournament. The Nov 7 soak caught what that costs: 23 minutes
+# (12:40 → 13:03) and 3 minutes (13:59 → 14:02) with no light pass at all —
+# the hard stop, the force gate and the plan-spent gate were all blind for
+# that long, because every one of them lives in that pass. A fire that
+# crosses its plan window inside a scan is not a fire the market paused for.
+#
+# The repair is the pass's own cadence, not a shorter scan: single-flight +
+# a start stamp allow ONE pass per tick whichever caller arrives first, and
+# a watchdog thread takes the tick whenever the loop is late. Nothing about
+# the gates changes — the watch runs the same contest_light on the same
+# rows, in the same order, so force still outranks plan-spent and both
+# still need the trend's own read.
+LIGHT_TICK_S = 25.0          # one light pass per tick (the loop's old cadence)
+LIGHT_STARVE_SLACK_S = 3.0   # a loop this far past its tick loses the tick to the watch
+LIGHT_WATCH_POLL_S = 1.0     # how often the watch checks the clock
+_LIGHT_LOCK = threading.Lock()
+_LIGHT_CLOCK = {"at": 0.0, "passes": 0, "starved": 0, "last_done": 0.0,
+                "starve_logged": False}
+
+
+def _light_pass_due(now_ts=None) -> float:
+    """Seconds since the last light pass STARTED (inf when none yet).
+
+    An empty clock means the pass is due NOW — the runner treats inf as
+    "first pass of this process" and the watch treats it as due, so a slow
+    boot cannot sit through a whole tick with the gates unread.
+    """
+    at = float(_LIGHT_CLOCK.get("at") or 0.0)
+    if at <= 0.0:
+        return float("inf")
+    return (now_ts if now_ts is not None else time.time()) - at
+
+
+def _run_light_pass(exchange, cfg, source="loop", episode=None) -> bool:
+    """ONE exit-watch pass on its own clock. True when this call ran it.
+
+    SINGLE-FLIGHT: the lock is taken without blocking, so a second caller
+    (the loop arriving mid-watch-pass, or the watch arriving while the loop
+    is mid-pass) is refused rather than queued — two passes at once could
+    close the same fire twice, and the gates are written for one pass at a
+    time. The clock is stamped BEFORE the work: a slow pass delays the next
+    tick, it can never start two ticks back to back.
+
+    The gates inside contest_light are untouched: same rows, same order,
+    same arithmetic. This function only decides WHEN the pass may run.
+    """
+    if not _LIGHT_LOCK.acquire(blocking=False):
+        return False
+    try:
+        now_ts = time.time()
+        late = _light_pass_due(now_ts)
+        first = not (_LIGHT_CLOCK.get("at") or 0.0)   # boot: nothing has run yet
+        if not first and late < LIGHT_TICK_S:
+            return False                  # this tick already had its pass
+        _LIGHT_CLOCK["at"] = now_ts       # stamp first: a slow pass cannot double-start
+        _LIGHT_CLOCK["passes"] = int(_LIGHT_CLOCK.get("passes") or 0) + 1
+        if source == "watch" and not first:
+            _LIGHT_CLOCK["starved"] = int(_LIGHT_CLOCK.get("starved") or 0) + 1
+            # speak the takeover ONCE per starvation episode: this is the
+            # evidence line that a scan held the loop, not a per-tick hum
+            if late > (2.0 * LIGHT_TICK_S) and not _LIGHT_CLOCK.get("starve_logged"):
+                _LIGHT_CLOCK["starve_logged"] = True
+                logger.warning(
+                    "\u23f1 EXIT WATCH TOOK ITS OWN TICK: the loop was %.0fs past "
+                    "the last light pass (mover scan or tournament holding it) — "
+                    "the exit gates run NOW, not when the scan ends", late)
+        elif source == "loop":
+            _LIGHT_CLOCK["starve_logged"] = False
+        try:
+            contest_light(exchange, cfg)
+            _pulse_beat("light")          # completed-cycle beat; never clears the scan phase
+            _LIGHT_CLOCK["last_done"] = time.time()
+        except Exception as exc:
+            logger.debug("contest light error: %s", exc)
+        finally:
+            if episode is not None:
+                episode.update(start=0.0, announced=False, scan=False)
+        try:
+            _aa_box_watermark_watch()
+        except Exception as _wb_exc:
+            logger.debug("aa box watermark watch skipped: %s", _wb_exc)
+        return True
+    finally:
+        _LIGHT_LOCK.release()
+
+
+def _light_watchdog(exchange, cfg, stop: threading.Event, episode=None):
+    """The tick the loop owes, taken by the watch, never skipped.
+
+    It only steps in when the loop is more than LIGHT_STARVE_SLACK_S past
+    the tick, so an on-time loop keeps running the pass itself exactly as
+    before; when the mover scan or the tournament holds the loop, this is
+    what keeps the exit gates inside the tick.
+    """
+    while not stop.is_set():
+        try:
+            stop.wait(min(LIGHT_WATCH_POLL_S,
+                          max(LIGHT_TICK_S / 5.0, 0.02)))
+            if _light_pass_due() >= (LIGHT_TICK_S + LIGHT_STARVE_SLACK_S):
+                _run_light_pass(exchange, cfg, source="watch", episode=episode)
+                # The 5m entry path also survives a scan holding the loop:
+                # exits ran first; this only scans a new closed candle.
+                try:
+                    import bounce_live as _blw
+                    _blw.tick(exchange, auto_track_popup, logger)
+                except Exception as _blw_exc:
+                    logger.debug("5m bounce edge watchdog tick skipped: %s",
+                                 _blw_exc)
+        except Exception as exc:
+            logger.debug("light watchdog skipped a beat: %s", exc)
 
 
 def _day_review_spoken(now) -> bool:
@@ -4629,6 +6475,38 @@ def _all_good_lead() -> str:
     return lead
 
 
+def _watch_lost_minutes(w: dict, now: float | None = None) -> float | None:
+    """How long this watch row has gone UNSEEN, or None when it is watched.
+
+    THE HOLE THIS CLOSES (Nov 6, the nine-day ride): the exit loop skips a
+    row whose ticker read fails (`continue` before any gate) and nothing in
+    the loop ever consulted age — so a dead feed, a delisted pair or an
+    engine that was not running left a row riding with no clock on it. On
+    Oct 22 the scanner died with nine rows open; nothing noticed for nine
+    days, and the Oct 31 restart sold all nine in one minute with every
+    receipt reading "PROFIT GUARD FIRED" — true about the drop, silent
+    about the gap.
+
+    `checked_ts` is stamped only when a price read SUCCEEDS, so the gap
+    since that stamp IS the unseen time. Rows never priced once fall back
+    to `added`. None (never close on an unknown age) when no stamp parses,
+    and a future stamp (clock skew) is not "lost" either.
+    """
+    _now = time.time() if now is None else float(now)
+    ts = w.get("checked_ts")
+    if isinstance(ts, (int, float)) and float(ts) > 0:
+        age = (_now - float(ts)) / 60.0
+    else:
+        try:
+            age = (_now - datetime.fromisoformat(
+                str(w.get("added"))).timestamp()) / 60.0
+        except Exception:
+            return None
+    if age is None or age < 0 or age < LOST_ROW_MIN:
+        return None
+    return round(age, 1)
+
+
 def _stale_unrealized_leg(w: dict) -> float | None:
     """THE STALE LEG (the Oct 6 triage - CodeRabbit 4342/4391's uncured
     twin): a failed ticker used to `continue` BEFORE the unrealized sum,
@@ -4718,6 +6596,31 @@ def contest_light(exchange, cfg):
     if not watch:
         return
     voice = _voice_enabled()
+    # ── THE REAL-TIME DEATH-FLOOR EXIT MONITOR (Nov 12, user rule: "it should
+    #    not block any signals from getting in but it should watch closely the
+    #    exit in real-time and trigger the get out warning when staying in is
+    #    too risky").  The floor no longer vetoes entries; here it prices the
+    #    live book every cycle and the normal GET OUT path does the rest.
+    #    Marks start from each row's last checked price and are refreshed below
+    #    as this cycle fetches each ticker, so the monitor adds no extra reads.
+    _floor_acct = {}
+    _floor_watch = {}
+    _floor_marks = {}
+    try:
+        import contest_account as _ca_floor
+        _floor_acct = _ca_floor.load_state()
+        for _fp, _fr in list(watch.items()):
+            if not isinstance(_fr, dict):
+                continue
+            _floor_watch[_fp] = _fr
+            try:
+                _fm = float(_fr.get("last_px") or 0.0)
+            except (TypeError, ValueError):
+                _fm = 0.0
+            if _fm > 0:
+                _floor_marks[_fp] = _fm
+    except Exception as _floor_boot_exc:
+        logger.debug("death-floor exit monitor unavailable: %s", _floor_boot_exc)
 
     # ── THE DIAL-OFF SWEEP (6.1): when the operator has the extension
     # OFF, no row may carry a stale stamp — revert is mechanical. A
@@ -4773,23 +6676,43 @@ def contest_light(exchange, cfg):
             # to watch, and w.get below sits OUTSIDE the try
             continue
         asset = pair.split("/")[0]
+        # ── THE LOST-ROW CLOCK (Nov 6): read BEFORE the fetch, so no row
+        # can be hidden by the very failure that loses it. None = watched.
+        _lost_m = _watch_lost_minutes(w)
         try:
             live = float(exchange.fetch_ticker(pair)["last"])
             w["last_px"] = live
         except Exception:
-            _leg = _stale_unrealized_leg(w)
-            if _leg is not None:
-                # THE STALE LEG (the Oct 6 triage): the failed fetch must
-                # not vanish the row's unrealized leg - a dropped WINNER
-                # is a drawdown the guard tightens on. Price it from the
-                # row's last truth, hand it to the give-back sum, and
-                # skip the gates (the priced path stays the only gate
-                # authority).
-                _unrealized_sum += _leg
-            continue
+            if _lost_m is None:
+                _leg = _stale_unrealized_leg(w)
+                if _leg is not None:
+                    # THE STALE LEG (the Oct 6 triage): the failed fetch must
+                    # not vanish the row's unrealized leg - a dropped WINNER
+                    # is a drawdown the guard tightens on. Price it from the
+                    # row's last truth, hand it to the give-back sum, and
+                    # skip the gates (the priced path stays the only gate
+                    # authority).
+                    _unrealized_sum += _leg
+                continue
+            # lost AND unpriceable — the row cannot be watched any more, so
+            # it is closed at its last known mark, loudly, never silently
+            _mark = float(w.get("last_px") or w.get("entry") or 0.0)
+            if not _mark:
+                logger.warning(
+                    "WATCH LOST: %s unseen %.0f min and no mark to close it "
+                    "at — the row stays, and it stays noisy", pair, _lost_m)
+                continue
+            live = _mark
+        # the live mark feeds the floor monitor's equity projection
+        if _floor_watch and live > 0:
+            _floor_marks[pair] = float(live)
         entry = float(w.get("entry") or 0)
         size = float(w.get("size") or 2500.0)
         if not entry:
+            if _lost_m is not None:
+                logger.warning("WATCH LOST: %s unseen %.0f min with no entry "
+                               "stamp — nothing to price a close from",
+                               pair, _lost_m)
             continue
 
         # ── LIVENESS STAMP (Sep 22, user: "a silent watcher is noticeable
@@ -4816,6 +6739,13 @@ def contest_light(exchange, cfg):
         # the committed fixed rules)
         should_exit = False
         reason = ""
+        _edge_row = str(w.get("source") or "") == "bounce_live"
+        _floor = {}
+        try:
+            if _floor_watch and _floor_marks:
+                _floor = death_floor_gate(_floor_acct, _floor_watch, _floor_marks)
+        except Exception as _floor_exc:
+            logger.debug("death-floor exit read failed for %s: %s", pair, _floor_exc)
         _pgres = None
         _pgf = None
         try:
@@ -4994,7 +6924,9 @@ def contest_light(exchange, cfg):
             try:
                 import contest_account as _ca_l
                 _acct_l = _ca_l.load_state()
-                _stop_usd = max(_ca_l.buffer(_acct_l) * 0.5, 5.0)
+                _stop_usd = float(w.get("hard_stop_usd") or 0.0)
+                if _stop_usd <= 0.0:
+                    _stop_usd = _hard_stop_usd(entry, size, _ca_l.buffer(_acct_l))
                 if w.get("hm_mode") == "opportunistic":
                     # THE OPPORTUNISTIC HARD STOP (user ask, Oct 1): the
                     # exit watch IS the authority and judges this position
@@ -5016,8 +6948,36 @@ def contest_light(exchange, cfg):
                           f"-${_stop_usd:.0f} — {_hm_stop_why}). "
                           f"The trade failed — get out, wait for the next one.")
 
+        # ── THE VALIDATED 5m EDGE OWNS ITS EXIT (Nov 13): the exit marks
+        #    come from the entry bar's and later bars' 5m high/low, not the
+        #    once-per-30s ticker. The generic trail, 1h sell bar and
+        #    exit-watch force are not this edge's rules; the death floor and
+        #    lost-row verdict still run below and can never be cleared.
+        if _edge_row:
+            _edge_hit = None
+            _blx = None
+            try:
+                import bounce_live as _blx
+                _edge_hit = _blx.exit_signal(exchange, pair, w)
+            except Exception as _blx_exc:
+                logger.warning("5m edge exit read failed for %s (%s) — "
+                               "ticker fallback only", pair, _blx_exc)
+            if _edge_hit is None and _blx is not None:
+                try:
+                    _edge_hit = _blx.ticker_exit(w, live)
+                except Exception as _blx_exc:
+                    logger.warning("5m edge ticker fallback failed for %s (%s)",
+                                   pair, _blx_exc)
+            if _edge_hit:
+                should_exit = True
+                reason = _edge_hit
+            else:
+                # discard the generic trail/sell-bar reason from above
+                should_exit = False
+                reason = ""
+
         # ── 2. strategy sell bar (contest profile: 50%) ────────────────
-        if not should_exit:
+        if not should_exit and not _edge_row:
             try:
                 ohlcv = exchange.fetch_ohlcv(pair, timeframe="1h", limit=200)
                 if ohlcv and len(ohlcv) >= 30:
@@ -5051,7 +7011,7 @@ def contest_light(exchange, cfg):
         # first. ExitMod > EXITMOD_FORCE (a maxed reversal + exhaustion
         # on a dead trend read) arms the Get Out — same popup → push →
         # auto-close path as every other gate, never a silent close.
-        if not should_exit:
+        if not should_exit and not _edge_row:
             try:
                 _tw_gate = w.get("exit_watch")
                 if isinstance(_tw_gate, dict) and _tw_gate.get("force_exit"):
@@ -5102,12 +7062,120 @@ def contest_light(exchange, cfg):
                 logger.debug("exit-watch force gate read skipped for %s: %s",
                              pair, _exc)
 
+        # ── 4. TAKE IT = GET OUT (Nov 12, user rule: "take it gets wired
+        # to get out — they should act the same way; cleared and waiting
+        # for a setup to re-enter"). The goal line is a BANK, not a perch:
+        # reaching it enters the same popup → push → auto-close → clear
+        # path as GET OUT, so the row cannot linger and block the next
+        # clean setup. The old STAY CLOSE goal branch is retired below.
+        if not should_exit and not _edge_row and entry > 0 and live > 0:
+            try:
+                _goal_take = (float(w.get("goal_pct") or 0)
+                              or _window_goal_pct(pair))
+                _pct_take = (live / entry - 1.0) * 100.0
+                if _goal_take > 0 and _pct_take >= _goal_take:
+                    should_exit = True
+                    reason = (
+                        f"TAKE IT — the +{_goal_take:.1f}% goal is paid "
+                        f"({_pct_take:+.1f}%). Bank it, clear the watch, "
+                        "and wait for the next clean setup to re-enter.")
+                    _save_take_payout(
+                        pair, round(_pct_take / 100.0 * size))
+            except Exception as _take_exc:
+                logger.debug("TAKE IT goal gate skipped for %s: %s",
+                             pair, _take_exc)
+
+        # ── 5. THE PLAN-SPENT TREND GATE (Nov 7, user ask): the drift report
+        #    makes a spent plan VISIBLE; this lets a fire act on it — but only
+        #    with the trend's agreement. Overdue alone closes nothing (the
+        #    clock may never end a fire), and a damaged trend alone is already
+        #    the force gate's call. Both together means the thesis is gone.
+        if not should_exit and not _edge_row:
+            try:
+                _psx = plan_spent_exit(w)
+                if _psx:
+                    should_exit = True
+                    reason = (
+                        f"PLAN SPENT — {_psx['plan']['elapsed_min']:.0f} min of a "
+                        f"{_psx['plan']['planned_min']:.0f}-minute plan "
+                        f"({_psx['plan']['frac'] * 100:.0f}%), and the exit watch's "
+                        f"own trend read is {_psx['exit_mod']:.2f} (bar "
+                        f"{_psx['threshold']:.2f}): the plan that carried this fire "
+                        f"is over and the move is done. The clock alone never closes "
+                        f"a fire — this is the trend's call on a spent plan.")
+                    logger.info("  PLAN SPENT + TREND LOST: %s — %.0f/%.0f min, "
+                                "exit_mod %.2f >= bar %.2f — closing on the trend, "
+                                "not the clock", pair.split("/")[0],
+                                _psx["plan"]["elapsed_min"],
+                                _psx["plan"]["planned_min"],
+                                _psx["exit_mod"], _psx["threshold"])
+            except Exception as _psx_exc:
+                logger.debug("plan-spent gate skipped for %s: %s", pair, _psx_exc)
+
+        # ── THE DOLLAR GOAL TAKE (Nov 10, user rule: "the goal when reached
+        #    will trigger an exit check when the dollar goal is reached (the
+        #    dollar goal is set by the entry logic, QC); this will replace
+        #    the current way it is set up"). The row carries the dollars it
+        #    must make — floored at its own 1R and capped by its plan — and
+        #    reaching them IS the exit, not an announcement. A row with no
+        #    stamp (an old row, a failed read) keeps the incumbent %-goal
+        #    behaviour, so this can never make an unmeasured row exit blind.
+        if (not should_exit and not _edge_row
+                and _dollar_goal_armed() and not w.get("go_big")):
+            try:
+                _dg_goal = float(w.get("goal_usd") or 0.0)
+                _dg_size = float(w.get("size") or 0.0)
+                _dg_usd = ((float(live) / float(entry)) - 1.0) * _dg_size \
+                    if float(entry or 0.0) > 0 else 0.0
+                if _dg_goal > 0.0 and _dg_usd >= _dg_goal:
+                    should_exit = True
+                    reason = (
+                        f"DOLLAR GOAL TAKEN — +${_dg_usd:,.2f} on a "
+                        f"${_dg_size:,.0f} row reached the ${_dg_goal:,.2f} the "
+                        f"entry logic set ({_dg_usd / _dg_size * 100.0:.2f}% of "
+                        f"the row, plan goal +{_close_goal_pct(w, pair):.2f}%). "
+                        f"The take is booked in dollars, not by a move target.")
+                    logger.info("  DOLLAR GOAL: %s took $%.2f of $%.2f",
+                                pair, _dg_usd, _dg_goal)
+            except Exception as _dg_exc:
+                logger.debug("dollar goal gate skipped for %s: %s",
+                             pair, _dg_exc)
+
         # (Sep 21, user rule: the window NEVER exits by itself — "I don't
         # want to Exit simply because 'Time's up'. Stay close, and fire a
         # popup only when the trend watch or the exit watch fire the Get
         # out now.") The clock only reminds (gate 6 below); the exit call
         # belongs to the profit guard, the hard stop, the trend sell bar
         # and the climax — never to the clock.
+        # ── THE LOST-ROW VERDICT (Nov 6): a row the watch did not see for
+        # LOST_ROW_MIN is not a strategy call — the book was unmanaged for
+        # that stretch, so the watch recovers the row whatever the gates
+        # read, and says why. (The nine Oct 22 rows all wore "PROFIT GUARD
+        # FIRED": the arithmetic ran on a nine-day-old peak, honest about
+        # the drop and silent about the gap.)
+        # ── 5b. THE DEATH-FLOOR EXIT MONITOR (Nov 12): entries were never
+        #     vetoed, and the exit is where the floor earns its keep.  When
+        #     the marked book is at/below the halt line, or holding through a
+        #     normal adverse move would put equity at/below the death line,
+        #     this raises the SAME GET OUT call as every other exit gate.  It
+        #     is deliberately last: a more specific profit/stop/trend reason
+        #     already on the row keeps its voice.
+        if not should_exit and _floor.get("exit_warning"):
+            should_exit = True
+            reason = ("GET OUT — DEATH-LINE EXIT WATCH: "
+                      f"{_floor.get('exit_reason') or _floor.get('why')}. "
+                      "The floor does not veto entries; it eats them when "
+                      "staying in is too risky.")
+            logger.warning("  DEATH-LINE GET OUT: %s — %s", pair, reason)
+        if _lost_m is not None:
+            logger.warning("WATCH LOST: %s unseen %.0f min (cap %.0f) — "
+                           "closing at %.8g; the book was unmanaged",
+                           pair, _lost_m, LOST_ROW_MIN, float(live))
+            should_exit = True
+            reason = (f"WATCH LOST THIS ROW — unseen {_lost_m:.0f} min "
+                      f"(cap {LOST_ROW_MIN:.0f}); the trail ran on a stale "
+                      f"peak, so this is the watch recovering the row, "
+                      f"not a signal")
         if should_exit:
             # ── THE HARD-STOP INDEPENDENT JUDGE (the recovered ordering
             # majors, Sep 29: CR 09:52 on :3842 and 15:18 on :3969): the
@@ -5132,8 +7200,11 @@ def contest_light(exchange, cfg):
             # extension can never trap a position the machinery wants out.
             # BYPASS (the 09:52 major): a breached death line never asks.
             _had_stamp = isinstance(w.get("exit_extension"), dict)
-            if _hs_breach:
+            _floor_exit = bool(_floor.get("exit_warning"))
+            if _hs_breach or _floor_exit:
                 v_ext, why_ext = "exit", (
+                    "death-floor bypass — the GET OUT warning outranks every "
+                    "hold window" if _floor_exit else
                     "hard-stop bypass — the death line outranks every window")
                 logger.info("EXIT EXTENSION bypassed for %s: %s", pair,
                             why_ext)
@@ -5205,10 +7276,16 @@ def contest_light(exchange, cfg):
                 # carries its WHY, spoken
                 _why = ""
                 _r = reason.lower()
-                if "profit guard" in _r:
+                if "take it" in _r:
+                    _why = ("The goal is paid — taking it, clearing the "
+                            "watch, and waiting for the next setup!")
+                elif "profit guard" in _r:
                     _why = "It gave back too much from the top!"
                 elif "stopped out" in _r:
                     _why = "Down a hundred dollars — the trade failed!"
+                elif "death-line" in _r or "death line" in _r:
+                    _why = ("The death line is too close — staying in can "
+                            "close the contest! Get out before it!")
                 elif "trend broke" in _r:
                     _why = "The trend turned against you!"
                 elif "climax" in _r:
@@ -5225,7 +7302,7 @@ def contest_light(exchange, cfg):
                         _gx_held = (f" · held {(_now_mst() - datetime.fromisoformat(w['added'])).total_seconds() / 60.0:.0f} min")
                     _push_txt += (f"POSITION: entered {float(entry):.4f} · now {float(live):.4f} · "
                                   f"{_gx_pct:+.1f}% ({_gx_usd:+,.0f} dollars){_gx_held}\n"
-                                  f"GOAL was +{float(w.get('goal_pct') or 0) or 1.5:.1f}% — "
+                                  f"GOAL was +{_close_goal_pct(w, pair):.1f}% — "
                                   f"the watch auto-closed; the grade is journaled.")
                 except Exception:
                     _push_txt += "The watch auto-closed; the grade is journaled."
@@ -5259,15 +7336,42 @@ def contest_light(exchange, cfg):
             try:
                 import json as _jx
                 import contest_account as _ca_x
+                import ledger_artifacts as _la_x
                 _entry_x = float(w.get("entry") or 0.0)
                 _size_x = float(w.get("size") or 0.0)
                 _live_x = float(live or 0.0)
-                if _entry_x > 0 and _size_x > 0 and _live_x > 0:
+                # the goal this close records: the stamp, else the goal the
+                # exit logic is actually managing the trade to (Nov 6)
+                _goal_x = _close_goal_pct(w, pair)
+                # THE MARKET GUARD (Nov 6): the ledger takes facts, and only
+                # real USD markets produce them. A synthetic self-test pair
+                # closed through THIS path on Sep 30 (FAKE/USD, four closes,
+                # $+2.40 booked and the balance moved); the pair is now
+                # refused before any money moves, so a self-test can print
+                # and speak but can never become a trade. The watch row is
+                # then kept, because the _journaled rule below grants no
+                # removal to a close with no receipt.
+                if not _la_x.is_real_usd_pair(pair):
+                    logger.warning("CLOSE NOT BOOKED — %s is not a real USD "
+                                   "market; the ledger takes real pairs "
+                                   "only", pair)
+                    _closed_note = "not a real USD market — not booked"
+                elif _entry_x > 0 and _size_x > 0 and _live_x > 0:
                     _gross, _cost, _net = _ca_x.pnl_net_usd(
                         _entry_x, _live_x, _size_x)
                     _applied, _new_bal, _note = _ca_x.apply_pnl(
                         _net, w.get("contest_id"),
                         dedupe_key=f"{pair}|{w.get('added')}|getout")
+                    # THE SURVIVABILITY GUARD sees only REAL bookings: the
+                    # guard trips on consecutive losses / drawdown measured
+                    # from the booked balance, so a skipped or replayed
+                    # close (applied=False) must not move its state.
+                    if _applied:
+                        try:
+                            import survival_guard as _sgx
+                            _sgx.record_close(_net, _new_bal)
+                        except Exception as _sgx_e:
+                            logger.debug("survival guard record failed: %s", _sgx_e)
                     _held_min = ""
                     try:
                         _added = w.get("added")
@@ -5286,12 +7390,26 @@ def contest_light(exchange, cfg):
                             "balance_after": round(_new_bal, 2),
                             "applied": bool(_applied),
                             "note": ("" if _applied else _note),
-                            "goal_pct": w.get("goal_pct"),
+                            "goal_pct": _goal_x,
                             "held_min": _held_min,
                             "closed_by": "getout",
                             "exit_reason": reason[:200],
+                            # THE FAMILY RIDES THE CLOSE (Nov 6): the row
+                            # was stamped at fire time; the ledger keeps
+                            # it, so the study never joins popup text.
+                            "setup": w.get("setup") or {},
+                            "setup_v": w.get("setup_v") or 0,
                         }) + "\n")
                     _journaled = True   # the receipt is on disk — the row may go
+                    # THE PACE GOVERNOR RECOMPUTES ON THE CLOSE ANNOTATION:
+                    # ETA, checkpoint and any 3-loss micro gate tune update
+                    # from the row just written, before the next scan.
+                    try:
+                        import overwatch_governor as _og
+                        _og.refresh()
+                    except Exception as _og_exc:
+                        logger.debug("overwatch governor refresh skipped: %s",
+                                     _og_exc)
                     # ── THE SELF-AUDIT LAYER (user spec, Sep 22): after
                     # every close, count the rule violations the row can
                     # prove, feed tomorrow's guard (>=3 -> x0.85 + the
@@ -5300,7 +7418,7 @@ def contest_light(exchange, cfg):
                         import meta_layers as _mla
                         _aud = _mla.audit_close(
                             {"pair": pair, "entry": _entry_x,
-                             "exit": _live_x, "goal_pct": w.get("goal_pct"),
+                             "exit": _live_x, "goal_pct": _goal_x,
                              "exit_reason": reason, "closed_by": "getout"},
                             w)
                         if _aud.get("violations"):
@@ -5408,28 +7526,17 @@ def contest_light(exchange, cfg):
             w["goal_pct"] = _goal
             w["window_min"] = max(60.0, min(180.0, _goal * 60.0))
             dirty = True
-        _glevel = int(pct / _goal) if (_goal > 0 and pct > 0) else 0
-        if _goal > 0 and pct < _goal * 0.25:
-            _take_level.pop(pair, None)  # back near entry — fresh count
-        elif _glevel > _take_level.get(pair, 0):
-            _take_level[pair] = _glevel
-            if voice:
-                # STAY CLOSE (user rule, Sep 21: after a breakout finishes
-                # and the goal is reached, she says STAY CLOSE — the exit
-                # belongs to the trend watch / exit watch, never "take the
-                # profit", never the clock)
-                if _glevel == 1:
-                    _speak_server(f"Goal reached! {asset} up {pct:.1f} percent "
-                                  f"— stay close! I'll call the exit when "
-                                  f"the trend breaks!")
-                else:
-                    _speak_server(f"{_glevel} times the goal! {asset} "
-                                  f"up {pct:.1f} percent — stay close!")
-            logger.info("🎯 GOAL: %s +%.1f%% (goal %.1f%%, x%d)",
-                        pair, pct, _goal, _glevel)
-            # mature move = the goals-banked display record (the payout
-            # gate it once fed is retired, Sep 21)
-            _save_take_payout(pair, round(usd))
+        # ── THE PLAN vs THE CLOCK (Nov 7, user ask): report each open
+        #    fire's planned window against the time it has spent, so a fire
+        #    drifting past its plan is VISIBLE before the exit watch has to
+        #    act. Report only — the exit stays the trend watch's call.
+        try:
+            _report_plan_drift(pair, w, pct)
+        except Exception as _pd_exc:
+            logger.debug("plan-drift report skipped for %s: %s", pair, _pd_exc)
+        # A reached goal is a TAKE IT exit (gate 4 above): it shares the
+        # GET OUT close path and never leaves a STAY CLOSE row behind.
+        # The old goal-hit voice/save branch is retired with that rule.
 
         # ── 4. GIVEBACK WARNING — tier-aware (Sep 1: "everything should
         # auto adjust when the contest is selected"): the old fixed $50
@@ -5617,6 +7724,71 @@ def main():
     logger.info("  Gates: calibrated confidence bar + expected-move floor")
     logger.info("  Press Ctrl+C to stop")
     logger.info("=" * 60)
+    # THE ENTRY GATE THIS PROCESS RUNS, named at boot (Nov 10): the dial is
+    # invisible otherwise, and "which funnel am I in" must be readable from
+    # the log of the process that is actually running -- not inferred from
+    # the source on disk.
+    try:
+        _kb_armed = _knife_blocks_entry()
+        logger.info("  ENTRY GATE: KNIFE_BLOCK %s — %s",
+                    "ARMED" if _kb_armed else "OFF",
+                    "a broken-trend fire is REFUSED at entry" if _kb_armed
+                    else "a broken-trend fire lands at MINIMUM SIZE (Oct 9 rule)")
+    except Exception as _kb_exc:
+        logger.warning("  ENTRY GATE: KNIFE_BLOCK unreadable (%s) — fail-closed, armed", _kb_exc)
+    # ── THE RISK ENVELOPE (Nov 6, the getout-cascade review): the boot
+    #    line that names which funnel THIS process runs. The dial is
+    #    invisible otherwise — a strict refusal and a dial-off skip look
+    #    the same in the log until someone greps the source.
+    # ── THE SIZED ENTRY (Nov 11): the ONE configured sizing number, printed
+    #    at boot so the receipt is on the record before any fire happens. The
+    #    3% guard and the book carry still cut it; this is the ceiling.
+    try:
+        try:
+            import contest_account as _ca_boot
+            _acct_boot = _ca_boot.load_state()
+            _sbal_boot = float(_acct_boot.get("current_balance") or 0.0)
+        except Exception:
+            _sbal_boot = 0.0
+        if _sbal_boot <= 0.0:
+            _sbal_boot = float(DEFAULT_CONFIG.challenge_balance)
+        _sfrac_boot = min(max(float(getattr(DEFAULT_CONFIG, "contest_size_frac", 1.0) or 1.0), 0.0), 1.0)
+        logger.info("  SIZE: configured %.2f%% of $%.2f = $%.2f per entry "
+                    "(ceiling — the 3%% guard and the book carry still cut it)",
+                    100.0 * _sfrac_boot, _sbal_boot, _sbal_boot * _sfrac_boot)
+    except (OSError, TypeError, ValueError) as exc:
+        # 7597: the boot SIZE banner is informational; the scanner must boot
+        # without it, and the miss is named
+        logger.debug("  boot SIZE banner skipped: %s", exc)
+
+    try:
+        logger.info("  %s", contest_standing_text())
+        contest_paycheck_check()
+    except Exception as _cs_boot_exc:
+        logger.debug("contest standing at boot failed: %s", _cs_boot_exc)
+
+    logger.info("  RISK ENVELOPE: strict fires %s | book cap %.0f%% of balance "
+                "| %d fires/day | stop <= %.1f%% of size, floor $%.2f",
+                "ON" if _strict_fires() else "OFF (old funnel)",
+                MAX_AGGREGATE_EXPOSURE_FRAC * 100.0, MAX_FIRES_PER_DAY,
+                HARD_STOP_MAX_PCT, HARD_STOP_ABS_FLOOR_USD)
+    _push_channel_boot()
+    contest_watchdog_boot()
+    death_floor_boot()
+    # ── THE LOST-ROW CAP (Nov 6, the nine-day ride): the watch recovers a
+    #    row it has not seen for this long instead of riding it (see
+    #    _watch_lost_minutes). Named at boot like every other live dial.
+    logger.info("  WATCH LOST CAP: %.0f min unheard (SCOUT_LOST_ROW_MIN) — "
+                "an unseen row is closed with its gap on the receipt, "
+                "never ridden blind", LOST_ROW_MIN)
+    # the death-line lesson: the mandate the last breach armed (if any)
+    try:
+        _dm_boot = _audit_death_mandate()
+        if _dm_boot is not None:
+            import death_lessons as _dl_boot
+            logger.info("  DEATH MANDATE: %s", _dl_boot.describe(_dm_boot))
+    except Exception as _dm_boot_exc:
+        logger.debug("death mandate readout skipped: %s", _dm_boot_exc)
 
     cfg = TradingConfig()
     cfg.mtf_enabled = False
@@ -5659,29 +7831,6 @@ def main():
                     "every %dh)", int(_fk5m.STORE_REFRESH_S // 3600))
     except Exception as _fk5m_exc:
         logger.info("  Deep store 5m driver: OFF (%s)", _fk5m_exc)
-
-    # ── THE SURE THING AUTO-REFIT DRIVER (Sep 11): the score's weights
-    # keep pace with the store — a monthly pass replays the deep store
-    # with the real detector, ridge-fits fresh weights under the popup's
-    # re-contracted 4h horizon, and SHIPS only when the holdout proves
-    # the fresh fit beats legacy AND the incumbent. Degradation (the
-    # holdout AUC dropping below the incumbent's or the forward-ranker
-    # floor) keeps the incumbent and REPORTS — the report + the weights
-    # ledger (_surethingautorefit.txt / sure_thing_autoweights.json)
-    # carry the verdicts. A shipped swap is atomic (REFIT_W.update) —
-    # the next poll prices with the new weights, no restart. Daemon;
-    # a broken pass never takes the funnel down.
-    try:
-        import surething_autorefit as _star
-        _star_stop = threading.Event()
-        threading.Thread(target=_star.refit_driver_loop,
-                         args=(_star_stop,), daemon=True,
-                         name="surething-autorefit").start()
-        logger.info("  Sure Thing auto-refit driver: ON (monthly refit, "
-                    "first pass in %d min; holdout degradation reported)",
-                    int(_star.FIRST_DELAY_S // 60))
-    except Exception as _star_exc:
-        logger.info("  Sure Thing auto-refit driver: OFF (%s)", _star_exc)
 
     # ── THE TIDE BAR WEEKLY (Sep 11): hindsight for the per-state
     # outcome bars — every week the ledgers' real candidates are graded
@@ -5788,6 +7937,24 @@ def main():
 
     # ── Notification ──────────────────────────────────────────────────
     def notify_big(title: str, message: str, spoken: str | None = None):
+        # THE DEATH FLOOR is advisory for popups: it never silences a BUY.
+        # At/below the halt line it says its piece and the signal still lands.
+        try:
+            _nb_watch = _load_contest_watch() or {}
+            _nb_marks = {}
+            for _nb_pair in list(_nb_watch):
+                try:
+                    _nb_marks[_nb_pair] = float(
+                        (exchange.fetch_ticker(_nb_pair) or {}).get("last") or 0.0)
+                except Exception:
+                    pass
+            _nb_refusal = death_floor_refusal(
+                "popup", watch=_nb_watch, marks=_nb_marks)
+            if _nb_refusal:
+                # ADVISORY ONLY: show the line, still show the signal.
+                logger.warning("%s (advisory — the popup still fires)", _nb_refusal)
+        except Exception as _nb_exc:
+            logger.debug("popup death-floor read failed: %s", _nb_exc)
         """Desktop alert that STAYS until you read it — plus Zira says the
         WHOLE call out loud (user directive: she speaks why/when/how-long,
         not just the coin name — the bare 'BUY PENGU' morning taught us).
@@ -5867,6 +8034,28 @@ def main():
     # ── Send alert + write signal to bridge ───────────────────────────
     def send_alert(pair, signal, auto_trade_threshold=89, move_level="standard"):
         asset = pair.split("/")[0]
+        # ── THE DEATH FLOOR (Nov 11): the deterministic refusal. At/below the
+        #    halt line the book raises NO new risk at all — ahead of sizing,
+        #    ahead of every gate, ahead of the bridge.
+        try:
+            _df_watch = _load_contest_watch() or {}
+            _df_marks = {}
+            for _df_pair in list(_df_watch):
+                try:
+                    _df_marks[_df_pair] = float(
+                        (exchange.fetch_ticker(_df_pair) or {}).get("last") or 0.0)
+                except Exception:
+                    pass
+            _df_msg = death_floor_refusal(
+                asset, watch=_df_watch, marks=_df_marks)
+        except Exception as _df_exc:
+            logger.debug("death-floor mark snapshot unavailable: %s", _df_exc)
+            _df_msg = death_floor_refusal(asset)
+        if _df_msg:
+            # ADVISORY ONLY (Nov 12, user rule: the operator makes the final
+            # trade decision). The line is shown in the log and console; it is
+            # not allowed to bury the signal by itself.
+            logger.warning("%s (advisory — the signal still lands)", _df_msg)
         sizing = compute_position_sizing(signal, cfg)
         is_buy = signal.action == "buy"
 
@@ -5875,6 +8064,46 @@ def main():
         if signal.action != "buy":
             logger.info("  %s %s signal suppressed — longs only (never short)", asset, signal.action.upper())
             return
+
+        # ── THE EDGE REGISTRY (mission, Nov 12): the ONLY research-to-live
+        #    route. With no promoted policy this returns inactive immediately
+        #    and changes nothing. With one, the scanner takes that policy's
+        #    signals and nothing else; a demoted/retired row stops matching on
+        #    the very next scan because the registry is read here every time.
+        _edge_plan = {"active": False, "allow": True, "size_frac": None}
+        if is_buy:
+            try:
+                import edge_live as _edge_live
+                try:
+                    import contest_account as _ca_edge
+                    _edge_acct = _ca_edge.load_state()
+                except Exception:
+                    _edge_acct = None
+                _edge_plan = _edge_live.live_plan(
+                    pair, signal, exchange=exchange, cfg=cfg,
+                    account=_edge_acct)
+                if _edge_plan.get("active"):
+                    logger.info("  EDGE POLICY: %s — %s%s",
+                                _edge_plan.get("policy"),
+                                "ALLOW" if _edge_plan.get("allow")
+                                else "REFUSE",
+                                (" (" + _edge_plan.get("reason", "") + ")")
+                                if _edge_plan.get("reason") else "")
+                if _edge_plan.get("active") and not _edge_plan.get("allow"):
+                    _log_suppression(
+                        pair, "edge-policy",
+                        _edge_plan.get("reason") or "promoted policy did not match",
+                        quick=float(signal.confidence))
+                    return
+            except Exception as _edge_exc:
+                # fail-open is the no-promotion contract: a broken research
+                # sidecar must not silently disable the scanner or authorize
+                # a non-registry policy trade.
+                logger.warning("edge registry gate unavailable for %s (%s) — "
+                               "the normal scanner path continues", pair,
+                               _edge_exc)
+                _edge_plan = {"active": False, "allow": True,
+                              "size_frac": None}
 
         # ── ROTATION MEMORY (user rule, Aug 30) ─────────────────────────
         # 1. LOCKOUT — RETIRED (user rule, Sep 10: "delete the rule"): the
@@ -6246,8 +8475,18 @@ def main():
         # ONLY if the bot's gates passed. Gated picks stay contest-only.
         # min_confidence=0 because we already checked above — bridge still checks:
         # kill switch, cooldown, duplicates, position limits, R:R, exhaustion, breakout failure
-        signal_written = False
-        if not gate_notes:
+        # ── THE BRIDGE WRITE STANDS BEHIND THE FIRE DECISION (Nov 6, the
+        #    cascade review's ordering gap): a BUY signal used to hit the
+        #    bridge HERE — hundreds of lines before the contest book judged
+        #    the fire — so a fire the book refused at the popup had already
+        #    reached the bot. One decision, THEN both side effects: the BUY
+        #    write now runs below the strict-fire gate. (The SELL write
+        #    keeps its place and shape untouched — exits are a different
+        #    contract and the bot already holds the position.)
+        def _bridge_write_now(action) -> bool:
+            """The one bridge write. Returns the bridge's own verdict
+            (duplicate / full / limits may still decline it). Never
+            raises: a dead bridge must not cost the contest its fire."""
             try:
                 from signal_bridge import write_buy_signal
                 # TIDE STAMP (user rule, Aug 31: collect the data before
@@ -6262,31 +8501,54 @@ def main():
                     # honors 'OUT|BAR PASSED <bar>' and still rejects a
                     # bare OUT (belt-and-braces, fail-closed)
                     _tide_stamp = f"OUT|BAR PASSED {_bot_out_pbar:.0f}"
-                signal_written = write_buy_signal(
-                    pair=pair, action=signal.action,
+                # GO BIG keeps the strategy's own take target (momentum
+                # decides the exit) but prices the bridge stop at exactly
+                # $30 net — the old percentage stop would risk hundreds.
+                _b_stop, _b_take, _b_rr = (signal.stop_loss,
+                                           signal.take_profit,
+                                           signal.risk_reward)
+                if _go_big:
+                    try:
+                        _b_entry = float(signal.entry_price or 0.0)
+                        _b_size = float(_spend or 0.0)
+                        if _b_entry > 0.0 and _b_size > 0.0:
+                            _b_stop = _b_entry * (1.0 - 30.0 / _b_size)
+                    except (TypeError, ValueError):
+                        pass
+                _written = write_buy_signal(
+                    pair=pair, action=action,
                     # the BRAIN'S number (deep-read confidence when we have
                     # it): the bot's entry-conviction scoring and the QC
                     # should never disagree about what this signal was worth
                     confidence=(float(_deep.confidence) if _deep is not None
                                 else float(signal.confidence)),
                     entry_price=signal.entry_price,
-                    stop_loss=signal.stop_loss,
-                    take_profit=signal.take_profit,
-                    risk_reward=signal.risk_reward,
-                    position_size_usd=sizing.position_size_usd if sizing else None,
-                    reasons=signal.reasons,
-                    source="scout_auto",
+                    stop_loss=_b_stop,
+                    take_profit=_b_take,
+                    risk_reward=_b_rr,
+                    position_size_usd=(float(_spend) if _go_big
+                                       else sizing.position_size_usd if sizing
+                                       else None),
+                    reasons=(["GO BIG: 100% notional, momentum exit, $30 net stop",
+                              *signal.reasons] if _go_big else signal.reasons),
+                    source="scout_go_big" if _go_big else "scout_auto",
                     min_confidence=0,  # Already gated in send_alert — skip redundant check
                     tide_state=_tide_stamp,
                     tide_pct=_tpw,
                 )
-                if signal_written:
-                    logger.info("📡 Signal written to bridge for XRP bot: %s %s (%.0f%%)", signal.action.upper(), asset, signal.confidence)
+                if _written:
+                    logger.info("📡 Signal written to bridge for XRP bot: %s %s (%.0f%%)", action.upper(), asset, signal.confidence)
                 else:
                     logger.info("  Signal not written (duplicate or already pending)")
+                return bool(_written)
             except Exception as exc:
                 logger.warning("Could not write to signal bridge: %s", exc)
-        else:
+                return False
+
+        signal_written = False
+        if not is_buy and not gate_notes:
+            signal_written = _bridge_write_now(signal.action)
+        elif gate_notes:
             logger.info("  Bot gates declined %s — desktop alert fires as CONTEST-ONLY", asset)
 
         # ── Desktop alert policy ─────────────────────────────────────────
@@ -6557,12 +8819,9 @@ def main():
 
         # The signal already PASSED the contest criteria (champion + checklist,
         # checked upstream). Why the bot didn't take it gets spelled out in
-        # plain English so the user can judge the call themselves.
-        bot_note = ""
-        if gate_notes:
-            bot_note = "BOT'S OUT: " + " / ".join(gate_notes) + "\n"
-        elif not signal_written:
-            bot_note = "BOT'S OUT: bot's full or already holds it.\n"
+        # plain English so the user can judge the call themselves — composed
+        # WITH the write (Nov 6): the note describes the bridge's own verdict,
+        # so it cannot be written before the bridge has given one.
 
         # Desktop notification
         liq_msg = f"  {liq_line}\n" if liq_line else ""
@@ -6601,12 +8860,156 @@ def main():
         # boundary warning covers). The $20 pace and its resolve cap are
         # retired on the popup path.
         _goal_pct = _market_goal_pct(exchange, pair)
-        _win_min = _rotation_window_min()
+        # ── THE HOLD WINDOW IS A FUNNEL INPUT (Nov 7): the armed lesson caps
+        #    how long a fire may be held, and a plan is goal x 60 at the
+        #    engine's 1%/hour. A goal the cap cannot reach plans a fire the
+        #    mandate is ARITHMETICALLY certain to refuse — so the funnel
+        #    resolves it HERE, before a dollar is sized and before a popup is
+        #    built, instead of letting the gate discover it after all the
+        #    work (five of five fires one morning: worth, size, stress and
+        #    book all passed, and every one died on a 105-162 minute plan).
+        #    The goal is capped to what the window can drain; when even the
+        #    engine's own goal floor does not fit, the candidate is skipped at
+        #    scan time and says so. The cap itself is NEVER relaxed — only the
+        #    target is made reachable inside it.
+        _pace_pct = None
+        _plan_basis = ""
+        _win_min = None
+        if is_buy:
+            try:
+                # THE CHAMPION CLOCK (Nov 7): one call, so the live scan and
+                # the test drive the same cap / pace / plan arithmetic.
+                _dec = _goal_clock_decide(asset=asset, pair=pair,
+                                          exchange=exchange,
+                                          goal_pct=_goal_pct,
+                                          hold_cap_min=_hold_window_cap())
+                if _dec.get("skipped"):
+                    return
+                _goal_pct = float(_dec["goal_pct"])
+                _win_min = float(_dec["window_min"])
+                _pace_pct = _dec.get("pace_pct_per_hour")
+                _plan_basis = _dec.get("basis") or ""
+            except Exception as _fu_exc:
+                logger.debug("hold-window goal cap skipped: %s", _fu_exc)
+        if _win_min is None:
+            # not a buy, or the clock could not read: the plan is STILL the
+            # goal's horizon at the 1%/h assumption, never the block clock
+            _win_min = _goal_plan_min(_goal_pct, pace_pct_per_hour=_pace_pct)
+        if not _plan_basis:
+            _plan_basis = _pace_basis_label(_pace_pct)
         _out_by = (_now_mst() + timedelta(minutes=round(_win_min / 5.0) * 5)).strftime("%I:%M").lstrip("0")
-        hold_txt = f"+{_goal_pct:.1f}% in ~{_win_min / 60.0:.0f}h"
+        _hold_lbl = (f"{_win_min:,.0f} min" if _win_min < 120.0
+                     else f"{_win_min / 60.0:.0f}h")
+        hold_txt = f"+{_goal_pct:.1f}% in ~{_hold_lbl}"
+        # the SAME basis string the fire records below — a log line and a
+        # watch row that disagree are how a plan goes unrecorded
         logger.info("  GOAL CLOCK: %s — goal +%.1f%% (engine expected move, capped by "
-                    "the asset's week), window %.0fh (to the rotation boundary), out by %s",
-                    asset, _goal_pct, _win_min / 60.0, _out_by)
+                    "the asset's week), plan %s (%s), %.0f min to the "
+                    "rotation boundary, out by %s",
+                    asset, _goal_pct, _hold_lbl,
+                    _plan_basis,
+                    _rotation_window_min(), _out_by)
+
+        # ── THE ECONOMIC CONTRACT (Nov 12): no new risk without a positive,
+        # fee-aware edge and a payoff that clears its own stop. This is not a
+        # pause: the scanner keeps scanning and the exits keep working; it is
+        # a refusal to pay tuition on a negative-expectancy fire. The governor
+        # and the console read the same verdict.
+        _econ_plan = None
+        _econ_probe = False
+        if is_buy:
+            try:
+                import strategy_economics as _econ_g
+                import contest_account as _ca_g
+                _g_acct = _ca_g.load_state()
+                _g_bal = float(_g_acct.get("current_balance") or _bal or 0.0)
+                _g_win = float(_ca_g.win_line(_g_acct))
+                _g_remaining = max(0.0, _g_win - _g_bal)
+                # No deadline: the target is progressive. Do not turn a
+                # seven-day checkpoint into a false refusal of a positive
+                # edge; only the edge and reward/risk gates apply.
+                _g_days = 0.0
+                try:
+                    _g_cap = float(_ca_g.max_entry_usd(
+                        _g_bal, _ca_g.window_drawdown_pct(pair),
+                        float(_g_acct.get("start_balance") or _g_bal)))
+                except Exception:
+                    _g_cap = None
+                _g_rows = _ca_g._rolling_trade_rows()
+                _g_cadence = _econ_g.recent_cadence(_g_rows)
+                _g_stop = 2.5
+                try:
+                    _g_entry = float(signal.entry_price or 0.0)
+                    _g_stop_px = float(signal.stop_loss or 0.0)
+                    if _g_entry > 0 and _g_stop_px > 0:
+                        _g_stop = abs(_g_entry - _g_stop_px) / _g_entry * 100.0
+                except (TypeError, ValueError):
+                    pass
+                _econ_plan = _econ_g.assess(
+                    _g_rows, remaining_usd=_g_remaining, days_left=_g_days,
+                    cadence=_g_cadence, goal_pct=_goal_pct,
+                    stop_pct=_g_stop, max_size_usd=_g_cap,
+                    max_cadence=float(MAX_FIRES_PER_DAY))
+                if not _econ_plan.get("allow_new_risk"):
+                    if _econ_plan.get("allow_probe"):
+                        # LIVE PROBE: the edge is still negative, so this is
+                        # not full size. The mistake-memory gate below still
+                        # hard-blocks a context that repeated its loss.
+                        _econ_probe = True
+                        logger.warning(
+                            "  ECONOMICS: %s — LIVE PROBE $%s, not full "
+                            "risk; edge %s/close, win %.1f%%, payoff %s, "
+                            "R:R %s",
+                            _econ_plan.get("verdict"),
+                            _econ_plan.get("probe_size_usd"),
+                            (_econ_plan.get("edge") or {}).get("mean"),
+                            100.0 * float((_econ_plan.get("edge") or {}).get("win_rate") or 0.0),
+                            (_econ_plan.get("edge") or {}).get("payoff"),
+                            _econ_plan.get("reward_risk"))
+                    else:
+                        # WATCH-ONLY (Nov 12, user rule: "it should not block
+                        # any signals from getting in but it should watch
+                        # closely the exit").  A negative-edge verdict no
+                        # longer buries the signal: it lands at a small
+                        # watch-only size, stamped PROBE, and the live exit
+                        # monitor owns the downside.  The verdict is still
+                        # spoken in full so the size is never mistaken for a
+                        # full-risk call.
+                        _econ_probe = True
+                        _watch_cap = max(25.0, min(
+                            float(_bal or 0.0) * 0.01, 100.0))
+                        _econ_plan = dict(_econ_plan)
+                        _econ_plan["probe_size_usd"] = _watch_cap
+                        logger.warning(
+                            "  ECONOMICS ADVISORY: %s %s — signal lands "
+                            "(watch-only base $%.0f; %s; the exit monitor "
+                            "owns the risk) — edge %s/close, win %.1f%%, "
+                            "payoff %s, R:R %s",
+                            asset, _econ_plan.get("verdict"), _watch_cap,
+                            "; ".join(_econ_plan.get("reasons") or []),
+                            (_econ_plan.get("edge") or {}).get("mean"),
+                            100.0 * float((_econ_plan.get("edge") or {}).get("win_rate") or 0.0),
+                            (_econ_plan.get("edge") or {}).get("payoff"),
+                            _econ_plan.get("reward_risk"))
+                        _log_suppression(
+                            pair, "negative-expectancy-advisory",
+                            f"economics watch-only: {_econ_plan.get('verdict')}; "
+                            + "; ".join(_econ_plan.get("reasons") or []),
+                            quick=float(signal.confidence),
+                            rot=rotation_key_for_hour(_now_mst().hour))
+                if _econ_plan.get("allow_new_risk"):
+                    logger.info(
+                        "  ECONOMICS: %s — full risk allowed; edge %s/close, "
+                        "required size %s vs cap %s",
+                        _econ_plan.get("verdict"),
+                        (_econ_plan.get("edge") or {}).get("mean"),
+                        _econ_plan.get("required_size_usd"),
+                        _econ_plan.get("max_size_usd"))
+            except Exception as _econ_exc:
+                # A broken economics read must not silently authorize risk.
+                logger.warning("  ECONOMICS unavailable (%s) — no fire",
+                               _econ_exc)
+                return
 
         # ── THE DOUBLE-CHECK RULE (user directive, Aug 25): a desktop signal
         # must already pass the SAME deep scan the user will run in QUICK
@@ -6728,18 +9131,30 @@ def main():
                                          floor=float(DESKTOP_ALERT_MIN),
                                          tide=(f"{_df_state} {_df_pct:.0f}%" if _df_pct is not None else _df_state),
                                          rot=_rot_now_key)
-                    from indicators import ema as _ema3
-                    _es = float(_ema3(_df["close"], cfg.ema_short).iloc[-1])
-                    _el = float(_ema3(_df["close"], cfg.ema_long).iloc[-1])
-                    if _es < _el and float(_df["close"].iloc[-1]) < _el:
-                        # THE UNIFIED RULE (Oct 9): the downtrend knife is
-                        # ADVERSITY — the fire lands at minimum size,
-                        # marked; it no longer returns. (Aug 25's rule
-                        # reshaped by the Oct 9 decree: nothing blocks QC.)
-                        logger.info("  KNIFE (weaken): %s downward trend — the fire LANDS at minimum size", asset)
-                        _knife_weaken = True
             except Exception as _exc:
                 logger.debug("desktop pre-check unavailable for %s: %s (alerting anyway — QC still gates)", asset, _exc)
+
+        # ── THE ENTRY TREND GATE (Nov 10) — OUTSIDE the pre-check's try ────
+        # It used to sit INSIDE that try and inside `if _deep is not None:`,
+        # so a deep read returning None (or any raise in the block, whose
+        # handler says "alerting anyway") let a broken-trend fire land
+        # untested. The gate now runs for every buy, reads its own 1h frame
+        # when the deep read never produced one, and fails closed.
+        if is_buy:
+            _kv, _knote = entry_knife_verdict(
+                asset=asset, pair=pair, cfg=cfg,
+                df=locals().get("_df"),
+                floor=locals().get("DESKTOP_ALERT_MIN"),
+                signal=signal, deep=locals().get("_deep"),
+                df_state=locals().get("_df_state"),
+                df_pct=locals().get("_df_pct"),
+                rot=locals().get("_rot_now_key"),
+                fetch_1h=(lambda: exchange.fetch_ohlcv(pair, timeframe="1h",
+                                                       limit=100)))
+            if _kv == "block":
+                return
+            if _kv == "weaken":
+                _knife_weaken = True
 
         # (the goal clock above set hold_txt + _out_by; the $20 patience
         # ladder and its "up twenty dollars" phrasing retired with the
@@ -6784,7 +9199,13 @@ def main():
         # no alert at all.
         # (the fallback is the CONFIGURED tier, not a fictional $5k — at
         # the $1k tier a fake 5k blocks small books the real contest fits)
-        _spend = float(_bal) if _bal > 0 else float(DEFAULT_CONFIG.challenge_balance)
+        try:
+            _size_frac = min(max(float(getattr(cfg, "contest_size_frac", 1.0) or 1.0), 0.0), 1.0)
+        except Exception:
+            _size_frac = 1.0
+        _spend = configured_base_spend(_bal, cfg)
+        _go_big = False          # set when coin + rotation support all-in
+        _go_big_why = ""
         _carry = None
         try:
             _depth = float(snap.get("book", {}).get("ask_tob") or 0.0)
@@ -6912,25 +9333,75 @@ def main():
                 else:
                     logger.debug("  Hail Mary unavailable — %s", _hm_why)
             if _risk_cap <= 0:
+                # WATCH-ONLY (Nov 12): the floor no longer buries the signal.
+                # The popup lands at the smallest viable size; the real-time
+                # exit monitor is what owns the risk from here.  The account's
+                # arithmetic is still spoken so the size is never mistaken for
+                # a full-risk call.
                 _floor_fl = _ca.death_line(_acct)
-                logger.info("  DEATH LINE: buffer gone (%.0f above the line at $%.2f) — no buy popup",
-                            _acct_bal - _floor_fl, _floor_fl)
+                _spend = max(10.0, min(float(_spend or 0.0) * 0.10,
+                                       max(float(_acct_bal) * 0.02, 10.0)))
+                contest_msg = (f"  DEATH-LINE WATCH: buffer gone (${_acct_bal - _floor_fl:,.0f} "
+                               f"above the ${_floor_fl:,.2f} line) — signal still lands at "
+                               f"MIN SIZE ${_spend:,.0f}; the exit monitor is live\n")
+                logger.warning("  DEATH LINE WATCH: %s — buffer gone at $%.2f; "
+                               "signal lands at min size $%.0f (entries are not vetoed)",
+                               asset, _floor_fl, _spend)
                 _log_suppression(pair, "death-line",
-                                 f"buffer gone — the account sits at the platform -3% line "
-                                 f"(${_floor_fl:.2f}); any trade can close the contest",
+                                 f"watch-only: buffer gone; signal lands at min "
+                                 f"size ${_spend:,.0f} — GET OUT monitor armed",
                                  quick=float(signal.confidence),
                                  brain=(float(_deep.confidence) if _deep is not None else None),
                                  floor=float(DESKTOP_ALERT_MIN),
                                  tide=(f"{_df_state} {_df_pct:.0f}%" if _df_pct is not None else _df_state),
                                  rot=_rot_now_key)
-                return
-            if _spend > _risk_cap:
+            elif _spend > _risk_cap:
                 _spend = _risk_cap
                 contest_msg = (f"  RISK CAP: ${_spend:,.0f} pre-sizing — THE 3% GUARD: this coin's worst-case "
                                f"window drawdown is {_wdd:.1f}%; ${_spend:,.0f} is the most the "
                                f"platform line can afford (the recommended spend is the title/ENTER line)\n")
         except Exception as _exc:
             logger.debug("3%% guard unavailable in send_alert: %s", _exc)  # fail-open
+        try:
+            logger.info("  SIZED SPEND: $%.2f = %.2f%% of $%.2f balance "
+                        "(configured %.2f%%, 3%% guard cap $%.2f)",
+                        _spend, (100.0 * _spend / float(_bal)) if _bal and _bal > 0 else 0.0,
+                        float(_bal or 0.0), 100.0 * _size_frac,
+                        float(locals().get("_risk_cap") or 0.0))
+        except (TypeError, ValueError) as exc:
+            # 9031: the SIZED SPEND line is a report of a decision already
+            # made; a formatting failure is traced, never silent
+            logger.debug("  SIZED SPEND line skipped: %s", exc)
+        # ── THE SURVIVABILITY GUARD (Nov 10 — the enforced brake): the
+        #    per-entry backtest showed the exits win 56.8% of starts and
+        #    still touch the -3% line on 38.8% of them, because the death
+        #    is a CLUSTER of losses in a bad regime, not one bad trade.
+        #    survival_guard.entry_gate reads the pause a closed trade armed
+        #    (persisted in survival_guard_state.json, so a restart cannot
+        #    forget it) and either refuses the popup outright or hands back
+        #    the post-reset PROBE multiplier. Fail-open like the 3% guard:
+        #    a broken guard must not silence the scanner.
+        try:
+            import survival_guard as _sg
+            _sg_gate = _sg.entry_gate(locals().get("_acct"))
+            if _sg_gate.get("blocked"):
+                logger.info("  SURVIVABILITY GUARD: %s — no buy popup",
+                            _sg_gate.get("reason"))
+                _log_suppression(pair, "survivability-guard",
+                                 f"guard pause: {_sg_gate.get('reason')}",
+                                 quick=float(signal.confidence),
+                                 brain=(float(_deep.confidence) if _deep is not None else None),
+                                 floor=float(DESKTOP_ALERT_MIN),
+                                 tide=(f"{_df_state} {_df_pct:.0f}%" if _df_pct is not None else _df_state),
+                                 rot=_rot_now_key)
+                return
+            _sg_mult = float(_sg_gate.get("size_multiplier") or 1.0)
+            if _sg_mult < 1.0:
+                _spend = _spend * _sg_mult
+                logger.info("  SURVIVABILITY GUARD: probe size %.2fx → $%.0f "
+                            "(first entries after a pause)", _sg_mult, _spend)
+        except Exception as _exc:
+            logger.debug("survivability guard unavailable in send_alert: %s", _exc)  # fail-open
         # ── THE ADVISORY-BRAIN SIZE SCALER (user rule, Sep 5): the brain's
         # number multiplies the guard-capped spend — ≥85 reads full size,
         # a 40% read 0.10x (MINIMUM VIABLE: no trade is ever sized at
@@ -6964,6 +9435,31 @@ def main():
             _spend = _spend * _tide_size_mult
             logger.info("  FLAT TIDE SIZING: %.2fx → $%.0f (the tide data spoke)",
                         _tide_size_mult, _spend)
+        # ── THE MISTAKE-MEMORY PROBATION (Nov 12): the same context that
+        #    keeps paying the same loss is sized down, not paused. This is
+        #    what sharpens the blade: the loop still collects the next
+        #    close, but the repeated mistake costs less while the table
+        #    proves whether the context has turned. Fail-open: a missing
+        #    table means full size, never a silent block.
+        try:
+            import overwatch_learner as _ol
+            _learn_route = "champion-fast" if _fast_route else "champion"
+            _learn_mult, _learn_why = _ol.size_multiplier(
+                route=_learn_route, tide=_df_state,
+                conviction=signal.confidence, goal_pct=_goal_pct)
+            if _learn_mult <= 0.0:
+                logger.info("  MISTAKE MEMORY: BLOCKED — %s", _learn_why)
+                _log_suppression(pair, "mistake-memory", _learn_why,
+                                 quick=float(signal.confidence),
+                                 tide=(f"{_df_state} {_df_pct:.0f}%"
+                                       if _df_pct is not None else _df_state))
+                return
+            if _learn_mult < 1.0:
+                _spend = _spend * _learn_mult
+                logger.info("  MISTAKE MEMORY: %.2fx -> $%.0f (%s)",
+                            _learn_mult, _spend, _learn_why)
+        except Exception as _learn_exc:
+            logger.debug("mistake memory unavailable: %s", _learn_exc)
         # ── THE UNIFIED-RULE WEAKEN (user decree, Oct 9): "If QC says BUY
         #    -> fire. If anything is weak -> fire minimum size."
         #    Adversity is INFORMATION — the fire lands at min-viable and is
@@ -6971,20 +9467,108 @@ def main():
         #    same 0.10x the brain scaler uses, against the SIZED base
         #    (pre-brain: guard-cap, book tranche, tide are all in).
         _weak_fire_reason = ""
+        if _econ_probe:
+            _probe_cap = float(_econ_plan.get("probe_size_usd") or 0.0)
+            if _probe_cap > 0 and _spend > _probe_cap:
+                logger.info("  LIVE PROBE SIZE: $%.0f -> $%.0f (25%% of "
+                            "the risk cap; full size refused)",
+                            _spend, _probe_cap)
+                _spend = _probe_cap
         _base_spend = _spend
+        # ── THE TARGET TRANCHE: when the economic contract passes, size the
+        #    entry to the pace the target actually needs — inside the 3%
+        #    guard's ceiling, never above the live balance. The old worth
+        #    floor only paid the $171/day bar; this pays the $199/day target
+        #    or refuses the setup (the economics gate already did).
+        try:
+            if (_econ_plan and _econ_plan.get("allow_new_risk")
+                    and _econ_plan.get("required_size_usd")):
+                _target_spend = min(float(_econ_plan["required_size_usd"]),
+                                    float(locals().get("_risk_cap") or 0.0),
+                                    float(_bal or 0.0))
+                if _target_spend > _base_spend:
+                    logger.info("  TARGET TRANCHE: $%.0f → $%.0f — sizing "
+                                "to the weekly pace (guard cap $%.0f)",
+                                _base_spend, _target_spend,
+                                float(locals().get("_risk_cap") or 0.0))
+                    _base_spend = _spend = _target_spend
+        except Exception as _tt_exc:
+            logger.debug("target tranche skipped: %s", _tt_exc)
+        # ── THE PROMOTED POLICY'S SIZE (mission, Nov 12): a 6% policy cannot
+        #    ride the 9% configured ceiling; a 9% policy is exactly today's
+        #    ceiling.  This cap is applied only when the registry is active,
+        #    so the no-promotion path keeps its existing arithmetic.
+        if (_edge_plan.get("active") and _edge_plan.get("allow")
+                and _edge_plan.get("size_frac")):
+            try:
+                _edge_cap = max(10.0, float(_bal or 0.0)
+                                * float(_edge_plan["size_frac"]))
+                if _spend > _edge_cap:
+                    logger.info("  EDGE SIZE: $%.0f → $%.0f (policy %.0f%%)",
+                                _spend, _edge_cap,
+                                100.0 * float(_edge_plan["size_frac"]))
+                    _spend = _base_spend = _edge_cap
+            except Exception as _edge_sz_exc:
+                logger.debug("edge size cap skipped: %s", _edge_sz_exc)
+        # ── THE TRANCHE PAYS THE BAR (Nov 7): the brain's confidence vote
+        #    sizes the fire — it must not decide whether the fire is WORTH
+        #    doing. A 0.10x read books a minimum-viable base ($330 under a
+        #    $3,300 ceiling) and the worth floor then refuses it, because
+        #    the $25 bar needs $1,710 at +1.5%: the funnel was sizing
+        #    setups it had already decided not to trade. When a bar is set
+        #    and the base cannot pay it, the tranche is raised to the
+        #    paying minimum — never past the guard's own ceiling, the
+        #    allowance or the book room, and never at all when the guard
+        #    named no ceiling or the account cannot be read. Every later
+        #    gate (gap stress, book cap, fires/day, the death mandate)
+        #    still judges the raised fire in full.
+        try:
+            _pt = _paying_tranche(pair, _base_spend, _goal_pct,
+                                  ceiling_usd=locals().get("_risk_cap"))
+            if _pt is not None and _pt.get("ok") and _pt.get("raised"):
+                logger.info("  TRANCHE RAISED: $%.0f → $%.0f — %s",
+                            _base_spend, float(_pt["size"]), _pt["why"])
+                _base_spend = _spend = float(_pt["size"])
+            elif _pt is not None and not _pt.get("ok"):
+                logger.info("  TRANCHE CANNOT PAY: %s", _pt.get("why"))
+        except Exception as _pt_exc:
+            logger.debug("tranche-to-pay skipped: %s", _pt_exc)
+        _weak_min_usd = _base_spend * 0.10   # the MIN shown in the title
+        _weak_paid = False                   # did the resize certify worth?
         try:
             _rcl_weaken_flag = _rcl_weaken
         except NameError:
             _rcl_weaken_flag = False
 
         def _min_size_weaken(gate: str, why: str):
-            """Mark a fire as weakened: log the reason and pin the spend
-            to the min-viable floor (0.10x of the sized base)."""
-            nonlocal _spend, _weak_fire_reason
+            """Mark a fire as weakened and book the SMALLEST size that still
+            pays the pace bar inside the death line's allowance (Nov 7: the
+            10% clamp could never pay, so every weakened fire was buried by
+            the worth floor two gates later). The 10% scale is applied first
+            and only ever RAISED back up to the paid size — never above the
+            fire's own sized base. When no size both pays and fits, the
+            refusal is stated here, in full, and the fire keeps its floor."""
+            nonlocal _spend, _weak_fire_reason, _weak_paid, _weak_min_usd
             _weak_fire_reason = f"{gate}: {why}"
-            _spend = max(_spend, _base_spend * 0.10)
-            logger.info("  MIN-SIZE FIRE (%s): %s — spend clamped to $%.0f",
-                        gate.upper(), why, _spend)
+            _weak_paid = False
+            _spend = _weakened_spend(_spend, _base_spend)
+            _ws = _weakened_fire_size(pair, _base_spend, _goal_pct)
+            if _ws is None:
+                _weak_min_usd = _base_spend * 0.10
+                logger.info("  MIN-SIZE FIRE (%s): %s — spend clamped to $%.0f "
+                            "(the account could not be read, so the floor "
+                            "stands)", gate.upper(), why, _spend)
+                return
+            if not _ws.get("ok"):
+                _weak_fire_reason = f"{gate}: {why}; {_ws.get('why')}"
+                logger.info("  WEAKENED REFUSED (%s): %s — %s",
+                            gate.upper(), why, _ws.get("why"))
+                return
+            _spend = min(_base_spend, max(_spend, float(_ws["size"])))
+            _weak_min_usd = _spend
+            _weak_paid = True
+            logger.info("  WEAKENED SIZING (%s): %s — $%.0f booked: %s",
+                        gate.upper(), why, _spend, _ws.get("why"))
         # OUT-tide adversity survivors (the block above no longer
         # returns): weakened, not suppressed — the earned passes
         # (lone wolf, learned bar, journal/retune release) fire FULL size
@@ -7009,7 +9593,7 @@ def main():
         if is_buy:
             _climb = _climb_out_check(exchange, pair,
                                       float(signal.entry_price or 0.0),
-                                      float(_goal_pct or 1.5),
+                                      _goal_pct,
                                       float(_spend or 0.0))
             if not _climb.get("ok"):
                 _fg = _climb.get("fail_gate") or "?"
@@ -7049,7 +9633,17 @@ def main():
                 _pace_w = _ca_w.daily_pace_usd(_acct_w)
                 _wf_w = _worth_floor_frac()  # the console dial, live
                 _worth_w = float(_spend) * (float(_goal_pct) / 100.0)
-                if _worth_w < _pace_w * _wf_w:
+                if not _ca_w.pays_the_bar(_worth_w, _pace_w * _wf_w):
+                    # THE MERGED DIAL (user decree, Oct 9): worth-floor is no
+                    # longer a veto — the popup fires at the weakened size with
+                    # the recommended amount + time-to-target in the
+                    # title/voice. (Nov 7) The size is the one that PAYS the
+                    # bar, and the burial row states the size that was booked,
+                    # never the small number the widen started from.
+                    _min_size_weaken("worth-floor",
+                                     f"a ${_spend:.0f} entry at +{_goal_pct:.1f}% pays "
+                                     f"${_worth_w:.0f} (< ${_pace_w * _wf_w:.0f} pace bar) — sized to the bar")
+                    _worth_w = float(_spend) * (float(_goal_pct) / 100.0)
                     _log_suppression(pair, "worth-floor",
                                      f"a ${_spend:.0f} entry at the +{_goal_pct:.1f}% goal pays "
                                      f"${_worth_w:.0f} < the ${_pace_w * _wf_w:.0f} floor "
@@ -7059,13 +9653,7 @@ def main():
                                      floor=float(DESKTOP_ALERT_MIN),
                                      tide=(f"{_df_state} {_df_pct:.0f}%" if _df_pct is not None else _df_state),
                                      rot=_rot_now_key)
-                    # THE MERGED DIAL (user decree, Oct 9): worth-floor is
-                    # no longer a veto — the popup fires at minimum size
-                    # with the recommended amount + time-to-target in the
-                    # title/voice. The floor informs; it never blocks.
-                    _min_size_weaken("worth-floor",
-                                     f"a ${_spend:.0f} entry at +{_goal_pct:.1f}% pays "
-                                     f"${_worth_w:.0f} (< ${_pace_w * _wf_w:.0f} pace bar) — minimum size")
+
             except Exception as _exc:
                 logger.debug("worth floor unavailable: %s", _exc)  # fail-open
         if is_buy:
@@ -7157,13 +9745,18 @@ def main():
             # full sized base (pre-weaken), MIN is the 0.10x floor the brain
             # scaler already trades on - both live in the title + voice.
             _max_spend_say = (f"${_base_spend:,.0f}" if _base_spend > 0 else "")
-            _min_spend_say = (f"${_base_spend * 0.10:,.0f}" if _base_spend > 0 else "")
-            _title_spend = (f"MAX: ${_base_spend:,.0f} — MIN: ${(_base_spend * 0.10):,.0f}"
+            # (Nov 7) MIN is what a weakened fire ACTUALLY books — the paid
+            # size the resize found, not a 10% floor that never pays.
+            _min_spend_say = (f"${_weak_min_usd:,.0f}" if _base_spend > 0 else "")
+            _title_spend = (f"MAX: ${_base_spend:,.0f} — MIN: ${_weak_min_usd:,.0f}"
                             if _base_spend > 0 else
                             "SIZE YOUR OWN — sizing unavailable")
             # THE UNIFIED-RULE MARK (user decree, Oct 9): a weakened fire
             # says WHY it rides small, right in the title.
-            _weak_title = (f" — MIN SIZE ({_weak_fire_reason.split(': ', 1)[-1].upper()})"
+            # (Nov 7) the mark no longer says "minimum size": the weakened
+            # fire is booked at the size that PAYS the pace bar, and calling
+            # that minimum would be the same label lie in the other direction.
+            _weak_title = (f" — WEAKENED, SIZED TO PAY ({_weak_fire_reason.split(': ', 1)[-1].upper()})"
                            if _weak_fire_reason else "")
             title = (f"🟢 BUY {asset} {_title_spend}"
                      + f" — {_dc:.0f}% SURE"
@@ -7193,7 +9786,7 @@ def main():
                        + _challenger_say
                        + _brain_say
                        + ("Flat tide — half size! " if _tide_size_mult < 1.0 else "")
-                       + ("Minimum size — the unified rule! " if _weak_fire_reason else "")
+                       + ("Weakened — sized to pay the pace bar! " if _weak_fire_reason else "")
                        + ("Fast route! " if _fast_route else "")
                        + _reentry_say
                        + _hm_say
@@ -7212,10 +9805,118 @@ def main():
             _dz = ""
             try:
                 _dz = _danger_zone_panel(exchange, pair, float(_spend or 0.0),
-                                         float(_goal_pct or 1.5),
+                                         float(_operative_goal_pct(_goal_pct,
+                                                                  pair)),
                                          float(_win_min or 60.0), _brain_mult)
             except Exception:
                 _dz = ""
+            # ── THE DECISION BEFORE THE SIDE EFFECT (Nov 6): the contest
+            #    book judges the fire FIRST, and only a fire it accepts may
+            #    reach the bridge, the popup or the ledger. This is the gate
+            #    that used to sit below `message` and AFTER the write — the
+            #    ordering gap that let the bot receive a signal the book had
+            #    already refused (no contest row, no ledger receipt, but a
+            #    live bot signal). A refusal now costs nothing downstream.
+            #    The FAMILY is stamped ONCE here and reused by the watch row,
+            #    so the widening judges exactly the family the ledger records.
+            _fire_route = ("champion-fast" if _fast_route
+                           else "champion-opportunistic"
+                           if _hail_mary and _hail_mary_mode == "opportunistic"
+                           else "champion")
+            # THE LEARNED ENTRY RULE (Nov 12): a losing context does not
+            # just shrink the next bet — it changes the entry itself. The
+            # highest confidence that already lost in this route/tide is
+            # now the floor; a deep context is blocked outright. This runs
+            # before the fire is built, so the Scout behaves differently
+            # instead of paying the same mistake at a smaller size.
+            try:
+                import overwatch_learner as _ol_entry
+                _entry_ok, _entry_bar, _entry_why = _ol_entry.entry_gate(
+                    route=_fire_route, tide=_df_state,
+                    conviction=signal.confidence,
+                    base_bar=DESKTOP_ALERT_MIN)
+                if not _entry_ok:
+                    logger.info("  ENTRY RULE: %s — %s", asset, _entry_why)
+                    _log_suppression(pair, "learned-entry-rule", _entry_why,
+                                     quick=float(signal.confidence),
+                                     tide=(f"{_df_state} {_df_pct:.0f}%"
+                                           if _df_pct is not None else _df_state))
+                    return
+                if _entry_bar and _entry_bar > float(DESKTOP_ALERT_MIN):
+                    logger.info("  ENTRY RULE: %s — learned bar %.0f clears "
+                                "at %.0f", asset, _entry_bar,
+                                float(signal.confidence))
+            except Exception as _entry_exc:
+                logger.debug("learned entry rule unavailable: %s", _entry_exc)
+            # ── GO BIG OR GO HOME (user rule, Nov 13): when the coin and
+            #    the rotation support it, the old per-trade envelope gives
+            #    way to the whole account, protected by the hard $30 net
+            #    stop and exited by momentum death. A weak fire or a Hail Mary never
+            #    takes this path; neither does a flat/out tide or a book
+            #    that cannot carry the account.
+            try:
+                import contest_account as _ca_gb
+                _gb_ok, _gb_why = _ca_gb.go_big_supported(
+                    action=signal.action, tide_state=_df_state,
+                    tide_pct=_df_pct,
+                    carry_usd=_carry, balance=float(_bal or 0.0),
+                    conviction=float(_dc or 0.0),
+                    floor=float(DESKTOP_ALERT_MIN),
+                    slot_open=bool(_load_contest_watch()))
+                _gb = _ca_gb.go_big_plan(
+                    float(_bal or 0.0),
+                    float(_ca_gb.load_state().get("start_balance") or 0.0),
+                    supported=bool(_gb_ok and not _weak_fire_reason
+                                   and not _hail_mary),
+                    stop_usd=_ca_gb.GO_BIG_STOP_USD,
+                    take_usd=_ca_gb.GO_BIG_TAKE_USD)
+                if _gb.get("ok"):
+                    _go_big = True
+                    _go_big_why = _gb_why
+                    _spend = _base_spend = float(_gb["spend_usd"])
+                    _weak_min_usd = _spend
+                    _weak_fire_reason = ""
+                    _weak_paid = True
+                    contest_msg = (
+                        f"  SPEND: 100% = ${_spend:,.0f} — GO BIG OR GO HOME "
+                        f"({_gb_why}); ride the run, GET OUT when momentum "
+                        f"dies, hard stop -${_ca_gb.GO_BIG_STOP_USD:,.0f} net\n")
+                    logger.info("  GO BIG: %s — 100%% = $%.0f (%s)",
+                                asset, _spend, _gb_why)
+                else:
+                    logger.info("  GO BIG declined: %s", _gb.get("why"))
+            except Exception as _gb_exc:
+                logger.debug("GO BIG sizing skipped: %s", _gb_exc)
+            _fire_setup = _setup_tags(
+                route=_fire_route,
+                tide_state=_df_state, tide_pct=_df_pct,
+                conviction=signal.confidence,
+                brain=_dc, mult=_brain_mult,
+                climb=_climb, weak=_weak_fire_reason,
+                size=_spend, base=_base_spend,
+                fast=_fast_route,
+                reentry=_is_reentry, hail=_hail_mary,
+                probe=_econ_probe)
+            if _strict_fire_refusal(pair, asset, _spend, _bal,
+                                    _weak_fire_reason,
+                                    win_min=float(_win_min or 0.0),
+                                    family=_setup_family(_fire_setup),
+                                    weak_paid=_weak_paid,
+                                    go_big=_go_big):
+                logger.info("  BRIDGE: no write for %s — the contest book "
+                            "refused this fire (%s)", asset,
+                            (_weak_fire_reason.split(":", 1)[0]
+                             or "exposure/count cap"))
+                return
+            if not gate_notes:
+                signal_written = _bridge_write_now(signal.action)
+            # The bot's own answer, in plain English, right after the write
+            # it describes (moved here with the write, never before it).
+            bot_note = ""
+            if gate_notes:
+                bot_note = "BOT'S OUT: " + " / ".join(gate_notes) + "\n"
+            elif not signal_written:
+                bot_note = "BOT'S OUT: bot's full or already holds it.\n"
             message = (
                 f"BUY {asset}\n"
                 f"WHY: the engine expects +{_goal_pct:.1f}% in this window at this coin's pace, "
@@ -7263,6 +9964,8 @@ def main():
         # asset already being watched — the watch IS the entry record, so
         # a repeat popup can only be noise. Rotation re-entry after SOLD
         # or a GET OUT auto-close fires fresh as always.
+        # (the strict-fire gate ran ABOVE, before the bridge write and the
+        # message build — one decision, then both side effects)
         if _popup_already_watched(pair):
             return
         notify_big(title, message, spoken=_spoken if is_buy else None)
@@ -7279,10 +9982,7 @@ def main():
             # CodeRabbit critical, Oct 2: the reminder first read a bare
             # `route`, a dict key, not a local — a NameError on every BUY
             # popup past this line)
-            _opp_route = ("champion-fast" if _fast_route
-                          else "champion-opportunistic"
-                          if _hail_mary and _hail_mary_mode == "opportunistic"
-                          else "champion")
+            _opp_route = _fire_route      # computed once, above the gate
             try:
                 _fsnap = dict(_SNAPSHOT_CTX.get("ctx") or {})
                 _fsnap.update({"kind": "fired",
@@ -7296,7 +9996,14 @@ def main():
                                    _climb.get("features") if _climb else None,
                                    _df_state, _df_pct),
                                "spend": float(_spend or 0.0),
-                               "goal_pct": float(_goal_pct or 0.0),
+                               # THE GOAL STAMP AT THE ENTRY RECORD (Nov 6):
+                               # the watch row was already stamped, but this
+                               # fire's hindsight snapshot still shipped a raw
+                               # zero when the engine named no goal — and the
+                               # snapshot is the row the graders read. Same
+                               # operative fallback, one derivation.
+                               "goal_pct": _operative_goal_pct(_goal_pct,
+                                                               pair),
                                "win_min": float(_win_min or 0.0),
                                "entry": float(signal.entry_price or 0.0),
                                "hail_mary": bool(_hail_mary),
@@ -7347,13 +10054,22 @@ def main():
                              float(_spend or 0.0), float(_goal_pct or 0.0),
                              float(_win_min or 0.0),
                              f"BUY {signal.confidence:.0f}% "
-                             + ("(opportunistic hail mary)"
+                             + ("(GO BIG)" if _go_big else
+                                "(opportunistic hail mary)"
                                 if _hail_mary and _hail_mary_mode == "opportunistic"
                                 else "(champion)"),
-                             "champion",
+                             "go_big" if _go_big else "champion",
+                             go_big=_go_big,
                              hm_mode=(_hail_mary_mode
                                       if _hail_mary and _hail_mary_mode == "opportunistic"
-                                      else None))
+                                      else None),
+                             # the fire-time family — the SAME stamp the gate
+                             # judged (one call, one truth)
+                             setup=_fire_setup,
+                             # the clock's OWN plan basis — the same string
+                             # the GOAL CLOCK line printed, never re-derived
+                             plan_basis=_plan_basis,
+                             pace_pct_per_hour=_pace_pct, exchange=exchange)
         logger.info("🚀 BIG ALERT: %s %s — %.0f%% — entry $%.4f — TP $%.4f",
                     signal.action.upper(), asset, signal.confidence, signal.entry_price, signal.take_profit)
 
@@ -7377,14 +10093,12 @@ def main():
     last_ticker_scan = 0
     last_full_scan = 0
     last_exit_check = 0
-    last_contest_light = 0
     # THE SLOW-CYCLE WATCH (Sep 23): one announcement per slow episode —
     # the tracker lives in the loop, the truth in _cycle_slow_alarm().
     # The clock starts AT BOOT (not the epoch): the boot-night first-pass
     # tournament IS the first episode and announces as a slow scan.
     last_cycle_done = time.time()
     _slow_episode = {"start": 0.0, "announced": False, "scan": False}
-    last_sure_thing_scan = 0     # THE SURE THING: 5-min fleet breakout scan
     last_loser_fetch = ""  # date string — fetch losers once per day
     cached_loser_pairs = []
     alerted_recently = {}
@@ -7392,324 +10106,6 @@ def main():
     current_block_name = None  # track time block changes for position reset
     _scanner_state0 = _load_scanner_state()
     last_flatten_date = _scanner_state0.get("last_flatten_date", "")  # persisted — restarts don't re-flatten
-    # SURE THING: asset -> {zh, ts} of the armed coil (one announcement
-    # per coil) — PERSISTED (Sep 10): restarts don't re-announce a coil,
-    # and the dedup survives a console restart
-    _st_armed = dict(_scanner_state0.get("sure_thing_armed") or {})
-
-    # ── THE SURE THING (user rule, Sep 6: "I'm losing this contest, and
-    #    that cannot happen. I need the Sure Thing running immediately.")
-    #    The breakout-pattern detector: consolidation + ceiling tests +
-    #    squeeze + volume shift -> the trigger fires AT THE CRACK, the
-    #    popup speaks the countdown. CONTEST-ONLY (no bridge write — the
-    #    bot's real money never sees an unverified signal); the deep
-    #    scan runs BEFORE the popup (Sep 7: the Sep 6 post-entry waiver
-    #    retired at the user's call — the fire-time rule applies: the
-    #    read must run, fail-closed, and its direction must agree).
-    #    SILENT COILS (user rule, Sep 8: "the breakout watch has been
-    #    armed is just noise, no action needed, no popup until it becomes
-    #    a buy now"): an armed coil is logged, never announced — THE BUY
-    #    ITSELF is the Breakout Alert, and it opens the countdown.
-    #    The 3% death-line guard sizes it; the popup cap,
-    #    the rotation lock, the knife, the tide and the book gates all
-    #    stand. Every fire + every armed coil logs to the scorer's
-    #    dataset (route "sure-thing") — there is no sure thing, the
-    #    scorer grades the class.
-    def _sure_thing_scan(exchange):
-        import sure_thing as st
-        from hindsight_scorer import brain_size_mult as _st_mult
-
-        def _st_armed_save():
-            """Persist the armed-coil memory (restarts keep the dedup)."""
-            try:
-                _doc = _load_scanner_state()
-                _doc["sure_thing_armed"] = _st_armed
-                _save_scanner_state(_doc)
-            except Exception as exc:
-                # the armed-coil memory rides this file — a lost write
-                # re-announces an armed coil after a restart
-                logger.warning("scanner-state save failed (%s) — the "
-                               "armed-coil memory may not survive a "
-                               "restart", exc)
-        # the scanner's own pair list (cfg.trading_pairs — the 54; the
-        # app.py ASSETS list doesn't exist here)
-        for pair in list(all_pairs):
-            try:
-                asset = pair.split("/")[0]
-                rows = exchange.fetch_ohlcv(pair, timeframe="5m", limit=720)
-                r = st.analyze(rows or [])
-                if not r.get("armed"):
-                    _st_armed.pop(asset, None)
-                    continue
-                zh = float(r.get("zone_high") or 0.0)
-                # the armed-watch dedup: a NEW zone is logged (diagnostics
-                # only — SILENT, user rule Sep 8: "the breakout watch has
-                # been armed is just noise, no action needed, no popup
-                # until it becomes a buy now"). The announce IS the fire:
-                # the Breakout Alert below opens the countdown.
-                _prev = _st_armed.get(asset)
-                if not _prev or abs(_prev.get("zh", 0.0) - zh) > zh * 0.005:
-                    _st_armed[asset] = {"zh": zh, "ts": time.time()}
-                    _st_armed_save()
-                    logger.info("🧲 SURE THING ARMED (silent): %s — %s", asset, r["detail"])
-                if not r.get("fire"):
-                    continue
-                # ── the fire (pre-breakout OR the crack): the gates that
-                #    protect the contest all run ──
-                _rot_ok, _rot_reason, _rot_re, _fine = rotation_gate(asset)
-                _lw_pts, _lw_note = lone_wolf_discount(exchange, pair)
-                _tp, _ts = _fleet_tide()
-                # ROTATION LOCK RETIRED (Sep 10) — always allowed now; the
-                # re-entry flag still rides the popup.
-                if _ts == "OUT" and not _lw_pts:
-                    # ── THE LEARNED OUT BAR (Sep 10, the same pass paths
-                    #    the champion gate uses): the tide is a PRICE, not
-                    #    a wall. The coil's probability IS this path's
-                    #    quick score; the brain's deep read below still
-                    #    holds the direction veto. ① the learned bar
-                    #    (tide_learn.py, the deep store's payer-rate
-                    #    price) — ② the journal release (uncapped,
-                    #    champion-grade; the fetcher earns the consult,
-                    #    fail-closed) — ③ otherwise the suppression is                    # LOGGED (the old silent continue hid coil deaths).
-                    _lbar, _lmeta = _tide_learn_bar()
-                    _pbar = tide_personal_bar(pair, "OUT", _lbar)
-                    if _pbar is not None and float(r.get("score") or 0.0) >= _pbar:
-                        logger.info("  SURE THING %s: OUT-TIDE LEARNED PASS — score %.1f clears %s",
-                                    asset, float(r.get("score") or 0.0), _lmeta)
-                    else:
-                        _rel, _rel_why = _seam_releases_tide_out(
-                            r.get("score"), None, pair,
-                            deep_fetcher=lambda: _deep_read(exchange, pair, cfg)[0])
-                        if _rel:
-                            _mark_release(pair, "tide-out")
-                            logger.info("  SURE THING %s: OUT-TIDE JOURNAL RELEASE — score %.0f — %s",
-                                        asset, float(r.get("score") or 0.0), _rel_why)
-                        else:
-                            _bar_txt = (f"personal bar {_pbar:.0f} ({_lmeta})"
-                                        if _pbar is not None
-                                        else f"no learned bar ({_lmeta})")
-                            logger.info("  SURE THING %s: tide OUT — score %.1f vs %s; journal: %s",
-                                        asset, float(r.get("score") or 0.0),
-                                        _bar_txt, _rel_why)
-                            try:
-                                import carve_out as _co_s
-                                _lw_req_s = (f"lone wolf needs >= "
-                                             f"+{_co_s.required_own_move(_co_s.gate(pair=pair)):.0f}% "
-                                             f"own 24h move")
-                            except Exception:
-                                _lw_req_s = (f"lone wolf needs >= "
-                                             f"+{LONE_WOLF_MOVE_MIN:.0f}% own 24h move")
-                            _log_suppression(pair, "tide-out",
-                                             f"breakout coil — the OUT tide's price: "
-                                             f"score {float(r.get('score') or 0.0):.1f} vs {_bar_txt}; "
-                                             f"{_lw_req_s}; journal: {_rel_why}",
-                                             quick=float(r.get("score") or 0.0),
-                                             tide=f"OUT {_tp:.0f}%",
-                                             rot=rotation_key_for_hour(_now_mst().hour))
-                            continue
-                # (Sep 9) the popup cap retired — the worth floor (the
-                # buffer is its bar) + the deep read gate this path
-                # the knife: a both-bearish 1h trend is a falling wedge, not a coil
-                try:
-                    _knife, _ = knife_reversed_1h(exchange, pair, cfg)
-                    if _knife:
-                        logger.info("  SURE THING %s: 1h knife active — falling wedge, skip", asset)
-                        continue
-                except Exception as exc:
-                    # the knife is a SKIP guard — a dead read lets the
-                    # wedge through, which must be visible
-                    logger.warning("1h knife read failed for %s (%s) — "
-                                   "the Sure Thing ships without its "
-                                   "falling-wedge guard", asset, exc)
-                # ── THE DEEP SCAN BEFORE THE POPUP (Sep 7: the Sep 6
-                #    post-entry waiver retired — the user's call). The
-                #    fire-time rule applies to the Sure Thing like every
-                #    other path: the read MUST run (fail-closed — no
-                #    read, no popup) and its DIRECTION must agree (a
-                #    deep SELL/HOLD against the breakout is the chart
-                #    saying no). The NUMBER stays advisory — the
-                #    probability already sized this fire.
-                try:
-                    _st_deep, _st_df = _deep_read(exchange, pair, cfg)
-                except Exception:
-                    _st_deep, _st_df = None, None
-                if _st_deep is None:
-                    logger.info("  SURE THING %s: fail-closed — no deep read, "
-                                "no popup (the fire-time rule)", asset)
-                    _log_suppression(pair, "sure-thing-fail-closed",
-                                     "the deep scan could not run — no popup "
-                                     "(the fire-time rule)",
-                                     quick=float(r.get("score") or 0.0),
-                                     rot=rotation_key_for_hour(_now_mst().hour))
-                    # the armed memory STAYS (CodeRabbit, Sep 8): the coil
-                    # is announced once per zone — popping here while the
-                    # coil is still armed re-announces it every 5-min poll
-                    continue
-                # THE SURE-THING DEEP VETO IS GONE (user rule, Oct 9: the
-                # deep-veto class is deleted tree-wide): a SELL/HOLD
-                # deep read no longer buries the coil — the read is
-                # logged (the ledger keeps the forensics shape) and the
-                # coil FIRES. The armed memory still consumes the zone
-                # (the coil is announced once per zone regardless).
-                if _st_deep.action != "buy":
-                    logger.info("  SURE THING %s: contranote — the scan reads %s %.0f%% "
-                                "against the breakout — logged, the coil fires "
-                                "(the deep-veto gate is deleted)", asset,
-                                _st_deep.action, _st_deep.confidence)
-                    _log_suppression(pair, "sure-thing-contranote",
-                                     f"deep-reads {_st_deep.action} "
-                                     f"{_st_deep.confidence:.0f}% against the breakout — "
-                                     f"logged only (the deep-veto gate is deleted)",
-                                     quick=float(r.get("score") or 0.0),
-                                     brain=float(_st_deep.confidence),
-                                     rot=rotation_key_for_hour(_now_mst().hour))
-                # the death-line guard sizes it; the probability sizes it more;
-                # the FLAT tide sizes it too (Sep 7: same factor the champion,
-                # the mover and the QC already pay — FLAT 22% win vs RISING
-                # 57%, the stamped week; the coil is no exception)
-                try:
-                    import contest_account as _ca_st
-                    _acct = _ca_st.load_state()
-                    _bal = float(_acct["current_balance"])
-                    _wdd = _ca_st.window_drawdown_pct(pair)
-                    _cap = _ca_st.max_entry_usd(_bal, _wdd, float(_acct["start_balance"]))
-                    if _cap <= 0:
-                        logger.info("  SURE THING %s: death line — no entry", asset)
-                        continue
-                    _mult = _st_mult(r.get("score") or 0.0)
-                    _spend = _cap * _mult
-                    _st_tide_pct, _st_tide_state = _fleet_tide()
-                    _st_tide_mult = 1.0
-                    if (_st_tide_state or "") == "FLAT":
-                        _st_tide_mult = TIDE_FLAT_SIZE_FACTOR
-                        _spend = _spend * _st_tide_mult
-                        logger.info("  SURE THING %s: FLAT TIDE SIZING %.2fx → $%.0f",
-                                    asset, _st_tide_mult, _spend)
-                except Exception:
-                    _spend, _mult = 0.0, 0.10
-                    _st_tide_mult = 1.0
-                # ── THE CLIMB-OUT GATES (Sep 6): the coil case — the
-                #    ceiling being crossed IS the level; the check
-                #    becomes runway BEYOND it (coil_mult x1.0). The ER
-                #    gate passes coils via the squeeze exemption (a
-                #    coil is squeezed + low ER by definition).
-                _st_goal = _sure_thing_goal(exchange, pair)
-                _st_climb = _climb_out_check(
-                    exchange, pair, float(r.get("trigger_px") or 0.0),
-                    _st_goal, float(_spend or 0.0),
-                    is_coil=True, coil_ceiling=float(r.get("zone_high") or 0.0))
-                if not _st_climb.get("ok"):
-                    logger.info("  SURE THING %s: climb-out %s — %s", asset,
-                                _st_climb.get("fail_gate"),
-                                _st_climb.get("fail_reason"))
-                    continue
-                _score = float(r.get("score") or 0.0)
-                _trig = str(r.get("trigger") or "crack")
-                _est = int(r.get("est_min") or 60)
-                _out_by = (_now_mst() + timedelta(
-                    minutes=st.SURE_THING_WINDOW_MIN)).strftime("%I:%M").lstrip("0")
-                if _trig == "pre-breakout":
-                    _title = (f"🧲 BREAKOUT ALERT — BUY {asset} — PRE-BREAKOUT — "
-                              f"~{_est} MIN WINDOW — {_score:.0f}% — {_mult:.2f}× SIZE")
-                    _spoken = (f"Breakout alert! {asset} is about to break out! "
-                               f"The setup scores {_score:.0f} percent — "
-                               f"sizing at {_mult:.2f}"
-                               + (f", flat tide — half size!" if _st_tide_mult < 1.0 else "!")
-                               + f" The countdown starts now: about {_est} minutes, "
-                               f"out by {_out_by}. Watch for the ceiling crack!")
-                    _why = (f"{r['detail']} — the probability crossed the "
-                            f"{st.PRE_BREAKOUT_THRESHOLD:.0f}% threshold while still "
-                            f"inside the coil (entering BEFORE the breakout runs)")
-                else:
-                    _title = (f"🧲 BREAKOUT ALERT — BUY {asset} — BREAKOUT NOW — "
-                              f"{_score:.0f}% SETUP — {_mult:.2f}× SIZE")
-                    _spoken = (f"Breakout alert! {asset} is breaking out! "
-                               f"{r['tests']} tests at the ceiling, the coil cracked! "
-                               f"The setup scores {_score:.0f} percent — sizing at {_mult:.2f}"
-                               + (f", flat tide — half size!" if _st_tide_mult < 1.0 else "!")
-                               + f" Goal by {_out_by} — after that, stay close: I'll call the exit!")
-                    _why = (f"{r['detail']} — the ceiling at ${r['zone_high']:.4f} cracked "
-                            f"on a {r['vol_spike']:.1f}x volume burst")
-                _st_tide_line = (f"TIDE SIZES IT: FLAT — {TIDE_FLAT_SIZE_FACTOR:.2f}× size = "
-                                 f"${_spend:,.0f} (the stamped week: FLAT 22% win vs "
-                                 f"RISING 57% — pickier, smaller)\n" if _st_tide_mult < 1.0 else "")
-                _msg = (f"BREAKOUT ALERT — BUY {asset}"
-                        + (f" — COUNTDOWN ~{_est} MIN" if _trig == "pre-breakout" else " — NOW")
-                        + "\n"
-                        f"WHY: {_why}\n"
-                        f"WHEN: {'NOW — the crack' if _trig == 'crack' else 'BEFORE the crack — the estimated window is ~' + str(_est) + ' min'}\n"
-                        f"HOW LONG: out by {_out_by} (the countdown — "
-                        f"the {st.SURE_THING_WINDOW_MIN:.0f}-min contract — "
-                        f"the coil's edge is a 4h structure; if it has not "
-                        f"paid the goal by then, get out)\n"
-                        f"SPEND: ${_spend:,.0f} (the 3% guard cap × {_mult:.2f} probability sizing"
-                        + (f" × {_st_tide_mult:.2f} FLAT tide" if _st_tide_mult < 1.0 else "")
-                        + f")\n"
-                        + _st_tide_line
-                        + str(_st_climb.get("output_block") or "")
-                        + _danger_zone_panel(exchange, pair, float(_spend or 0.0),
-                                             _st_goal, st.SURE_THING_WINDOW_MIN, _mult)
-                        + f"{'-' * 30}\n"
-                        f"CONTEST-ONLY — no bridge write. The DEEP SCAN ran before "
-                        f"this popup (the fire-time rule — the Sep 6 waiver "
-                        f"retired Sep 7); run it again now for live tracking. "
-                        f"The death line never yields.\n"
-                        f"  {_fmt_mst(_now_mst())}")
-                # THE ONE-WATCH RULE (Sep 21): already watched → no popup,
-                # no tracking (it IS tracked) — the coil stays armed.
-                if _popup_already_watched(pair):
-                    continue
-                notify_big(_title, _msg, spoken=_spoken)
-                # AUTO-TRACK AT FIRE TIME — the breakout popup tracks too
-                # (one writer, one contract; entry = the trigger level)
-                auto_track_popup(pair, float(r.get("trigger_px") or 0.0),
-                                 float(_spend or 0.0), float(_st_goal or 0.0),
-                                 float(st.SURE_THING_WINDOW_MIN),
-                                 f"BUY {_score:.0f}% (breakout {_trig})",
-                                 "sure_thing")
-                rotation_mark_fired(asset)
-                _st_armed.pop(asset, None)
-                _st_armed_save()
-                _st_tide_pct, _st_tide_state = _fleet_tide()
-                try:
-                    _snap = {"pair": pair, "quick": _score, "brain": None,
-                             "route": "sure-thing", "kind": "fired",
-                             "release": _take_release_prov(pair),
-                             "tide": (f"{_st_tide_state} {_st_tide_pct:.0f}%"
-                                      if _st_tide_state and _st_tide_pct is not None else None),
-                             "trigger": _trig,
-                             "detail": r["detail"],
-                             "features": {"coil_range_pct": r.get("coil_range_pct"),
-                                         "tests": r.get("tests"),
-                                         "squeeze_pct": r.get("squeeze_pct"),
-                                         "atr_ratio": r.get("atr_ratio"),
-                                         "bb_width_pctile": r.get("bb_width_pctile"),
-                                         "pullback_trend": r.get("pullback_trend"),
-                                         "micro_spikes": r.get("micro_spikes"),
-                                         "buy_dominance": r.get("buy_dominance"),
-                                         "hist_hit_rate": r.get("hist_hit_rate"),
-                                         "vol_spike": r.get("vol_spike"),
-                                         "score": _score},
-                             "mult": _mult, "spend": float(_spend or 0.0),
-                             "goal_pct": _st_goal,
-                             "est_min": _est,
-                             "climb": _climb_features_stamped(
-                                 _st_climb.get("features"),
-                                 _st_tide_state, _st_tide_pct),
-                             "entry": float(r.get("trigger_px") or 0.0),
-                             "win_min": st.SURE_THING_WINDOW_MIN}
-                    _log_signal_snapshot(_snap)
-                except Exception as exc:
-                    logger.warning("Sure Thing snapshot failed for %s (%s) "
-                                   "— this fire's hindsight row is lost", asset, exc)
-                logger.info("🧲 SURE THING FIRED (%s): %s — %s (prob %.0f, %.2fx, $%.0f)",
-                            _trig, asset, r["detail"], _score, _mult, _spend)
-                time.sleep(0.4)
-            except Exception as exc:
-                logger.debug("sure-thing scan failed for %s: %s", asset, exc)
-                continue
-
-
     def _read_all_signals():
         """Read all signals from the SQLite bridge."""
         try:
@@ -7754,11 +10150,29 @@ def main():
         except Exception as exc:
             logger.debug("speech queue drain failed: %s", exc)
 
+    # ── THE EXIT WATCH THREAD (Nov 7): the light pass gets its own cadence,
+    #    so a mover scan or a tournament holding this loop can no longer
+    #    leave any exit gate unrun. One pass at a time (the single-flight
+    #    lock), and an on-time loop still runs the pass itself.
+    _light_stop = threading.Event()
+    threading.Thread(target=_light_watchdog,
+                     args=(exchange, cfg, _light_stop, _slow_episode),
+                     name="exit-watch", daemon=True).start()
+
     while True:
         now = _now_mst()
         hour = now.hour
         dow = now.weekday()  # 0=Mon, 6=Sun
         block_name, full_interval, min_conf, auto_trade_threshold, block_desc, no_buy, rot_key = get_time_block(hour, dow)
+        # THE OVERWATCH'S ENTRY-GATE MICRO-TUNE (Nov 12): a 3-loss streak
+        # moves the confidence gate one point, then keeps trading at full
+        # speed. No pause, no suspension, no risk cut.
+        try:
+            import overwatch_governor as _og
+            min_conf = max(1, min(99, int(round(
+                float(min_conf) + _og.confidence_bias_points()))))
+        except Exception:
+            pass
 
         # the ONE mouth: console lines get spoken here, always
         _drain_speech_queue()
@@ -8309,24 +10723,47 @@ def main():
                                          and _mv_pct is not None
                                          and float(_mv_pct) >= _m_req
                                          and _m_mode)
-                        if _tsw == "OUT" and not _m_out_lw:
-                            logger.info("  MOVER SKIP: %s — tide OUT (fleet %.0f%%) — all ships sink together",
+                        _m_tide_out_weak = bool(_tsw == "OUT" and not _m_out_lw)
+                        if _m_tide_out_weak:
+                            logger.info("  MOVER OUT-TIDE: %s — tide OUT (fleet %.0f%%) "
+                                        "— the popup lands at minimum size",
                                         asset, _tpw or 0)
-                            _log_suppression(pair, "tide-out",
-                                             f"mover: fleet {_tpw or 0:.0f}% up — all ships sink "
-                                             f"together; own 24h {_mv_pct:+.0f}% vs the "
-                                             f"carve-out's {_m_req:.1f}%"
-                                             + ("" if _m_mode else " — lone-wolf mode OFF"),
-                                             quick=float(signal.confidence),
-                                             brain=(float(_deep_sig.confidence)
-                                                    if _deep_sig is not None else None),
-                                             tide=f"OUT {_tpw or 0:.0f}%", rot=rot_key)
-                            continue
                         if _m_out_lw:
                             logger.info("  OUT-TIDE LONE WOLF: %s — mover %+.0f%% on 24h against "
                                         "an OUT tide (fleet %.0f%%) — no bridge write (the bot stays "
                                         "out); the contest popup fires marked",
                                         asset, _mv_pct, _tpw or 0)
+
+                        # THE LEARNED ENTRY BAR, MOVER ROUTE (Nov 12): the
+                        # mover contexts learn their own entry rule too. A
+                        # losing mover route/tide no longer only affects its
+                        # bet size later — the highest conviction that
+                        # already lost there becomes the floor, and a deep
+                        # mover context is refused before the bridge write
+                        # and popup. Fail-open: a broken table never
+                        # silences a mover.
+                        try:
+                            import overwatch_learner as _ol_m
+                            _m_entry_ok, _m_entry_bar, _m_entry_why = _ol_m.entry_gate(
+                                route="contest_mover", tide=_tsw,
+                                conviction=signal.confidence,
+                                base_bar=MOVER_MIN_CONF)
+                            if not _m_entry_ok:
+                                logger.info("  MOVER ENTRY RULE: %s — %s",
+                                            asset, _m_entry_why)
+                                _log_suppression(pair, "learned-entry-rule",
+                                                 f"mover: {_m_entry_why}",
+                                                 quick=float(signal.confidence),
+                                                 tide=f"{_tsw} {_tpw or 0:.0f}%",
+                                                 rot=rot_key)
+                                continue
+                            if _m_entry_bar and _m_entry_bar > float(MOVER_MIN_CONF):
+                                logger.info("  MOVER ENTRY RULE: %s — learned bar "
+                                            "%.0f clears at %.0f", asset,
+                                            _m_entry_bar, float(signal.confidence))
+                        except Exception as _m_entry_exc:
+                            logger.debug("mover learned entry rule unavailable: %s",
+                                         _m_entry_exc)
 
                         logger.info("  🚀 MOVER SIGNAL: %s %s (%.0f%%, 24h %+.0f%%) — mover outside the 54",
                                     signal.action.upper(), asset, signal.confidence, _mv_pct)
@@ -8397,7 +10834,7 @@ def main():
                         try:
                             _m_fire_snap = _begin_fire_snapshot(
                                 exchange, pair, float(signal.confidence),
-                                action=signal.action, route="mover",
+                                action=signal.action, route="contest_mover",
                                 entry=float(signal.price or 0.0))
                         except Exception as exc:
                             logger.warning("mover fire snapshot failed for %s (%s) "
@@ -8531,6 +10968,9 @@ def main():
                                 _m_carry = None
                                 _m_wdd = None
                                 _m_skip = None
+                                _m_weak = ""            # a death-line fire rides the same min-size label
+                                _m_weak_paid = False   # did the resize certify the mover?
+                                _m_min_usd = 0.0       # the MIN the title shows
                                 _m_mult = 1.0
                                 _m_guard_capped = False
                                 _m_climb = None  # fail-open init: a broken read never NameErrors the popup
@@ -8574,9 +11014,24 @@ def main():
                                         _m_risk = _ca.max_entry_usd(
                                             _m_bal, _m_wdd, float(_m_acct["start_balance"]))
                                         if _m_risk <= 0:
-                                            _m_skip = ("MOVER DEATH LINE: buffer gone "
-                                                       f"— no buy popup (the platform -3% line "
-                                                       f"sits at ${_ca.death_line(_m_acct):,.2f})")
+                                            # WATCH-ONLY (Nov 12): the mover signal is
+                                            # never buried at the floor.  It lands at a
+                                            # minimum size and the exit monitor owns it.
+                                            _m_weak = ("DEATH-LINE WATCH: buffer gone "
+                                                       f"(the platform line is "
+                                                       f"${_ca.death_line(_m_acct):,.2f}) — "
+                                                       "minimum size; GET OUT monitor armed")
+                                            _m_spend = max(10.0, min(
+                                                float(_m_spend or 0.0) * 0.10,
+                                                max(float(_m_bal) * 0.02, 10.0)))
+                                            _m_base_spend = _m_spend
+                                            _m_min_usd = _m_spend
+                                            _m_climb = {}   # no climb read on the min-size route
+                                            logger.warning(
+                                                "  MOVER DEATH LINE WATCH: %s — "
+                                                "signal lands at min size $%.0f "
+                                                "(entries are not vetoed)",
+                                                asset, _m_spend)
                                         else:
                                             if _m_spend > _m_risk:
                                                 _m_spend = _m_risk
@@ -8616,9 +11071,12 @@ def main():
                                             _m_climb = _climb_out_check(
                                                 exchange, pair,
                                                 float(signal.price or 0.0),
-                                                float(_m_goal or 1.5),
+                                                _m_goal,
                                                 float(_m_spend or 0.0))
-                                            _m_weak = ""
+                                            _m_weak = ("TIDE OUT: fleet "
+                                                       f"{_tpw or 0:.0f}% up — "
+                                                       "minimum size"
+                                                       if _m_tide_out_weak else "")
                                             if not _m_climb.get("ok"):
                                                 _mfg = _m_climb.get("fail_gate") or "?"
                                                 # unified rule (Oct 9): adversity fires min-size
@@ -8636,18 +11094,40 @@ def main():
                                 except Exception as _exc:
                                     logger.debug("mover 3%% guard unavailable: %s", _exc)  # fail-open
                                 if _m_weak:
-                                    # the unified-rule weaken: the fire rides min size —
-                                    # the mover's floor matches the champion's minim-viable
-                                    # breadth (2% of the tier, the same rough floor the
-                                    # 0.10x brain mult + flat tide reach on any real book)
-                                    _m_spend = max(_m_spend, _m_bal * 0.02)
-                                    # THE RANGE CANNOT INVERT (the Copilot second-opinion medium on 5c0c6cd):
-                                    # a tight guard cap can size MAX below the unified floor — the fire
-                                    # actually lands AT the floor then, so the floor is a real size and
-                                    # MAX is raised with it. MAX >= MIN, always.
-                                    _m_base_spend = max(_m_base_spend, _m_bal * 0.02)
-                                    _m_min_spend_say = f"${_m_bal * 0.02:,.0f}"
-                                    logger.info("  MOVER MIN-SIZE FIRE (%s): spend clamped to $%.0f — the fire LANDS",
+                                    # the unified-rule weaken: the fire rides the
+                                    # weakened size — and the label must be TRUE
+                                    # (Nov 6, the cascade review: every MIN SIZE
+                                    # fire booked its MAX). CLAMP first, then
+                                    # (Nov 7) raise it to the smallest size whose
+                                    # own goal pays the pace bar inside the death
+                                    # line's allowance — a weakened fire that
+                                    # cannot pay is refused here, in full.
+                                    _m_spend = min(_m_spend, _m_bal * 0.02)
+                                    _m_base = (_m_base_spend if _m_base_spend > 0
+                                               else _m_spend)
+                                    _m_min_usd = _m_spend
+                                    _wsm = _weakened_fire_size(pair, _m_base, _m_goal)
+                                    if _wsm is None:
+                                        logger.info("  MOVER MIN-SIZE FIRE (%s): "
+                                                    "spend $%.0f — the floor stands "
+                                                    "(the account could not be read)",
+                                                    _m_weak, _m_spend)
+                                    elif not _wsm.get("ok"):
+                                        _m_weak = f"{_m_weak}; {_wsm.get('why')}"
+                                        logger.info("  MOVER WEAKENED REFUSED (%s): %s",
+                                                    _m_weak, _wsm.get("why"))
+                                    else:
+                                        _m_spend = min(_m_base, max(_m_spend, float(_wsm["size"])))
+                                        _m_min_usd = _m_spend
+                                        _m_weak_paid = True
+                                        logger.info("  MOVER WEAKENED SIZING (%s): $%.0f "
+                                                    "booked: %s", _m_weak, _m_spend,
+                                                    _wsm.get("why"))
+                                    # MAX >= MIN, always — MAX is the body the MIN sits
+                                    # under, never a number below it.
+                                    _m_base_spend = max(_m_base_spend, _m_spend)
+                                    _m_min_spend_say = f"${_m_min_usd:,.0f}"
+                                    logger.info("  MOVER MIN-SIZE FIRE (%s): spend $%.0f — the fire LANDS",
                                                 _m_weak, _m_spend)
                                     _log_suppression(pair, "worth-floor" if "WORTH" in _m_weak else "climb-out",
                                                      f"mover min-size: {_m_weak}",
@@ -8656,7 +11136,7 @@ def main():
                                                             if _deep_sig is not None else None),
                                                      floor=89.0,
                                                      tide=f"{_tsw} {_tpw or 0:.0f}%", rot=rot_key)
-                                    _m_wakemark = (f" 🧭 MIN SIZE ({_m_weak.split(':')[0]})")
+                                    _m_wakemark = (f" 🧭 WEAKENED, SIZED TO PAY ({_m_weak.split(':')[0]})")
                                 elif _m_skip:
                                     logger.info("  %s", _m_skip)
                                     _m_gate = "death-line" if "DEATH" in _m_skip else "worth-floor"
@@ -8713,20 +11193,22 @@ def main():
                                     # THE MAX/MIN PAIR (user decree, Oct 10):
                                     # the title leads with both ends of the
                                     # sizing range.
+                                    _m_min_say = (_m_min_usd if _m_min_usd > 0
+                                                  else _m_bal * 0.02)
                                     _m_title = (f"🚀 MOVER BUY {asset}"
-                                                + (f" — MAX: ${_m_base_spend:,.0f} — MIN: ${(_m_bal * 0.02):,.0f}"
+                                                + (f" — MAX: ${_m_base_spend:,.0f} — MIN: ${_m_min_say:,.0f}"
                                                    if _m_base_spend > 0 else
                                                    " — SIZE YOUR OWN — sizing unavailable")
                                                 + f" — {_m_dc:.0f}% SURE"
                                                 + (f" — {_m_mult:.2f}× SIZE" if _m_mult < 1.0 else "")
                                                 + (" — FAST ROUTE" if _m_fast else "")
                                                 + (" — LONE WOLF (OUT TIDE)" if _m_out_lw else "")
-                                                + (" 🧭 MIN SIZE" if _m_weak else ""))
+                                                + (" 🧭 WEAKENED" if _m_weak else ""))
                                     _m_spoken = (f"Buy {asset}! {_m_dc:.0f} percent sure! "
                                                  + (f"The range is max {_m_base_spend:,.0f}"
-                                                    f", min {(_m_bal * 0.02):,.0f} dollars — " if _m_base_spend > 0 else
+                                                    f", min {_m_min_say:,.0f} dollars — " if _m_base_spend > 0 else
                                                     "Sizing unavailable — size your own! ")
-                                                 + (f"Minimum size — {_m_weak.split(':')[0] if _m_weak else ''}! " if _m_weak else "")
+                                                 + (f"Weakened sizing — {_m_weak.split(':')[0] if _m_weak else ''}! " if _m_weak else "")
                                                  + (f"The brain says {_m_dc:.0f} percent — sizing at {_m_mult:.2f}! "
                                                     if _m_mult < 1.0 else "")
                                                  + ("Fast route! " if _m_fast else "")
@@ -8756,7 +11238,8 @@ def main():
                                         + str(_m_climb.get("output_block") or "")
                                         + _danger_zone_panel(exchange, pair,
                                                              float(_m_spend or 0.0),
-                                                             float(_m_goal or 1.5),
+                                                             float(_operative_goal_pct(
+                                                                 _m_goal, pair)),
                                                              float(_m_win or 60.0),
                                                              _m_mult)
                                         + f"{'-' * 30}\n"
@@ -8774,6 +11257,10 @@ def main():
                                     # THE ONE-WATCH RULE (Sep 21): already
                                     # watched → no popup, no tracking — the
                                     # mover loop just moves on.
+                                    if _strict_fire_refusal(pair, asset, _m_spend,
+                                                            _m_bal, _m_weak,
+                                                            weak_paid=_m_weak_paid):
+                                        continue
                                     if _popup_already_watched(pair):
                                         continue
                                     notify_big(_m_title, _m_msg, spoken=_m_spoken)
@@ -8786,18 +11273,34 @@ def main():
                                                      float(_m_goal or 0.0),
                                                      float(_m_win or 0.0),
                                                      f"BUY {signal.confidence:.0f}% (mover)",
-                                                     "mover")
+                                                     "mover",
+                                                     setup=_setup_tags(
+                                                         route=("contest_mover_fast" if _m_fast
+                                                                else "contest_mover"),
+                                                         tide_state=_tsw,
+                                                         tide_pct=_tpw,
+                                                         conviction=signal.confidence,
+                                                         brain=_m_dc, mult=_m_mult,
+                                                         climb=_m_climb,
+                                                         weak=_m_weak,
+                                                         size=_m_spend,
+                                                         base=_m_base_spend,
+                                                         fast=_m_fast),
+                                                     exchange=exchange)
                                     try:
                                         _mfs = dict(_SNAPSHOT_CTX.get("ctx") or {})
                                         _mfs.update({"kind": "fired",
-                                                     "route": ("mover-fast" if _m_fast else "mover"),
+                                                     "route": ("contest_mover-fast" if _m_fast else "contest_mover"),
                                                      "release": _take_release_prov(pair),
                                                      "tide": (f"{_tsw} {_tpw:.0f}%"
                                                               if _tsw and _tpw is not None else None),
                                                      "fast_why": _m_fast_why,
                                                      "brain": _m_dc, "mult": _m_mult,
                                                      "spend": float(_m_spend or 0.0),
-                                                     "goal_pct": float(_m_goal or 0.0),
+                                                     # the mover fire's record,
+                                                     # same fallback (Nov 6)
+                                                     "goal_pct": _operative_goal_pct(_m_goal,
+                                                                                     pair),
                                                      "win_min": float(_m_win or 0.0),
                                                      "entry": float(signal.price or 0.0),
                                                      "climb": _climb_features_stamped(
@@ -8813,40 +11316,33 @@ def main():
             except Exception as exc:
                 logger.warning("Ticker scan error: %s", exc)
 
-        # ── CONTEST LIGHT (every loop pass ~30s): the scalp is a 5-minute
-        #    game — TAKE IT at +$20 must fire fast, not on a slow cadence.
-        #    The all-good voice inside keeps its own 60s cadence.
-        if (now.timestamp() - last_contest_light) >= 25:
-            last_contest_light = now.timestamp()
-            try:
-                contest_light(exchange, cfg)
-                _pulse_beat()          # the completed-cycle heartbeat
-                last_cycle_done = time.time()   # the watch's clock: a COMPLETED pass
-            except Exception as exc:
-                logger.debug("contest light error: %s", exc)
-            finally:
-                _slow_episode.update(start=0.0, announced=False, scan=False)
+        # ── CONTEST LIGHT (THE EXIT WATCH'S OWN CLOCK, Nov 7): the pass used
+        #    to sit inline behind the mover scan and the tournament, so a
+        #    slow scan left the hard stop, the force gate and the plan-spent
+        #    gate unrun for minutes at a time (the soak found 23). It now
+        #    carries its own tick: this call runs the pass when the loop is
+        #    on time, _light_watchdog takes the tick when it is not, and the
+        #    single-flight lock keeps it to ONE pass per tick either way.
+        #    The AA-box watermark watch rides inside the pass (AFTER
+        #    contest_light: the stamp advances there, and a pre-pass call
+        #    would page one pass early).
+        #
+        _run_light_pass(exchange, cfg, source="loop", episode=_slow_episode)
 
-            # ── THE AA-BOX WATERMARK WATCH (Oct 3): a silent box
-            #    heartbeat pages once per episode — the stamp's own except
-            #    swallows to debug, so this is the alarm the dead heartbeat
-            #    could never raise for itself. AFTER contest_light: the
-            #    stamp advances inside it, and a pre-pass call would page
-            #    one pass early. A watch must never kill the cycle.
-            try:
-                _aa_box_watermark_watch()
-            except Exception as _wb_exc:
-                logger.debug("aa box watermark watch skipped: %s", _wb_exc)
-
-        # ── THE SURE THING (every 5 minutes): the fleet-wide breakout
-        #    scan — coils announced once, cracks fired at the moment
-        #    (contest-only, the deep scan waived by the user's call)
-        if (now.timestamp() - last_sure_thing_scan) >= 300:
-            last_sure_thing_scan = now.timestamp()
-            try:
-                _sure_thing_scan(exchange)
-            except Exception as exc:
-                logger.debug("sure thing scan error: %s", exc)
+        # ── THE VALIDATED 5m EDGE (Nov 13): one closed-bar scan per 5m
+        #    candle, one all-in slot, no bridge write. It runs AFTER the exit
+        #    watch so a slow 5m read can never delay a stop. It hands its
+        #    fire to the same contest watch writer, so the death line and
+        #    one-slot book cap keep their authority, and the exit watch
+        #    closes it on the edge's own stop/take/6-bar clock.
+        try:
+            import bounce_live as _bl
+            _bl.tick(exchange, auto_track_popup, logger)
+        except Exception as _bl_exc:
+            logger.warning("5m bounce edge tick failed (%s) — the normal "
+                           "scanner continues", _bl_exc)
+        if _LIGHT_CLOCK.get("last_done"):
+            last_cycle_done = float(_LIGHT_CLOCK["last_done"])   # COMPLETED pass
 
         # ── THE SLOW-CYCLE WATCH (Sep 23): between light passes, name the
         #    stall once per episode — a slow scan (busy beats running) or
@@ -9242,20 +11738,75 @@ def main():
 
         # ── Sleep until next check (30 seconds) ──────────────────────
         _n = _now_mst()
+        # THE DIAL IS READ ONCE PER CYCLE (Nov 10): a flip has to land on the
+        # NEXT CYCLE, not on the next candidate that happens to reach the
+        # knife -- a quiet tape would otherwise hide the revert for an hour
+        # and the dial would look broken. Silent unless the value changed.
+        try:
+            _knife_blocks_entry()
+        except Exception as _kb_cycle_exc:
+            logger.warning("  KNIFE_BLOCK dial unreadable this cycle (%s) — fail-closed",
+                           _kb_cycle_exc)
+        # THE SURVIVABILITY GUARD IS READ ONCE PER CYCLE (Nov 11): the brake
+        # that decides whether a fire may even be raised used to be consulted
+        # ONLY inside send_alert, i.e. only when a candidate happened to reach
+        # it — so on a quiet tape a paused guard was evaluated zero times, and
+        # nobody could tell an armed guard from a missing one. Reading it here
+        # makes the evaluation per-cycle and puts its state in the log, while
+        # entry_gate (the refusal itself) stays where it was. The read is
+        # side-effect-free except for arming PROBE size when a cooldown ends.
+        _guard_cycle = {}
+        try:
+            import survival_guard as _sg_cycle
+            _guard_cycle = _sg_cycle.entry_gate()
+            if _guard_cycle.get("blocked"):
+                logger.warning("  SURVIVABILITY GUARD: PAUSED — %s (no fire may be raised)",
+                               _guard_cycle.get("reason"))
+        except Exception as _sg_cycle_exc:
+            _guard_cycle = {}
+            logger.debug("cycle guard read failed: %s", _sg_cycle_exc)
+        _guard_tag = ""
+        if _guard_cycle:
+            _guard_tag = (" | guard PAUSED"
+                          if _guard_cycle.get("blocked") else
+                          " | guard clear %d/%d streak, dd %.2f%%%s" % (
+                              int(_guard_cycle.get("loss_streak") or 0),
+                              int(_guard_cycle.get("pauses") or 0),
+                              float(_guard_cycle.get("drawdown_pct") or 0.0),
+                              " PROBE %.2fx" % float(_guard_cycle.get("size_multiplier") or 1.0)
+                              if _guard_cycle.get("probe") else ""))
+        # THE CONTEST STANDING, every cycle, against the FIXED baseline --
+        # and the paycheck prompt the cycle the win line is first reached.
+        try:
+            logger.info("  %s", contest_standing_text())
+            contest_paycheck_check()
+            death_floor_cycle()
+        except Exception as _cs_exc:
+            logger.debug("contest standing read failed: %s", _cs_exc)
         next_block_name, next_interval, _, _, _, next_no_buy, _ = get_time_block(_n.hour, _n.weekday())
         _day_label = WEEKDAY_NAMES.get(_n.weekday(), "?")
         if next_no_buy:
-            logger.info("  Next check in 30s | %s %s | COOLDOWN — no buys until 00:00",
-                        next_block_name, _day_label)
+            logger.info("  Next check in 30s | %s %s | COOLDOWN — no buys until 00:00%s",
+                        next_block_name, _day_label, _guard_tag)
         else:
-            logger.info("  Next check in 30s | %s %s | threshold %d%% | full scan every %dm",
-                        next_block_name, _day_label, auto_trade_threshold, next_interval)
+            logger.info("  Next check in 30s | %s %s | threshold %d%% | full scan every %dm%s",
+                        next_block_name, _day_label, auto_trade_threshold, next_interval,
+                        _guard_tag)
         _process_push_retries()   # GET OUT attempt 2/2, ~60s after attempt 1
         _process_daily_canary()   # one pipe-alive push per day at/after 09:00 MST
+        _popup_famine_guard()     # flags silence the DEATH LINE is causing
         time.sleep(30)
 
 
 if __name__ == "__main__":
+    # THE ACCOUNT-STATE BOOT GUARD (Nov 5, the phantom-10k lesson): a
+    # lost state file must never silently re-arm a phantom full
+    # balance. Fail BEFORE the pid guard can even stamp ownership —
+    # a boot death here lands in the launcher's stderr capture with a
+    # named cause, and the engine never computes against a balance
+    # nobody knows.
+    import contest_account as _ca_boot
+    _ca_boot.assert_state_on_boot("background_scanner")
     # THE SINGLE-INSTANCE GUARD (Sep 8): the launch path runs the venv
     # python twice over (the uv trampoline spawns the real interpreter
     # with the same command line), so process-count checks see a
