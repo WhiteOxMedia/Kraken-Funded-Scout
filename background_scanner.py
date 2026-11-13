@@ -6740,7 +6740,6 @@ def contest_light(exchange, cfg):
         should_exit = False
         reason = ""
         _edge_row = str(w.get("source") or "") == "bounce_live"
-        _bounce_row = bool(w.get("bounce_exit_ts"))
         _floor = {}
         try:
             if _floor_watch and _floor_marks:
@@ -6955,45 +6954,23 @@ def contest_light(exchange, cfg):
         #    exit-watch force are not this edge's rules; the death floor and
         #    lost-row verdict still run below and can never be cleared.
         if _edge_row:
-            _b_pct = ((float(live) / float(entry) - 1.0) * 100.0
-                      if entry > 0 and live > 0 else 0.0)
-            _b_usd = (float(live) / float(entry) - 1.0) * size \
-                if entry > 0 and live > 0 else 0.0
-            _b_stop = float(w.get("hard_stop_usd") or 0.0)
-            _b_goal_pct = float(w.get("goal_pct") or 0.0)
-            _b_goal_usd = float(w.get("goal_usd") or 0.0)
-            _b_time = bool(_bounce_row) and time.time() >= float(
-                w.get("bounce_exit_ts") or 0.0)
             _edge_hit = None
+            _blx = None
             try:
                 import bounce_live as _blx
-                _edge_hit = _blx.exit_signal(exchange, pair, w, live=live)
+                _edge_hit = _blx.exit_signal(exchange, pair, w)
             except Exception as _blx_exc:
                 logger.warning("5m edge exit read failed for %s (%s) — "
                                "ticker fallback only", pair, _blx_exc)
+            if _edge_hit is None and _blx is not None:
+                try:
+                    _edge_hit = _blx.ticker_exit(w, live)
+                except Exception as _blx_exc:
+                    logger.warning("5m edge ticker fallback failed for %s (%s)",
+                                   pair, _blx_exc)
             if _edge_hit:
                 should_exit = True
-                reason = str(_edge_hit.get("reason") or
-                             "5m EDGE EXIT — the validated bar rule fired")
-            elif _b_stop > 0 and _b_usd <= -_b_stop:
-                should_exit = True
-                reason = (f"STOPPED OUT — 5m bounce hard stop, down "
-                          f"${abs(_b_usd):.0f} (the stop is -${_b_stop:.0f}). "
-                          f"The trade failed — get out, wait for the next one.")
-            elif _b_goal_usd > 0 and _b_usd >= _b_goal_usd:
-                should_exit = True
-                reason = (f"TAKE IT — the ${_b_goal_usd:,.0f} 5m edge goal "
-                          f"is paid ({_b_usd:+,.0f} dollars). Bank it and wait "
-                          f"for the next clean setup.")
-            elif _b_goal_pct > 0 and _b_pct >= _b_goal_pct:
-                should_exit = True
-                reason = (f"TAKE IT — the +{_b_goal_pct:.1f}% 5m bounce goal "
-                          f"is paid ({_b_pct:+.1f}%). Bank it and wait for the "
-                          f"next clean setup.")
-            elif _b_time:
-                should_exit = True
-                reason = ("5m BOUNCE TIME EXIT — 6 bars held; the validated "
-                          "edge is done, clear the slot.")
+                reason = _edge_hit
             else:
                 # discard the generic trail/sell-bar reason from above
                 should_exit = False
