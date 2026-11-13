@@ -5470,7 +5470,10 @@ def auto_track_popup(pair: str, entry: float, size: float, goal_pct: float,
                      setup: dict | None = None,
                      plan_basis: str = "",
                      pace_pct_per_hour=None, exchange=None,
-                     go_big: bool = False) -> bool:
+                     go_big: bool = False,
+                     hard_stop_usd: float | None = None,
+                     goal_usd: float | None = None,
+                     bounce_exit_ts: float | None = None) -> bool:
     """THE POPUP IS THE CONTRACT (Sep 21): every popup that fires —
     champion, Sure Thing, mover, DCA — auto-tracks at fire time. One
     writer for every route: never displaces an entry the user already
@@ -5545,7 +5548,11 @@ def auto_track_popup(pair: str, entry: float, size: float, goal_pct: float,
         _goal_usd_e = 0.0
         try:
             import contest_account as _ca_gs
-            if go_big:
+            if goal_usd is not None:
+                # the validated 5m edge states its own dollars (0 = %-goal
+                # only) instead of inheriting the generic GO BIG take.
+                _goal_usd_e = float(goal_usd or 0.0)
+            elif go_big:
                 # GO BIG books the +$20 fixed take from the shared constant.
                 _goal_usd_e = float(_ca_gs.GO_BIG_TAKE_USD)
             else:
@@ -5568,8 +5575,13 @@ def auto_track_popup(pair: str, entry: float, size: float, goal_pct: float,
                    # the dollars this row takes (0 = unstamped, % goal only)
                    "goal_usd": _goal_usd_e,
                    # GO BIG rides the run: no fixed take; $30 net stop.
-                   **({"go_big": True, "hard_stop_usd": 30.0}
-                      if go_big else {}),
+                   # The 5m edge names its own stop/deadline instead.
+                   **({"go_big": True} if go_big else {}),
+                   **(({"hard_stop_usd": float(hard_stop_usd)})
+                      if hard_stop_usd is not None else
+                      ({"hard_stop_usd": 30.0} if go_big else {})),
+                   **(({"bounce_exit_ts": float(bounce_exit_ts)})
+                      if bounce_exit_ts is not None else {}),
                    "window_min": float(window_min or 0.0),
                    # THE PLAN'S BASIS (Nov 7): the window alone cannot say
                    # whether 78 minutes came from the coin's own tape or from
@@ -6043,6 +6055,14 @@ def _light_watchdog(exchange, cfg, stop: threading.Event, episode=None):
                           max(LIGHT_TICK_S / 5.0, 0.02)))
             if _light_pass_due() >= (LIGHT_TICK_S + LIGHT_STARVE_SLACK_S):
                 _run_light_pass(exchange, cfg, source="watch", episode=episode)
+                # The 5m entry path also survives a scan holding the loop:
+                # exits ran first; this only scans a new closed candle.
+                try:
+                    import bounce_live as _blw
+                    _blw.tick(exchange, auto_track_popup, logger)
+                except Exception as _blw_exc:
+                    logger.debug("5m bounce edge watchdog tick skipped: %s",
+                                 _blw_exc)
         except Exception as exc:
             logger.debug("light watchdog skipped a beat: %s", exc)
 
@@ -6719,6 +6739,7 @@ def contest_light(exchange, cfg):
         # the committed fixed rules)
         should_exit = False
         reason = ""
+        _bounce_row = bool(w.get("bounce_exit_ts"))
         _floor = {}
         try:
             if _floor_watch and _floor_marks:
@@ -6927,8 +6948,40 @@ def contest_light(exchange, cfg):
                           f"-${_stop_usd:.0f} — {_hm_stop_why}). "
                           f"The trade failed — get out, wait for the next one.")
 
+        # ── THE VALIDATED 5m EDGE OWNS ITS EXIT (Nov 13): a bounce row
+        #    rides exactly stop -2%, take +3% or 6 bars. The generic trail,
+        #    1h sell bar and exit-watch force are not this edge's rules, so
+        #    a non-edge exit is cleared here; the death floor and lost-row
+        #    verdict still run below and can never be cleared.
+        if _bounce_row:
+            _b_pct = ((float(live) / float(entry) - 1.0) * 100.0
+                      if entry > 0 and live > 0 else 0.0)
+            _b_usd = (float(live) / float(entry) - 1.0) * size \
+                if entry > 0 and live > 0 else 0.0
+            _b_stop = float(w.get("hard_stop_usd") or 0.0)
+            _b_goal = float(w.get("goal_pct") or 0.0)
+            _b_time = time.time() >= float(w.get("bounce_exit_ts") or 0.0)
+            if _b_stop > 0 and _b_usd <= -_b_stop:
+                should_exit = True
+                reason = (f"STOPPED OUT — 5m bounce hard stop, down "
+                          f"${abs(_b_usd):.0f} (the stop is -${_b_stop:.0f}). "
+                          f"The trade failed — get out, wait for the next one.")
+            elif _b_goal > 0 and _b_pct >= _b_goal:
+                should_exit = True
+                reason = (f"TAKE IT — the +{_b_goal:.1f}% 5m bounce goal is "
+                          f"paid ({_b_pct:+.1f}%). Bank it and wait for the "
+                          f"next clean setup.")
+            elif _b_time:
+                should_exit = True
+                reason = ("5m BOUNCE TIME EXIT — 6 bars held; the validated "
+                          "edge is done, clear the slot.")
+            else:
+                # discard the generic trail/sell-bar reason from above
+                should_exit = False
+                reason = ""
+
         # ── 2. strategy sell bar (contest profile: 50%) ────────────────
-        if not should_exit:
+        if not should_exit and not _bounce_row:
             try:
                 ohlcv = exchange.fetch_ohlcv(pair, timeframe="1h", limit=200)
                 if ohlcv and len(ohlcv) >= 30:
@@ -6962,7 +7015,7 @@ def contest_light(exchange, cfg):
         # first. ExitMod > EXITMOD_FORCE (a maxed reversal + exhaustion
         # on a dead trend read) arms the Get Out — same popup → push →
         # auto-close path as every other gate, never a silent close.
-        if not should_exit:
+        if not should_exit and not _bounce_row:
             try:
                 _tw_gate = w.get("exit_watch")
                 if isinstance(_tw_gate, dict) and _tw_gate.get("force_exit"):
@@ -7041,7 +7094,7 @@ def contest_light(exchange, cfg):
         #    with the trend's agreement. Overdue alone closes nothing (the
         #    clock may never end a fire), and a damaged trend alone is already
         #    the force gate's call. Both together means the thesis is gone.
-        if not should_exit:
+        if not should_exit and not _bounce_row:
             try:
                 _psx = plan_spent_exit(w)
                 if _psx:
@@ -7071,7 +7124,8 @@ def contest_light(exchange, cfg):
         #    reaching them IS the exit, not an announcement. A row with no
         #    stamp (an old row, a failed read) keeps the incumbent %-goal
         #    behaviour, so this can never make an unmeasured row exit blind.
-        if not should_exit and _dollar_goal_armed() and not w.get("go_big"):
+        if (not should_exit and not _bounce_row
+                and _dollar_goal_armed() and not w.get("go_big")):
             try:
                 _dg_goal = float(w.get("goal_usd") or 0.0)
                 _dg_size = float(w.get("size") or 0.0)
@@ -11278,6 +11332,19 @@ def main():
         #    would page one pass early).
         #
         _run_light_pass(exchange, cfg, source="loop", episode=_slow_episode)
+
+        # ── THE VALIDATED 5m EDGE (Nov 13): one closed-bar scan per 5m
+        #    candle, one all-in slot, no bridge write. It runs AFTER the exit
+        #    watch so a slow 5m read can never delay a stop. It hands its
+        #    fire to the same contest watch writer, so the death line and
+        #    one-slot book cap keep their authority, and the exit watch
+        #    closes it on the edge's own stop/take/6-bar clock.
+        try:
+            import bounce_live as _bl
+            _bl.tick(exchange, auto_track_popup, logger)
+        except Exception as _bl_exc:
+            logger.warning("5m bounce edge tick failed (%s) — the normal "
+                           "scanner continues", _bl_exc)
         if _LIGHT_CLOCK.get("last_done"):
             last_cycle_done = float(_LIGHT_CLOCK["last_done"])   # COMPLETED pass
 
