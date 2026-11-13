@@ -245,3 +245,72 @@ def test_ticker_fallback_still_runs_the_six_bar_time_exit():
     assert "TIME EXIT" in bl.ticker_exit(w, 101.0, now=BASE + 1800)
     # A stop already hit at the deadline is still reported as the stop.
     assert bl.ticker_exit(w, 97.0, now=BASE + 1800).startswith("STOPPED OUT")
+
+
+# --- GO BIG NOW: a label on the fire, never an admission rule ---------------
+
+def test_go_big_push_text_names_the_net_marks():
+    t = bl.go_big_push_text("PEPE", 1000.0, 100.0, 500.0,
+                            "BUY 95% in a RISING tide")
+    assert t.startswith("GO BIG NOW")
+    assert "$1,000.00" in t and "$500" in t and "$100" in t
+    assert "RISING" in t
+
+
+class _TickExchange:
+    """Enough ccxt for one tick(): 30 flat bars per asset, a $1 ticker."""
+
+    def __init__(self, now):
+        self.now = now
+
+    def fetch_ohlcv(self, pair, timeframe, limit=80):
+        return [[(self.now - (30 - i) * 300) * 1000, 1.0, 1.0, 1.0, 1.0, 5000.0]
+                for i in range(30)]
+
+    def fetch_ticker(self, pair):
+        return {"last": 1.0}
+
+
+def _tick_once(monkeypatch, kind, *, push=None):
+    now = 1_790_000_000.0 + 3600.0
+    monkeypatch.setattr(bl, "_watch_is_flat", lambda: True)
+    monkeypatch.setattr(bl, "_breadth", lambda frames: 100.0)
+    monkeypatch.setattr(bl.ca, "load_state", lambda: {
+        "current_balance": 10_000.0, "start_balance": 10_000.0})
+    monkeypatch.setattr(bl, "scan_frames", lambda frames, balance=0.0: (
+        {"asset": "PEPE", "kind": "pepe", "carry": 20_000.0,
+         "conviction": 95.0} if kind == "pepe" else
+        {"asset": "BTC", "kind": "bounce", "drop_pct": -4.5,
+         "carry": 20_000.0}))
+    monkeypatch.setattr(bl.ca, "go_big_supported",
+                        lambda **kw: (True, "BUY 95% in a RISING tide"))
+    monkeypatch.setattr(bl.ca, "go_big_plan", lambda *a, **kw: {
+        "ok": True, "spend_usd": 9_000.0, "stop_usd": 100.0,
+        "take_usd": 500.0, "why": "all-in"})
+    bl._last_bar_scanned = 0.0
+    fired = []
+    out = bl.tick(_TickExchange(now),
+                  lambda **kw: (fired.append(kw) or True),
+                  logger=None, now=now, push=push)
+    return out, fired
+
+
+def test_go_big_fire_pushes_the_label(monkeypatch):
+    sent = []
+    out, fired = _tick_once(monkeypatch, "pepe", push=sent.append)
+    assert out["kind"] == "pepe" and fired          # admission unchanged
+    assert len(sent) == 1 and sent[0].startswith("GO BIG NOW")
+    assert "PEPE" in sent[0]
+
+
+def test_bounce_fire_never_marks_go_big(monkeypatch):
+    sent = []
+    out, fired = _tick_once(monkeypatch, "bounce", push=sent.append)
+    assert out["kind"] == "bounce" and fired
+    assert sent == []
+
+
+def test_phone_classifier_lets_go_big_now_through():
+    """The push route forwards only BUY/SELL text — the new label must pass."""
+    bs = pytest.importorskip("background_scanner")
+    assert bs._PUSH_GO_BIG_RE.search("go big now — pepe all-in")
