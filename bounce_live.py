@@ -2,7 +2,7 @@
 
 Rule A -- liquid capitulation bounce:
   * last closed 5m bar at or below -4.0% versus the prior close
-  * 20% of that bar's quote volume >= $10,000
+  * 20% of that bar's quote volume >= $10,000 and >= the account
   * enter next market tick, hold at most 6 bars, stop -2%, take +3%
 
 Rule B -- PEPE GO BIG:
@@ -91,7 +91,7 @@ def _breadth(frames: dict[str, dict]) -> float:
     return 100.0 * above / len(frames)
 
 
-def scan_frames(frames: dict[str, dict]) -> dict | None:
+def scan_frames(frames: dict[str, dict], balance: float = 0.0) -> dict | None:
     """The one entry this closed bar offers, or None."""
     # Bounce candidates first, in the validated replay's asset order.
     for asset, f in frames.items():
@@ -99,7 +99,11 @@ def scan_frames(frames: dict[str, dict]) -> dict | None:
         drop = (close / prev - 1.0) * 100.0 if prev > 0 else 0.0
         if drop <= -DROP_PCT:
             carry = f["qv"][-1] * CARRY_FRAC
-            if carry >= MIN_CARRY_USD:
+            # The replay skipped a bounce whose 20%-of-bar carry could not
+            # cover equity; the $10k floor alone would allow an all-in bigger
+            # than the bar's own book.  `balance` 0 (the default) keeps the
+            # filter off for callers that only read the signal.
+            if carry >= MIN_CARRY_USD and carry >= balance:
                 return {"asset": asset, "kind": "bounce",
                         "drop_pct": drop, "carry": carry}
 
@@ -267,7 +271,7 @@ def tick(exchange, track, logger=None, now: float | None = None) -> dict | None:
         _log("info", "BOUNCE LIVE: newest closed bar is stale — no entry")
         return None
 
-    signal = scan_frames(frames)
+    signal = scan_frames(frames, balance)
     if not signal:
         return None
     pair = f"{signal['asset']}/USD"

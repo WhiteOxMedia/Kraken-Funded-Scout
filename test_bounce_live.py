@@ -47,6 +47,17 @@ def test_bounce_needs_both_the_drop_and_the_carry():
     assert edge["kind"] == "bounce"
 
 
+def test_bounce_is_skipped_when_carry_cannot_cover_the_account():
+    """The replay skipped a bounce whose 20% carry was under equity."""
+    frames = {"BTC": _frame(100.0, 95.5, qv=60_000.0)}     # $12,000 carry
+    assert bl.scan_frames(frames, 11_000.0)["asset"] == "BTC"
+    assert bl.scan_frames(frames, 13_000.0) is None
+    # A later candidate that still covers the account is taken instead.
+    frames = {"BTC": _frame(100.0, 95.5, qv=60_000.0),
+              "ETH": _frame(100.0, 95.0, qv=200_000.0)}     # $40,000 carry
+    assert bl.scan_frames(frames, 13_000.0)["asset"] == "ETH"
+
+
 def test_scan_frames_is_silent_without_a_setup():
     assert bl.scan_frames({}) is None
     assert bl.scan_frames({"BTC": _frame(100.0, 100.4)}) is None
