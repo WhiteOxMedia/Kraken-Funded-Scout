@@ -33,9 +33,10 @@ MIN_CARRY_USD = 10_000.0
 CARRY_FRAC = 0.20
 BOUNCE_STOP_PCT = 2.0
 BOUNCE_TAKE_PCT = 3.0
-PEPE_STOP_USD = 100.0
-PEPE_TAKE_USD = 500.0
 PEPE_MIN_BUFFER_USD = 250.0
+# The stop/take are NOT constants here: contest_account.go_big_marks() scales
+# them off the contest start (1% / 5%), so they read 100/500 at the $10k tier
+# and keep the same shape at every other tier.
 
 # The validated replay's cost model (contest_replay): 0.08% round trip on the
 # notional, plus 2 bps of exit slippage.  GO BIG's stop and take are NET
@@ -226,7 +227,20 @@ def _watch_is_flat() -> bool:
         return False
 
 
-def tick(exchange, track, logger=None, now: float | None = None) -> dict | None:
+def go_big_push_text(asset: str, size: float, stop_usd: float,
+                     goal_usd: float, why: str = "") -> str:
+    """The phone line for a signal that cleared the GO BIG gate.
+
+    A LABEL, not an admission rule: the fire itself is unchanged, this text
+    only rides the same ntfy route a BUY NOW alert takes.
+    """
+    return (f"GO BIG NOW — {asset} all-in ${size:,.2f} · "
+            f"${goal_usd:,.0f} take / ${stop_usd:,.0f} stop"
+            + (f" · {why}" if why else ""))
+
+
+def tick(exchange, track, logger=None, now: float | None = None,
+         push=None) -> dict | None:
     """Scan the last closed bar once; hand any fire to ``track``."""
     global _last_bar_scanned
 
@@ -289,6 +303,7 @@ def tick(exchange, track, logger=None, now: float | None = None) -> dict | None:
         take_pct, goal_usd = BOUNCE_TAKE_PCT, 0.0
         hold_ts = now + HOLD_BARS * BAR_SEC
         go_big = False
+        gb_why = ""
         why = (f"5m capitulation bounce — {signal['drop_pct']:+.2f}% close, "
                f"${signal['carry']:,.0f} carry (>= $10k), 6-bar hold")
     else:
@@ -305,8 +320,7 @@ def tick(exchange, track, logger=None, now: float | None = None) -> dict | None:
                 return None
             plan = ca.go_big_plan(
                 balance, float(state["start_balance"]), supported=True,
-                stopped=False, stop_usd=PEPE_STOP_USD,
-                take_usd=PEPE_TAKE_USD, min_buffer_usd=PEPE_MIN_BUFFER_USD)
+                stopped=False, min_buffer_usd=PEPE_MIN_BUFFER_USD)
         except Exception as exc:
             _log("warning", "BOUNCE LIVE: PEPE GO BIG gate failed (%s)", exc)
             return None
@@ -337,5 +351,15 @@ def tick(exchange, track, logger=None, now: float | None = None) -> dict | None:
         return None
     _log("info", "BOUNCE LIVE FIRE: %s $%.2f all-in — %s",
          signal["asset"], size, why)
+    # GO BIG NOW: a label on a fire that already happened. The gate, the size
+    # and the exits above are untouched — this only tells the phone which
+    # fires carried the big-mark plan, through the same push route (and the
+    # same 60s retry queue) as a BUY NOW.
+    if go_big and push is not None:
+        try:
+            push(go_big_push_text(signal["asset"], size, stop_usd,
+                                  goal_usd, gb_why))
+        except Exception as exc:
+            _log("debug", "BOUNCE LIVE: GO BIG NOW push failed (%s)", exc)
     return {"pair": pair, "entry": entry, "size": size,
             "kind": signal["kind"], "why": why}

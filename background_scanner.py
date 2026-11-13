@@ -5098,6 +5098,10 @@ import re as _re_mod  # module-level for the classifier (re is imported
                       # locally elsewhere; this compile runs at import)
 _PUSH_SELL_RE = _re_mod.compile(r"\bget out\b|\bsell\b|\bstopped out\b")
 _PUSH_BUY_RE = _re_mod.compile(r"\bbuy\b|\bnew pick\b")
+# GO BIG NOW (Nov 13): the 5m lane tags a fire that cleared the GO BIG gate.
+# Same route, same HIGH priority and same retry queue as a BUY NOW — the
+# phrase only has to survive the classifier, which otherwise drops it.
+_PUSH_GO_BIG_RE = _re_mod.compile(r"\bgo big now\b")
 
 
 def _charter_push(event: str) -> bool:
@@ -5151,7 +5155,9 @@ def _push_to_phone(text: str, wav_path: str | None = None):
                 # GET OUT call — that is exactly how the 06:41 loss
                 # warning pushed URGENT to the phone)
     is_sell = bool(_PUSH_SELL_RE.search(_t))
-    is_buy = (not is_sell) and (bool(_PUSH_BUY_RE.search(_t)) or _t.startswith("go!"))
+    is_buy = (not is_sell) and (bool(_PUSH_BUY_RE.search(_t))
+                                or bool(_PUSH_GO_BIG_RE.search(_t))
+                                or _t.startswith("go!"))
     if not (is_buy or is_sell):
         return  # not a BUY NOW / GET OUT NOW alert — don't push
     # same text (a repeating GET OUT) pushes at most every 5 minutes
@@ -5553,8 +5559,10 @@ def auto_track_popup(pair: str, entry: float, size: float, goal_pct: float,
                 # only) instead of inheriting the generic GO BIG take.
                 _goal_usd_e = float(goal_usd or 0.0)
             elif go_big:
-                # GO BIG books the +$20 fixed take from the shared constant.
-                _goal_usd_e = float(_ca_gs.GO_BIG_TAKE_USD)
+                # GO BIG books the scaled take: 5% of the contest start
+                # (500 at the $10k tier) — never a fixed $20.
+                _goal_usd_e = float(_ca_gs.go_big_marks(
+                    (_ca_gs.load_state() or {}).get("start_balance") or 0.0)[1])
             else:
                 _risk_e = _hard_stop_usd(float(entry or 0.0),
                                          float(size or 0.0), _ca_gs.buffer())
@@ -6059,7 +6067,8 @@ def _light_watchdog(exchange, cfg, stop: threading.Event, episode=None):
                 # exits ran first; this only scans a new closed candle.
                 try:
                     import bounce_live as _blw
-                    _blw.tick(exchange, auto_track_popup, logger)
+                    _blw.tick(exchange, auto_track_popup, logger,
+                              push=_push_to_phone)
                 except Exception as _blw_exc:
                     logger.debug("5m bounce edge watchdog tick skipped: %s",
                                  _blw_exc)
@@ -9863,13 +9872,13 @@ def main():
                     conviction=float(_dc or 0.0),
                     floor=float(DESKTOP_ALERT_MIN),
                     slot_open=bool(_load_contest_watch()))
+                _gb_start = float(
+                    _ca_gb.load_state().get("start_balance") or 0.0)
+                _gb_stop, _gb_take = _ca_gb.go_big_marks(_gb_start)
                 _gb = _ca_gb.go_big_plan(
-                    float(_bal or 0.0),
-                    float(_ca_gb.load_state().get("start_balance") or 0.0),
+                    float(_bal or 0.0), _gb_start,
                     supported=bool(_gb_ok and not _weak_fire_reason
-                                   and not _hail_mary),
-                    stop_usd=_ca_gb.GO_BIG_STOP_USD,
-                    take_usd=_ca_gb.GO_BIG_TAKE_USD)
+                                   and not _hail_mary))
                 if _gb.get("ok"):
                     _go_big = True
                     _go_big_why = _gb_why
@@ -9880,7 +9889,7 @@ def main():
                     contest_msg = (
                         f"  SPEND: 100% = ${_spend:,.0f} — GO BIG OR GO HOME "
                         f"({_gb_why}); ride the run, GET OUT when momentum "
-                        f"dies, hard stop -${_ca_gb.GO_BIG_STOP_USD:,.0f} net\n")
+                        f"dies, hard stop -${_gb_stop:,.0f} net\n")
                     logger.info("  GO BIG: %s — 100%% = $%.0f (%s)",
                                 asset, _spend, _gb_why)
                 else:
@@ -11337,7 +11346,8 @@ def main():
         #    closes it on the edge's own stop/take/6-bar clock.
         try:
             import bounce_live as _bl
-            _bl.tick(exchange, auto_track_popup, logger)
+            _bl.tick(exchange, auto_track_popup, logger,
+                     push=_push_to_phone)
         except Exception as _bl_exc:
             logger.warning("5m bounce edge tick failed (%s) — the normal "
                            "scanner continues", _bl_exc)
