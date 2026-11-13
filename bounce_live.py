@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import json
 import time
+from datetime import datetime, timezone
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
@@ -30,8 +31,9 @@ DROP_PCT = 4.0
 MIN_CARRY_USD = 10_000.0
 BOUNCE_STOP_PCT = 2.0
 BOUNCE_TAKE_PCT = 3.0
-PEPE_STOP_PCT = 1.0
-PEPE_TAKE_PCT = 5.0
+PEPE_STOP_USD = 100.0
+PEPE_TAKE_USD = 500.0
+PEPE_MIN_BUFFER_USD = 250.0
 BREADTH_MIN = 50.0
 CARRY_FRAC = 0.20
 
@@ -123,8 +125,103 @@ def scan_frames(frames: dict[str, dict],
     carry = f["qv"][-1] * CARRY_FRAC
     crossed = e9 > p9 and e9 > e21 and p9 <= p21
     if crossed and close > f["open"][-1] and carry >= float(pepe_carry):
+        strength = (close / e21 - 1.0) * 100.0
         return {"asset": "PEPE", "kind": "pepe", "drop_pct": 0.0,
-                "carry": carry, "breadth_pct": breadth_pct}
+                "carry": carry, "breadth_pct": breadth_pct,
+                "conviction": min(100.0, 85.0 + max(0.0, strength) * 10.0)}
+    return None
+
+
+
+def _entry_epoch(w: dict) -> float | None:
+    for key in ("opened_ts", "added"):
+        raw = w.get(key)
+        if not raw:
+            continue
+        try:
+            dt = datetime.fromisoformat(str(raw))
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=timezone.utc)
+            return dt.timestamp()
+        except (TypeError, ValueError):
+            continue
+    return None
+
+
+def _edge_kind(w: dict) -> str:
+    setup = w.get("setup") if isinstance(w.get("setup"), dict) else {}
+    return str(setup.get("kind") or ("pepe" if w.get("go_big") else "bounce"))
+
+
+def exit_signal(exchange, pair: str, w: dict, *, live: float | None = None,
+                now: float | None = None) -> dict | None:
+    """First validated 5m exit for this edge row, or None.
+
+    The tape rules are the ones ``bounce_core.exit_fill`` and the GO BIG
+    replay used: check the entry bar and every later bar's OPEN then LOW/HIGH,
+    stop before take.  For PEPE, a closed 5m close that crosses below EMA9 is
+    the momentum death exit.  Returning a reason lets the scanner take the
+    ordinary GET OUT auto-close path; it never writes the book here.
+    """
+    entry = float(w.get("entry") or 0.0)
+    size = float(w.get("size") or 0.0)
+    entry_ts = _entry_epoch(w)
+    if entry <= 0 or size <= 0 or entry_ts is None:
+        return None
+    stop_usd = float(w.get("hard_stop_usd") or 0.0)
+    stop = entry * (1.0 - stop_usd / size) if stop_usd > 0 else 0.0
+    goal_usd = float(w.get("goal_usd") or 0.0)
+    goal_pct = float(w.get("goal_pct") or 0.0)
+    take = (entry * (1.0 + goal_usd / size) if goal_usd > 0 else
+            entry * (1.0 + goal_pct / 100.0) if goal_pct > 0 else 0.0)
+
+    now = time.time() if now is None else float(now)
+    rows = [r for r in (exchange.fetch_ohlcv(pair, "5m", limit=120) or [])
+            if isinstance(r, (list, tuple)) and len(r) >= 6]
+    if not rows:
+        return None
+    entry_ms = entry_ts * 1000.0
+    from_entry = [i for i, r in enumerate(rows)
+                  if float(r[0]) + BAR_SEC * 1000.0 > entry_ms]
+    if not from_entry:
+        return None
+    first = from_entry[0]
+    kind = _edge_kind(w)
+    # The bounce only owns its entry bar plus five more; a high/low after the
+    # 6-bar window belongs to the time exit, not to the stop/take.
+    scan_idx = from_entry[:HOLD_BARS] if kind == "bounce" else from_entry
+    closes = [float(r[4]) for r in rows]
+    # The live ticker is a fresher close for the in-progress bar; high/low
+    # still come from the exchange's 5m candle.
+    if live and rows[-1][0] + BAR_SEC * 1000.0 > now * 1000.0:
+        closes[-1] = float(live)
+    ema9 = _ema(closes, 9)
+
+    for j in scan_idx:
+        r = rows[j]
+        open_, high, low = float(r[1]), float(r[2]), float(r[3])
+        if stop > 0 and open_ <= stop:
+            return {"kind": "stop_gap",
+                    "reason": (f"STOPPED OUT — 5m bar opened ${open_:.6g} "
+                               f"through the ${stop:.6g} stop.")}
+        if stop > 0 and low <= stop:
+            return {"kind": "stop",
+                    "reason": (f"STOPPED OUT — 5m bar low ${low:.6g} hit the "
+                               f"${stop:.6g} stop.")}
+        if take > 0 and open_ >= take:
+            return {"kind": "take_gap",
+                    "reason": (f"TAKE IT — 5m bar opened ${open_:.6g} through "
+                               f"the ${take:.6g} goal.")}
+        if take > 0 and high >= take:
+            return {"kind": "take",
+                    "reason": (f"TAKE IT — 5m bar high ${high:.6g} hit the "
+                               f"${take:.6g} goal.")}
+        if kind == "pepe" and j > first \
+                and float(r[0]) + BAR_SEC * 1000.0 <= now * 1000.0 \
+                and closes[j - 1] >= ema9[j - 1] and closes[j] < ema9[j]:
+            return {"kind": "momentum",
+                    "reason": (f"PEPE GO BIG EXIT — 5m close ${closes[j]:.6g} "
+                               f"crossed below EMA9 ${ema9[j]:.6g}.")}
     return None
 
 
@@ -210,28 +307,61 @@ def tick(exchange, track, logger=None, now: float | None = None) -> dict | None:
         return None
 
     if signal["kind"] == "bounce":
-        stop_pct, take_pct = BOUNCE_STOP_PCT, BOUNCE_TAKE_PCT
+        size = balance
+        stop_usd = size * BOUNCE_STOP_PCT / 100.0
+        take_pct = BOUNCE_TAKE_PCT
         goal_usd = 0.0
         hold_ts = now + HOLD_BARS * BAR_SEC
         go_big = False
         why = (f"5m capitulation bounce — {signal['drop_pct']:+.2f}% close, "
                f"${signal['carry']:,.0f} carry (>= $10k), 6-bar hold")
     else:
-        stop_pct, take_pct = PEPE_STOP_PCT, PEPE_TAKE_PCT
-        goal_usd = balance * take_pct / 100.0
+        # THE VALIDATED GO BIG GATE: the same support + plan calls the
+        # replay used. PEPE is not all-in on a hand-rolled breadth check.
+        try:
+            state = ca.load_state()
+            start = float(state.get("start_balance") or 0.0)
+            tide_state = "RISING" if signal["breadth_pct"] >= 75 else "FLAT"
+            gb_ok, gb_why = ca.go_big_supported(
+                action="buy", tide_state=tide_state,
+                tide_pct=float(signal["breadth_pct"]),
+                carry_usd=float(signal["carry"]), balance=balance,
+                conviction=float(signal["conviction"]),
+                floor=float(ca.GO_BIG_MIN_CONVICTION), slot_open=False)
+            if not gb_ok:
+                _log("info", "BOUNCE LIVE: PEPE GO BIG refused — %s", gb_why)
+                return None
+            plan = ca.go_big_plan(
+                balance, start, supported=True, stopped=False,
+                stop_usd=PEPE_STOP_USD, take_usd=PEPE_TAKE_USD,
+                min_buffer_usd=PEPE_MIN_BUFFER_USD)
+        except Exception as exc:
+            _log("warning", "BOUNCE LIVE: PEPE GO BIG gate failed (%s) — "
+                 "no entry", exc)
+            return None
+        if not plan.get("ok"):
+            _log("info", "BOUNCE LIVE: PEPE GO BIG plan refused — %s",
+                 plan.get("why"))
+            return None
+        size = float(plan["spend_usd"])
+        stop_usd = float(plan["stop_usd"])
+        take_usd = float(plan["take_usd"])
+        take_pct = take_usd / size * 100.0 if size > 0 else 0.0
+        goal_usd = take_usd
         hold_ts = None
         go_big = True
-        why = (f"PEPE GO BIG — fresh 5m EMA9/21 cross, breadth "
-               f"{signal['breadth_pct']:.0f}%, ${signal['carry']:,.0f} carry")
+        why = (f"PEPE GO BIG — {gb_why}; {plan.get('why')} "
+               f"(5m cross, breadth {signal['breadth_pct']:.0f}%, "
+               f"${signal['carry']:,.0f} carry)")
 
     ok = track(
-        pair=pair, entry=entry, size=balance, goal_pct=take_pct,
+        pair=pair, entry=entry, size=size, goal_pct=take_pct,
         window_min=(HOLD_BARS * 5 if signal["kind"] == "bounce" else 60.0),
         why=why, source="bounce_live",
         setup={"route": "bounce_live", "kind": signal["kind"]},
         plan_basis="validated 5m closed-bar edge", exchange=exchange,
         go_big=go_big,
-        hard_stop_usd=balance * stop_pct / 100.0,
+        hard_stop_usd=stop_usd,
         goal_usd=goal_usd,
         bounce_exit_ts=hold_ts,
     )
