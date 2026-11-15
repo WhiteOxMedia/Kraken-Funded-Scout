@@ -174,6 +174,53 @@ rejection stored beside the switch, `should_arm()` reporting why, and
 Covered by `test_overwatch_timing.py` (16 checks). **Nothing was armed:** at
 −$0.12/trade it would spend the $300 cushion in days.
 
+## The pre-entry signal search: 11 order-flow signals, nothing clears November
+
+The 80% finding left one question: is there *any* pre-entry signal in the repo's
+own data that predicts the next 30–60 minutes by more than the 0.08% round trip?
+`scratch/orderflow_study.py` answers it on the only substrate with order-flow
+content — `scratch/kraken_5m_long_183d.json`, **30 pairs, 1,544,445 5m bars, May 14
+– Nov 13, volume present on 100% of bars** (the shorter 55-symbol tape used earlier
+has zero volume on most alt bars, which is why it could never test this).
+
+**Four of the five families the request names do not exist in the repo.** A scan of
+every `.json`/`.jsonl`/`.db`/`.sqlite` in the tree (excluding `.venv`, `.git`,
+`backups`) for any field matching funding / open interest / spread / bid / ask /
+imbalance / depth / order book / liquidity found **0 files**: `execution_tiers.measure_book()`
+reads a live book to price an order and throws it away, `app.py`'s `SPREAD` is the
+modelled 10bps constant, and `config.max_spread_pct` is a live filter. There is no
+history of those to test — the only thing that can be backtested is what candles
+and volume carry, and that is exactly what "order flow" means here.
+
+Eleven pre-entry signals, all computable from bars ≤ t: signed-volume imbalance
+`ofi3`/`ofi12` (Σ(2·CLV−1)·vol / Σvol — the standard order-flow-imbalance proxy),
+`vdelta12` (up-volume minus down-volume share), `volz` (volume vs its 24h sd),
+`absorb` (high volume, small body), `dipvol` (capitulation volume), `wick3` (buying
+tail), `vwapdev`, `rangex`, and `ret6`/`ret12` as momentum baselines. Quintile edges
+are fitted on **May–Oct only** and applied unchanged to **Nov 1–13 (105,328 bars)**;
+entries are strided by the horizon so t-stats are not inflated by overlap.
+
+**Nothing clears.** Every quintile of every signal nets −0.07% to −0.19% at both
+horizons, train and holdout alike. The decisive number is not that level (November
+was a falling window, so all longs pay a drift) but the **separation**: top-minus-
+bottom quintile is **≤0.03% and flips sign between train and November** for every
+signal, including the two the request cares about most — high-volume `volz`
+(top quintile 38.7% wins, −0.12%/30min) and `absorb` (39.2% wins, −0.12%). A signal
+whose best quintile is indistinguishable from its worst cannot pay 0.08%.
+
+Two features had to be repaired before their verdict was trustworthy, and both
+repairs are in the script: `volz` divided by a near-zero volume sd and produced
+~1e12 values that owned the entire top quintile (n=1 testable bar); it is now
+undefined where volume does not vary, which restored ~19,000 holdout bars to the
+high-volume bucket — where it still loses. `dipvol` with zero up-volume is likewise
+undefined rather than infinite.
+
+Because **nothing cleared, nothing was wired**: `overwatch_timing.ARMED` is still
+`False` and the search is recorded inside its `STUDY['orderflow_search']` block,
+with `should_arm()` now reporting both rejections in one line. An edge here would
+have to come from data the repo does not collect (funding, open interest, live
+book/depth), which cannot be backtested on history that was never written down.
+
 ## The binding constraint, named
 
 **After a 0.85+ breakout entry, the remaining move is small.** Losers peak at

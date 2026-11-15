@@ -62,6 +62,23 @@ STUDY = {
     "positive_on_november": 0,
     "verdict": "rejected: an 80% win shape over a driftless move is break-even "
                "before cost and negative after it",
+    # the follow-up search for an entry signal with actual directional edge
+    "orderflow_search": {
+        "source": "scratch/orderflow_study.py",
+        "tape": "30 pairs, 1,544,445 5m bars, May 14 - Nov 13, volume on 100%",
+        "signals": ["ofi3", "ofi12", "vdelta12", "volz", "absorb", "dipvol",
+                    "wick3", "vwapdev", "rangex", "ret6", "ret12"],
+        "horizons_min": [30, 60],
+        "holdout": "Nov 1 - Nov 13, 105,328 bars, edges fitted on May-Oct only",
+        "clearing": 0,
+        "largest_quintile_spread_pct": 0.03,
+        "verdict": "rejected: every quintile of every signal nets -0.07 to -0.19%, "
+                   "and top-minus-bottom quintile separation is <=0.03% and "
+                   "inconsistent in sign between train and November - no edge, "
+                   "so nothing to wire",
+        "absent_from_repo": ["funding", "open interest", "spread history",
+                             "book/depth history"],
+    },
 }
 
 
@@ -122,4 +139,7 @@ def should_arm() -> tuple[bool, str]:
     return False, (f"held: {STUDY['positive_on_train']} of {STUDY['configurations']} "
                    f"shapes were positive on train and "
                    f"{STUDY['positive_on_november']} on November; "
-                   f"80.5% wins still lost ${-STUDY['best_80pct_shape']['net']:.2f}")
+                   f"80.5% wins still lost ${-STUDY['best_80pct_shape']['net']:.2f}; "
+                   f"{STUDY['orderflow_search']['clearing']} of "
+                   f"{len(STUDY['orderflow_search']['signals'])} order-flow signals "
+                   f"cleared the November holdout")
