@@ -1,0 +1,119 @@
+{
+ "entries": 2348,
+ "fit": {
+  "shipped": {
+   "n_traded": 1408,
+   "skipped": 0,
+   "booked_pct": -0.1586,
+   "usd": 233.11,
+   "per_trade": 0.1656,
+   "hit": 39.9,
+   "mae": -1.2459,
+   "p1": -3.083,
+   "p5": -3.08
+  },
+  "next5m": {
+   "n_traded": 1408,
+   "skipped": 0,
+   "booked_pct": -0.1342,
+   "usd": 522.21,
+   "per_trade": 0.3709,
+   "hit": 40.8,
+   "mae": -1.2379,
+   "p1": -3.083,
+   "p5": -3.08
+  },
+  "pullback": {
+   "n_traded": 1408,
+   "skipped": 0,
+   "booked_pct": -0.2483,
+   "usd": -956.8,
+   "per_trade": -0.6795,
+   "hit": 39.3,
+   "mae": -1.3439,
+   "p1": -3.083,
+   "p5": -3.08
+  },
+  "ext_cap": {
+   "n_traded": 1117,
+   "skipped": 291,
+   "booked_pct": -0.2362,
+   "usd": -1976.96,
+   "per_trade": -1.7699,
+   "hit": 38.0,
+   "mae": -1.2298,
+   "p1": -3.082,
+   "p5": -3.08
+  }
+ },
+ "holdout": {
+  "shipped": {
+   "n_traded": 940,
+   "skipped": 0,
+   "booked_pct": -0.2527,
+   "usd": -1732.2,
+   "per_trade": -1.8428,
+   "hit": 38.1,
+   "mae": -1.164,
+   "p1": -3.081,
+   "p5": -3.08
+  },
+  "next5m": {
+   "n_traded": 940,
+   "skipped": 0,
+   "booked_pct": -0.2596,
+   "usd": -1724.7,
+   "per_trade": -1.8348,
+   "hit": 36.9,
+   "mae": -1.1809,
+   "p1": -3.081,
+   "p5": -3.08
+  },
+  "pullback": {
+   "n_traded": 940,
+   "skipped": 0,
+   "booked_pct": -0.3554,
+   "usd": -1970.26,
+   "per_trade": -2.096,
+   "hit": 36.2,
+   "mae": -1.2812,
+   "p1": -3.082,
+   "p5": -3.08
+  },
+  "ext_cap": {
+   "n_traded": 756,
+   "skipped": 184,
+   "booked_pct": -0.2563,
+   "usd": -1564.39,
+   "per_trade": -2.0693,
+   "hit": 37.0,
+   "mae": -1.1345,
+   "p1": -3.081,
+   "p5": -3.079
+  }
+ },
+ "verdicts": {
+  "next5m": {
+   "better_per_trade": true,
+   "tail_ok": true,
+   "wins": true,
+   "holdout_n": 940
+  },
+  "pullback": {
+   "better_per_trade": false,
+   "tail_ok": false,
+   "wins": false,
+   "holdout_n": 940
+  },
+  "ext_cap": {
+   "better_per_trade": false,
+   "tail_ok": true,
+   "wins": false,
+   "holdout_n": 756
+  }
+ },
+ "winners": [
+  "next5m"
+ ],
+ "thin_holdout": []
+}

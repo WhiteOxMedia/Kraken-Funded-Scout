@@ -49,6 +49,8 @@ import spend_capacity as _spend_mod                     # noqa: E402
 from buy_low import BUY_LOW_STAMP_VERSION               # noqa: E402
 from exit_study import EXIT_STUDY, EXIT_STUDY_V         # noqa: E402
 import breakout_gate as _bk_gate                          # noqa: E402
+import near_miss as _near_miss                            # noqa: E402
+_MOVER_BRIDGE_ROUTE = "mover-bridge"                 # journalled by the gate and the shadow
 from entry_timing import apply as _entry_timing_apply    # noqa: E402
 from spend_capacity import SPEND_STAMP_VERSION         # noqa: E402
 
@@ -1004,9 +1006,23 @@ def crown_cycle(exchange, results, all_data, cfg, min_conf, *, fire=None,
     if not ok:
         out["decision"] = "veto"
         out["entry_quality"] = eq
+        # THE SHADOW RECORDER (Nov 15): the veto is a data point — journal the
+        # champion and the pool's near-misses with the features that decided
+        # them, so future studies have decisions, not 12-trade samples. It only
+        # writes its own journal: no order, no watch row, no balance.
+        try:
+            _near_miss.record_pool(cands, all_data, best_pair, cfg, source=source)
+        except Exception as exc:
+            logger.debug("near-miss record skipped: %s", exc)
         return out
     if fire is not None:
         fire(best_pair, best_signal, auto_trade_threshold)
+    # every full scan also resolves whatever near-misses have aged past the
+    # hold window — read-only against the venue, write-only to that journal
+    try:
+        _near_miss.resolve(exchange, cfg)
+    except Exception as exc:
+        logger.debug("near-miss resolve skipped: %s", exc)
     out.update({"pair": best_pair, "signal": best_signal, "decision": "fire",
                 "entry_quality": eq})
     return out
@@ -11439,6 +11455,12 @@ def main():
                                 f"mover-bridge: entry_quality {_mv_eq:.2f} < "
                                 f"{cfg.champion_breakout_min:.2f}",
                                 quick=float(signal.confidence))
+                            try:
+                                _near_miss.record_veto(
+                                    pair, signal, _mv_eq, None, cfg,
+                                    route=_MOVER_BRIDGE_ROUTE)
+                            except Exception as exc:
+                                logger.debug("near-miss mover record skipped: %s", exc)
                             continue
 
                         logger.info("  🚀 MOVER SIGNAL: %s %s (%.0f%%, 24h %+.0f%%) — mover outside the 54",
