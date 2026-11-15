@@ -106,12 +106,16 @@ def measure(exchange, pair: str, limit: int = 720):
 
 
 def record(pair: str, decision: str, entry_quality, *, route: str = "",
-           confidence=None, cfg=None, path=None) -> dict:
+           confidence=None, cfg=None, path=None, source: str = "scanner") -> dict:
     """Write one gate-journal row. Never raises: a broken write must not stop
     a fire the gate already allowed."""
     row = {
         "ts": datetime.now(timezone.utc).astimezone().isoformat(),
         "pair": pair, "route": route, "decision": decision,
+        # WHO wrote it: the running scanner's own cycles say "scanner"; a
+        # replay/probe label themselves, so the journal can be classified
+        # row-by-row instead of trusted on faith.
+        "source": source,
         "entry_quality": None if entry_quality is None else round(float(entry_quality), 4),
         "gate_min": BREAKOUT_MIN,
         "confidence": None if confidence is None else float(confidence),
@@ -132,7 +136,7 @@ def record(pair: str, decision: str, entry_quality, *, route: str = "",
 
 
 def evaluate(pair: str, signal, *, cfg=None, exchange=None, route: str = "",
-             path=None):
+             path=None, source: str = "scanner"):
     """THE FIRE CHOKE POINT every route calls before it fires.
 
     Returns `(ok, entry_quality)`. A buy whose measured range position is below
@@ -155,7 +159,7 @@ def evaluate(pair: str, signal, *, cfg=None, exchange=None, route: str = "",
     ok = passes(eq, minimum)
     record(pair, "unmeasured-fire" if eq is None else ("fire" if ok else "veto"),
            eq, route=route, confidence=getattr(signal, "confidence", None),
-           cfg=cfg, path=path)
+           cfg=cfg, path=path, source=source)
     if not ok:
         log.info("  BREAKOUT GATE: %s sits %.2f in its prior-hour range "
                  "(need >= %.2f) — not a breakout, no fire (%s)",

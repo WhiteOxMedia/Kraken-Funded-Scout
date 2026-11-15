@@ -117,7 +117,7 @@ def main():
               f"{best_sig.confidence:.0f}%, entry_quality {eq}")
         if want_fire:
             chk(f"{label} 1. the gate crowns the breakout champion", bp == best_pair, bp)
-            ok, eq2 = bg.evaluate(best_pair, bsig, cfg=cfg, route="crown")
+            ok, eq2 = bg.evaluate(best_pair, bsig, cfg=cfg, route="crown", source="probe")
             chk(f"{label} 2. the choke point allows the fire", ok is True, eq2)
         else:
             chk(f"{label} 1. the gate does NOT crown the champion below 0.85",
@@ -132,7 +132,7 @@ def main():
             # ... and the same real signal through the CHOKE POINT every fire
             # route calls (send_alert's own function, same argument shape):
             # the refusal the live loop would make on a dip champion.
-            _okc, _eqc = bg.evaluate(best_pair, best_sig, cfg=cfg, route="standard")
+            _okc, _eqc = bg.evaluate(best_pair, best_sig, cfg=cfg, route="standard", source="probe")
             _rowc = [json.loads(l) for l in bg.GATE_LOG.read_text(encoding="utf-8").splitlines()
                      if l.strip()][-1]
             chk(f"{label} 3. the fire choke refuses it too, and journals the refusal",

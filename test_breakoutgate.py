@@ -44,9 +44,12 @@ print("== 2. it is switchable, and its shape cannot relax anything")
 check("2.1 the config ships the gate ON and names the threshold",
       config.TradingConfig().champion_breakout_gate is True
       and config.TradingConfig().champion_breakout_min == 0.85)
-check("2.2 the gate is judged on buy fires only — exits never touch it",
-      'best_signal.action == "buy"' in
-      open("background_scanner.py", encoding="utf-8").read().split("THE BREAKOUT GATE (Nov 15)")[1])
+_cc = open("background_scanner.py", encoding="utf-8").read()
+_cc = _cc[_cc.index("def crown_cycle("):_cc.index("def bounce_tournament(")]
+check("2.2 only buys reach the gate, and only once a crown exists",
+      'if sig.action != "buy" or sig.confidence < min_conf:' in _cc
+      and _cc.index('if sig.action != "buy"') < _cc.index("_bk_gate.evaluate(")
+      and _cc.index("if not (best_pair and best_signal):") < _cc.index("_bk_gate.evaluate("))
 import ast
 _tree = ast.parse(open("breakout_gate.py", encoding="utf-8").read())
 _names = {n.id for n in ast.walk(_tree) if isinstance(n, ast.Name)}
@@ -73,7 +76,7 @@ check("3.4 the rejected crown rules are recorded with their numbers",
       and st["rejected"]["crown_by_pos_hour"]["oos_ci"][1] < 0)
 check("3.5 the verdict says what ships", "entry_quality >= 0.85" in st["verdict"])
 
-print("== 4. the live champion path obeys it (the real function, not a copy)")
+print("== 4. the live cycle function obeys it (the real function, not a copy)")
 _orig_eq = sc._entry_quality
 _orig_gate_log = bg.GATE_LOG
 bg.GATE_LOG = pathlib.Path(tempfile.mkdtemp()) / "gate_section4.jsonl"
@@ -87,40 +90,45 @@ class _DeadEx:
         return {"high": 10.0, "low": 8.0, "last": 9.0, "quoteVolume": 5e6}
 
 
-def _crown(eq):
+def _cycle(eq, cfg=None, want_fire=True):
+    """`crown_cycle` is what the running loop calls every full scan."""
     sc._entry_quality = lambda df, n=None, _v=eq: _v
     res = {"DIP/USD": sc.Signal(action="buy", confidence=70, price=1.0, reasons=["r"])}
-    return bs.deep_crown_pool(_DeadEx(), res, {"DIP/USD": object()}, config.TradingConfig(),
-                              "DIP/USD", res["DIP/USD"], 50)
+    fired = []
+    out = bs.crown_cycle(_DeadEx(), res, {"DIP/USD": object()},
+                         cfg or config.TradingConfig(), 50,
+                         fire=(lambda p, s, t: fired.append(p)) if want_fire else None)
+    return out, res, fired
 
 
 try:
-    _bp, _bs, _c, _r = _crown(0.40)
+    _o1, _r1, _f1 = _cycle(0.40)
     check("4.1 a champion mid-range is NOT crowned and does NOT fire",
-          _bp is None and _bs is None, (_bp, _bs))
-    _bp2, _bs2, _c2, _r2 = _crown(0.93)
-    check("4.2 a champion at the top of its hour range fires, with the read attached",
-          _bp2 == "DIP/USD" and _bs2 is not None and _bs2.entry_quality == 0.93,
-          (_bp2, getattr(_bs2, "entry_quality", None)))
+          _o1["pair"] is None and _o1["signal"] is None and _f1 == []
+          and _o1["decision"] == "veto", (_o1["pair"], _o1["decision"], _f1))
+    check("4.2 ... and the cycle's own veto row is journalled",
+          [r["decision"] for r in
+           [json.loads(l) for l in bg.GATE_LOG.read_text(encoding="utf-8").splitlines()]]
+          [-1] == "veto")
+    _o2, _r2, _f2 = _cycle(0.93)
+    check("4.3 a champion at the top of its hour range is crowned, and fired once",
+          _o2["pair"] == "DIP/USD" and _o2["signal"] is not None
+          and _o2["decision"] == "fire" and _f2 == ["DIP/USD"]
+          and _o2["signal"].entry_quality == 0.93,
+          (_o2["pair"], _o2["decision"], _f2))
     _cfgoff = config.TradingConfig()
     _cfgoff.champion_breakout_gate = False
-    sc._entry_quality = lambda df, n=None: 0.10
-    _res3 = {"DIP/USD": sc.Signal(action="buy", confidence=70, price=1.0, reasons=["r"])}
-    _bp3, _bs3, _c3, _r3 = bs.deep_crown_pool(_DeadEx(), _res3, {"DIP/USD": object()},
-                                             _cfgoff, "DIP/USD", _res3["DIP/USD"], 50)
-    check("4.3 with the flag off the old behaviour stands (so it is reversible)",
-          _bp3 == "DIP/USD" and _bs3 is not None, _bp3)
-    sc._entry_quality = lambda df, n=None: None
-    _res4 = {"DIP/USD": sc.Signal(action="buy", confidence=70, price=1.0, reasons=["r"])}
-    _bp4, _bs4, _c4, _r4 = bs.deep_crown_pool(_DeadEx(), _res4, {"DIP/USD": object()},
-                                             config.TradingConfig(), "DIP/USD",
-                                             _res4["DIP/USD"], 50)
-    check("4.4 an unmeasured champion still fires (fail-open, never fail-closed)",
-          _bp4 == "DIP/USD")
+    _o3, _r3, _f3 = _cycle(0.10, cfg=_cfgoff)
+    check("4.4 with the flag off the old behaviour stands (so it is reversible)",
+          _o3["pair"] == "DIP/USD" and _f3 == ["DIP/USD"], (_o3["pair"], _f3))
+    _o4, _r4, _f4 = _cycle(None)
+    check("4.5 an unmeasured champion still fires (fail-open, never fail-closed)",
+          _o4["pair"] == "DIP/USD" and _f4 == ["DIP/USD"], _o4["pair"])
 finally:
     sc._entry_quality = _orig_eq
     bg.GATE_LOG = _orig_gate_log
 
+print("== 5. the evidence rides the fire and the close")
 print("== 5. the evidence rides the fire and the close")
 _row = {"breakout_gate": dict(st), "breakout_gate_v": bg.BREAKOUT_STUDY_V}
 _fam = bs._family_fields(_row)
@@ -134,9 +142,12 @@ _src_bg = open("background_scanner.py", encoding="utf-8").read()
 check("5.3 the row is stamped with it at fire time, beside the exit study",
       '"breakout_gate": dict(_bk_gate.BREAKOUT_STUDY)' in _src_bg
       and '"exit_study": dict(EXIT_STUDY)' in _src_bg)
-check("5.4 the gate runs inside the live crown function, before it returns",
-      _src_bg.index("BREAKOUT GATE: %s sits") <
-      _src_bg.index("return best_pair, best_signal, cands, ranks"))
+check("5.4 the gate runs inside the per-cycle crown function, before any fire",
+      _src_bg.index("def crown_cycle(") < _src_bg.index("_bk_gate.evaluate(")
+      < _src_bg.index("if fire is not None:"))
+check("5.5 the running loop calls that function — no inline crown, no bypass",
+      "_cyc = crown_cycle(exchange, results, all_data, cfg, min_conf)" in _src_bg
+      and "best_pair, best_signal, _cands, _ranks = deep_crown_pool(" not in _src_bg)
 
 print("== 6. the choke point: every fire judged once, and journalled either way")
 import tempfile
@@ -203,8 +214,10 @@ check("6.8 the alert route judges every buy at the choke point before any write"
 check("6.9 the mover route is judged too, before its popup",
       "route=\"mover\"" in _src
       and _src.index("_m_gate_ok") < _src.index("notify_big(_m_title"))
-check("6.10 the crown's own refusal is journalled, not just logged",
-      "_bk_gate.record(best_pair or" in _src)
+check("6.10 the crown's refusal is journalled by the same choke, under its own route",
+      'route="champion"' in _src
+      and "_bk_gate.evaluate(" in _src[_src.index("def crown_cycle("):
+                                         _src.index("def bounce_tournament(")])
 
 print("\n".join(lines))
 print(f"\nRESULT: {PASS} passed, {FAIL} failed")

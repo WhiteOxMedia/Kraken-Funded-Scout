@@ -949,34 +949,67 @@ def deep_crown_pool(exchange, results, all_data, cfg, best_pair, best_signal,
     except Exception as exc:
         logger.debug("champion deep stamp skipped: %s", exc)
 
-    # ── THE BREAKOUT GATE (Nov 15) — the one tournament change with a holdout
-    #    behind it. The champion must be a BREAKOUT: its close sitting in the
-    #    top 15% of its own prior hour's range. The grading (tournament_study:
-    #    154 champion decisions, fit then holdout) put that cohort at 80.6%
-    #    wins over 45d vs 18.6% below it, and crowning the cheap end of the
-    #    range loses 0.26%/trade out of sample. `None` (no measurement) fires
-    #    on the old rule, so the gate can only ever remove a fire.
-    try:
-        if (bool(getattr(cfg, "champion_breakout_gate", False))
-                and best_signal is not None and best_signal.action == "buy"):
-            _eq_g = getattr(best_signal, "entry_quality", None)
-            _min_g = float(getattr(cfg, "champion_breakout_min",
-                                   _bk_gate.BREAKOUT_MIN))
-            if not _bk_gate.passes(_eq_g, _min_g):
-                logger.info(
-                    "  BREAKOUT GATE: %s sits %.2f in its prior-hour range "
-                    "(need >= %.2f) — not a breakout, no fire",
-                    best_pair.split("/")[0] if best_pair else "?",
-                    float(_eq_g), _min_g)
-                # the crown's refusal is a record, not a log line: gate
-                # version, the measured position, and the study's numbers.
-                _bk_gate.record(best_pair or "?", "veto", _eq_g, route="crown",
-                                confidence=getattr(best_signal, "confidence", None),
-                                cfg=cfg)
-                best_pair, best_signal = None, None
-    except Exception as exc:
-        logger.debug("breakout gate skipped: %s", exc)
     return best_pair, best_signal, cands, ranks
+
+
+def crown_cycle(exchange, results, all_data, cfg, min_conf, *, fire=None,
+                auto_trade_threshold=89, journal=None, source="scanner") -> dict:
+    """THE PER-CYCLE CROWN → GATE → FIRE DECISION (Nov 15).
+
+    One implementation, called by the running loop every full scan AND by the
+    replay that proves it — so a proof of this function is a proof of the live
+    loop's own decision, not a probe's imitation of it.
+
+    Steps, in the loop's own order:
+      1. the loudest eligible BUY is the provisional champion (longs only);
+      2. `deep_crown_pool` reads the pool, runs the shadow rankings and stamps
+         the deep record onto the champion;
+      3. THE BREAKOUT GATE judges that champion — a sub-0.85 `entry_quality`
+         writes a veto row to the gate journal and returns `decision="veto"`
+         with no pair, so nothing downstream can crown or fire it;
+      4. only an allowed champion is handed to `fire` (the alert route, which
+         applies its own choke too).
+
+    Returns a dict: {pair, signal, cands, ranks, decision}. `decision` is one of
+    `fire`, `veto`, `no-crown` (nothing eligible).
+    """
+    best_pair = None
+    best_signal = None
+    best_conf = 0
+    for pair, sig in results.items():
+        if sig.action != "buy" or sig.confidence < min_conf:
+            continue
+        if sig.confidence > best_conf:
+            best_conf = sig.confidence
+            best_pair = pair
+            best_signal = sig
+
+    best_pair, best_signal, cands, ranks = deep_crown_pool(
+        exchange, results, all_data, cfg, best_pair, best_signal, min_conf)
+
+    out = {"pair": None, "signal": None, "cands": cands, "ranks": ranks,
+           "decision": "no-crown"}
+    if not (best_pair and best_signal):
+        return out
+
+    # ── THE BREAKOUT GATE (Nov 15) — judged here, at the cycle's own crown,
+    #    through the same shipped choke the alert route calls.
+    try:
+        ok, eq = _bk_gate.evaluate(
+            best_pair, best_signal, cfg=cfg, exchange=exchange, route="champion",
+            path=journal, source=source)
+    except Exception as exc:
+        logger.debug("breakout gate skipped at the crown: %s", exc)
+        ok, eq = True, getattr(best_signal, "entry_quality", None)
+    if not ok:
+        out["decision"] = "veto"
+        out["entry_quality"] = eq
+        return out
+    if fire is not None:
+        fire(best_pair, best_signal, auto_trade_threshold)
+    out.update({"pair": best_pair, "signal": best_signal, "decision": "fire",
+                "entry_quality": eq})
+    return out
 
 
 def bounce_tournament(exchange, cfg, loser_pairs: list[str]) -> tuple[Any, list[dict]]:
@@ -12260,25 +12293,21 @@ def main():
                                       # stretch can't outgrow the console's
                                       # scan grace (Sep 23: the plate cried
                                       # FROZEN through a working bracket)
-                # Find best signal — LONGS ONLY: the tournament hunts bull runs.
-                # Sell signals are never crowned (we never short; exits are
-                # handled separately by the exit-check path).
-                best_pair = None
-                best_signal = None
-                best_conf = 0
-                for pair, sig in results.items():
-                    if sig.action != "buy":
-                        continue
-                    if sig.confidence < min_conf:
-                        continue
-                    if sig.confidence > best_conf:
-                        best_conf = sig.confidence
-                        best_pair = pair
-                        best_signal = sig
-
-                best_pair, best_signal, _cands, _ranks = deep_crown_pool(
-                    exchange, results, all_data, cfg, best_pair, best_signal,
-                    min_conf)
+                # ── THE CYCLE'S CROWN DECISION (Nov 15): the loudest eligible
+                #    buy, the deep read, and the breakout gate — one shipped
+                #    function, `crown_cycle`, so the veto that protects the
+                #    book is the same code a replay can drive. LONGS ONLY: the
+                #    tournament hunts bull runs; sells are exit-check's job.
+                _cyc = crown_cycle(exchange, results, all_data, cfg, min_conf)
+                best_pair, best_signal = _cyc["pair"], _cyc["signal"]
+                _cands, _ranks = _cyc["cands"], _cyc["ranks"]
+                if _cyc["decision"] == "veto":
+                    logger.info("  BREAKOUT GATE: the champion is not a breakout "
+                                "(entry_quality %s < %.2f) — no crown, no fire "
+                                "this cycle (veto journalled)",
+                                _cyc.get("entry_quality"),
+                                float(getattr(cfg, "champion_breakout_min",
+                                              _bk_gate.BREAKOUT_MIN)))
 
                 if best_pair and best_signal:
                     asset = best_pair.split("/")[0]

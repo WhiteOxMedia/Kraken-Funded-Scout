@@ -187,6 +187,19 @@ def live_report():
     for r in rows:
         routes[r.get("route")] = routes.get(r.get("route"), 0) + 1
     print(f"  by route: {routes}")
+    # WHO wrote each row — the journal is classified, not trusted on faith.
+    src = {}
+    for r in rows:
+        src[r.get("source", "unlabelled (pre-tag)")] = \
+            src.get(r.get("source", "unlabelled (pre-tag)"), 0) + 1
+    print(f"  by source: {src}")
+    loop_veto = [r for r in rows if r.get("decision") == "veto"
+                 and r.get("source") == "scanner"]
+    print(f"  LOOP-WRITTEN VETOES (source=scanner): {len(loop_veto)}"
+          + ("  " + ", ".join(f"{r['pair']}@{r['entry_quality']}" for r in loop_veto)
+             if loop_veto else ""))
+    out["loop_written_vetoes"] = len(loop_veto)
+    out["by_source"] = src
     print("  the gate's own record on each row: gate_v, entry_quality, pooled/OOS figures"
           f" — all rows carry gate_v={rows[-1].get('gate_v')}")
     return out
