@@ -193,6 +193,18 @@ def _take_lock():
             os.close(fd)
             return lock
         except FileExistsError:
+            # A crash mid-record would otherwise brick every later run.
+            try:
+                stale = time.time() - lock.stat().st_mtime > 120
+            except OSError:
+                stale = False
+            if stale:
+                try:
+                    lock.unlink()
+                    print("removed a stale %s (older than 120s)" % lock.name)
+                except OSError:
+                    pass
+                continue
             time.sleep(0.05)
     raise SystemExit("could not lock %s — another monitor run holds it" % lock.name)
 
@@ -412,8 +424,11 @@ def main(argv=None) -> int:
                         ([_num(x) for x in v] if isinstance(v, tuple) else v))
                     for k, v in st.items()}
         print(json.dumps({"test": clean(st_test), "history": clean(st_hist),
+                          "recorded": {k: v for k, v in
+                                       load_looks().get(key, {}).items()
+                                       if k in ("interim", "final")},
                           "interim_flag": a.interim, "since": a.since,
-                          "ledger": a.trades}, indent=2, default=str))
+                          "ledger": a.trades}, indent=2, default=str, allow_nan=False))
     return 0
 
 
