@@ -4296,6 +4296,32 @@ def plan_spent_exit(row, exit_mod=None, now=None):
 
 SETUP_TAGS_VERSION = 1
 
+# THE STRATEGY'S OWN VERSION (STRATEGY_MVP.md §4, Nov 6): the setup tags
+# describe WHAT fired; this describes the RULES it fired under. The MVP's
+# pre-registration requires every close to carry it, because "anything edited
+# mid-flight is data mining, not a test" — a rule change must be visible in
+# the ledger it would otherwise quietly re-baseline. BUMP THIS whenever a rule
+# in the funnel changes (a gate, an exit, a size formula); never bump it for a
+# rename or a comment.
+STRATEGY_VERSION = 1
+
+
+def _family_fields(w) -> dict:
+    """The family stamp every close copies into the ledger.
+
+    ONE IMPLEMENTATION, two writers (the scanner's GET OUT and the console's
+    SOLD): the row was stamped at fire time, so the close only has to carry
+    it — and a close that forgot a key would make its family unmeasurable
+    without anything failing. `strategy_v` is filled from the constant when
+    the row predates it, so a legacy row still lands with a version instead
+    of a hole.
+    """
+    if not isinstance(w, dict):
+        return {"setup": {}, "setup_v": 0, "strategy_v": STRATEGY_VERSION}
+    return {"setup": w.get("setup") or {},
+            "setup_v": w.get("setup_v") or 0,
+            "strategy_v": w.get("strategy_v") or STRATEGY_VERSION}
+
 
 def _setup_tags(*, route: str = "", tide_state=None, tide_pct=None,
                 conviction=None, brain=None, mult=None, climb=None,
@@ -5024,8 +5050,17 @@ def _process_push_retries():
 _PUSH_CANARY_JSON = os.path.join(
     os.path.dirname(os.path.abspath(__file__)), "push_canary.json")
 _CANARY_HOUR = 9  # MST
-_CANARY_TEXT = ("✅ Daily pipe check — if you can read this, the "
-                "GET OUT pipe is alive. No action needed.")
+# Nov 13 (the operator's ask): the canary is also the only thing arriving
+# on a quiet day, so it carries the frame as well as the proof. A dead
+# silence used to read as a dead scout. The wording therefore says the
+# signal is naturally sparse — never HOW sparse: a sim's firing rate is a
+# fact about a tape, not a promise about next month, and a number baked into
+# a live string reads as broken the moment it ages. It stays low priority
+# and it never pretends to be a signal — the text says outright that there
+# is no trade here.
+_CANARY_TEXT = ("✅ Pipe alive — no signal, no action needed. GO BIG is rare "
+                "by design: a quiet stretch here is the plan working, not "
+                "the pipe dying.")
 
 
 def _canary_load() -> dict:
@@ -5606,7 +5641,11 @@ def auto_track_popup(pair: str, entry: float, size: float, goal_pct: float,
                    # passes nothing lands "untagged", never unmeasurable.
                    "setup": dict(setup) if isinstance(setup, dict) else {},
                    "setup_v": (SETUP_TAGS_VERSION
-                               if isinstance(setup, dict) and setup else 0)}
+                               if isinstance(setup, dict) and setup else 0),
+                   # the rules it fired under — carried to the close exactly
+                   # like the family, so every ledger row is attributable to
+                   # both WHAT and WHICH RULES
+                   "strategy_v": STRATEGY_VERSION}
         if hm_mode:
             # THE OPPORTUNISTIC STAMP (user ask, Oct 1): the exit watch
             # reads this key to judge the 2% hard stop — without it the
@@ -5979,6 +6018,11 @@ LIGHT_TICK_S = 25.0          # one light pass per tick (the loop's old cadence)
 LIGHT_STARVE_SLACK_S = 3.0   # a loop this far past its tick loses the tick to the watch
 LIGHT_WATCH_POLL_S = 1.0     # how often the watch checks the clock
 _LIGHT_LOCK = threading.Lock()
+# THE NARROW SCOPE (Nov 15): a fast-stop pass runs the SAME gates on the SAME
+# rows but only the rows it named, so a breached stop does not wait for the
+# full sweep to walk fifty tickers at ~4s each. Set only by _run_light_pass
+# under the single-flight lock; None means the normal whole-book pass.
+_LIGHT_SCOPE = {"pairs": None}
 _LIGHT_CLOCK = {"at": 0.0, "passes": 0, "starved": 0, "last_done": 0.0,
                 "starve_logged": False}
 
@@ -5996,7 +6040,8 @@ def _light_pass_due(now_ts=None) -> float:
     return (now_ts if now_ts is not None else time.time()) - at
 
 
-def _run_light_pass(exchange, cfg, source="loop", episode=None) -> bool:
+def _run_light_pass(exchange, cfg, source="loop", episode=None,
+                    only_pairs=None) -> bool:
     """ONE exit-watch pass on its own clock. True when this call ran it.
 
     SINGLE-FLIGHT: the lock is taken without blocking, so a second caller
@@ -6031,6 +6076,7 @@ def _run_light_pass(exchange, cfg, source="loop", episode=None) -> bool:
                     "the exit gates run NOW, not when the scan ends", late)
         elif source == "loop":
             _LIGHT_CLOCK["starve_logged"] = False
+        _LIGHT_SCOPE["pairs"] = set(only_pairs) if only_pairs is not None else None
         try:
             contest_light(exchange, cfg)
             _pulse_beat("light")          # completed-cycle beat; never clears the scan phase
@@ -6038,12 +6084,14 @@ def _run_light_pass(exchange, cfg, source="loop", episode=None) -> bool:
         except Exception as exc:
             logger.debug("contest light error: %s", exc)
         finally:
+            _LIGHT_SCOPE["pairs"] = None
             if episode is not None:
                 episode.update(start=0.0, announced=False, scan=False)
-        try:
-            _aa_box_watermark_watch()
-        except Exception as _wb_exc:
-            logger.debug("aa box watermark watch skipped: %s", _wb_exc)
+        if only_pairs is None:
+            try:
+                _aa_box_watermark_watch()
+            except Exception as _wb_exc:
+                logger.debug("aa box watermark watch skipped: %s", _wb_exc)
         return True
     finally:
         _LIGHT_LOCK.release()
@@ -6074,6 +6122,145 @@ def _light_watchdog(exchange, cfg, stop: threading.Event, episode=None):
                                  _blw_exc)
         except Exception as exc:
             logger.debug("light watchdog skipped a beat: %s", exc)
+
+
+# ── THE FAST STOP PATH (Nov 15) ────────────────────────────────────────
+# Measured: 6 stopped-out closes with 5m bars were booked 5-18 minutes after
+# their stop was crossed, entirely because the stop is only read when the whole
+# light sweep reaches that row. The sweep fetches one ticker per row at roughly
+# 4s each, so its DURATION (~9 min observed) is the cadence, not LIGHT_TICK_S.
+#
+# This path does one batched price read per tick and evaluates ONLY the hard
+# stop (plus the death floor) against it. It never closes anything itself: a
+# breach hands the named pairs to _run_light_pass, which runs the SAME gates and
+# the SAME close writer, single-flight, with the ledger's apply_pnl dedupe key
+# still standing between a repeated tick and a second booking. No breach means
+# no contest_light call at all, so the extra API cost is one ticker batch per
+# FAST_STOP_TICK_S.
+FAST_STOP_TICK_S = float(os.environ.get("FAST_STOP_TICK_S") or 20.0)
+FAST_STOP_ENABLED = (os.environ.get("FAST_STOP_ENABLED", "1") not in ("0", "false", "False"))
+_FAST_STOP_LOCK = threading.Lock()
+_FAST_STOP_CLOCK = {"at": 0.0, "ticks": 0, "breaches": 0, "priced": 0,
+                    "errors": 0, "last": None}
+
+
+def _fast_prices(exchange, pairs) -> dict:
+    """One batched price read for the open book. {} when the market is away.
+
+    fetch_tickers is the quota-cheap route (one request for the whole book);
+    the per-pair fallback is bounded to the rows actually watched. Every
+    failure is a missing price, never an exception the caller has to catch.
+    """
+    out: dict = {}
+    pairs = list(pairs or ())
+    if not pairs:
+        return out
+    bulk = getattr(exchange, "fetch_tickers", None)
+    if callable(bulk):
+        try:
+            book = bulk(pairs) or {}
+            for p in pairs:
+                row = book.get(p) or {}
+                px = row.get("last") or row.get("close")
+                if px:
+                    out[p] = float(px)
+            if out:
+                return out
+        except Exception:
+            pass          # fall through to the per-pair read
+    for p in pairs:
+        try:
+            row = exchange.fetch_ticker(p) or {}
+            px = row.get("last") or row.get("close")
+            if px:
+                out[p] = float(px)
+        except Exception:
+            continue
+    return out
+
+
+def _fast_stop_scan(exchange, watch) -> tuple[list, dict]:
+    """(pairs whose hard stop is breached at the current price, prices).
+
+    Read-only: it books nothing, moves nothing, and a row with no price is
+    left alone rather than guessed at.
+    """
+    pairs = [p for p, w in (watch or {}).items() if isinstance(w, dict)]
+    px = _fast_prices(exchange, pairs)
+    hit = []
+    for p in pairs:
+        live = px.get(p)
+        if not live:
+            continue
+        try:
+            breached, _why = _hard_stop_breached(watch[p], live)
+        except Exception:
+            breached = False
+        if breached:
+            hit.append(p)
+    return hit, px
+
+
+def _fast_stop_tick(exchange, cfg) -> tuple[list, dict]:
+    """One fast sweep. Returns (breached, prices); closes only via the light pass."""
+    if not FAST_STOP_ENABLED:
+        return [], {}
+    if not _FAST_STOP_LOCK.acquire(blocking=False):
+        return [], {}                 # a sweep is in flight; never overlap
+    try:
+        try:
+            watch = _load_contest_watch() or {}
+        except Exception as exc:
+            _FAST_STOP_CLOCK["errors"] += 1
+            logger.debug("fast stop: watch unreadable (%s)", exc)
+            return [], {}
+        if not watch:
+            return [], {}
+        try:
+            breached, px = _fast_stop_scan(exchange, watch)
+        except Exception as exc:
+            _FAST_STOP_CLOCK["errors"] += 1
+            logger.debug("fast stop scan failed (%s) — no action this tick", exc)
+            return [], {}
+        _FAST_STOP_CLOCK["at"] = time.time()
+        _FAST_STOP_CLOCK["ticks"] = int(_FAST_STOP_CLOCK.get("ticks") or 0) + 1
+        _FAST_STOP_CLOCK["priced"] = len(px)
+        if not px:
+            return [], {}             # market unavailable: leave every row untouched
+        # THE DEATH FLOOR on the same fast beat. A warning here is account-wide,
+        # so its pass is the whole book — the one case that cannot be narrowed.
+        floor_hit = False
+        try:
+            import contest_account as _ca_fs
+            _floor_fs = death_floor_gate(_ca_fs.load_state(), watch, px)
+            floor_hit = bool(_floor_fs.get("exit_warning") or _floor_fs.get("halted"))
+        except Exception as exc:
+            logger.debug("fast stop: death floor read failed (%s)", exc)
+        if breached:
+            _FAST_STOP_CLOCK["breaches"] = int(_FAST_STOP_CLOCK.get("breaches") or 0) + 1
+            _FAST_STOP_CLOCK["last"] = {"at": _FAST_STOP_CLOCK["at"], "pairs": list(breached)}
+            logger.warning("⏱ FAST STOP: %s breached its stop — closing on this tick, "
+                           "not on the next sweep", ", ".join(breached))
+            _run_light_pass(exchange, cfg, source="faststop", only_pairs=breached)
+        elif floor_hit:
+            logger.warning("⏱ FAST STOP: death floor warning — running the exit gates now")
+            _run_light_pass(exchange, cfg, source="faststop", only_pairs=None)
+        return breached, px
+    finally:
+        _FAST_STOP_LOCK.release()
+
+
+def _fast_stop_watchdog(exchange, cfg, stop: threading.Event):
+    """The fast beat. One price batch per tick; a dead market is a skipped tick."""
+    while not stop.is_set():
+        try:
+            stop.wait(FAST_STOP_TICK_S)
+            if stop.is_set():
+                break
+            _fast_stop_tick(exchange, cfg)
+        except Exception as exc:
+            _FAST_STOP_CLOCK["errors"] = int(_FAST_STOP_CLOCK.get("errors") or 0) + 1
+            logger.debug("fast stop watchdog skipped a beat: %s", exc)
 
 
 def _day_review_spoken(now) -> bool:
@@ -6604,6 +6791,9 @@ def contest_light(exchange, cfg):
     watch = _load_contest_watch()
     if not watch:
         return
+    # every gate below still runs; a narrow scope only decides WHICH rows it
+    # walks (the fast-stop path names the breached ones)
+    _only_pairs = _LIGHT_SCOPE.get("pairs")
     voice = _voice_enabled()
     # ── THE REAL-TIME DEATH-FLOOR EXIT MONITOR (Nov 12, user rule: "it should
     #    not block any signals from getting in but it should watch closely the
@@ -6678,6 +6868,8 @@ def contest_light(exchange, cfg):
                             # across this tick's rows, fed to the
                             # day-peak watermark after the loop
     for pair, w in list(watch.items()):
+        if _only_pairs is not None and pair not in _only_pairs:
+            continue
         if w is None:
             # a tombstone rides in `watch` only when the remover saved
             # its raw dict (this loop bypasses the loader's filter):
@@ -7405,9 +7597,10 @@ def contest_light(exchange, cfg):
                             "exit_reason": reason[:200],
                             # THE FAMILY RIDES THE CLOSE (Nov 6): the row
                             # was stamped at fire time; the ledger keeps
-                            # it, so the study never joins popup text.
-                            "setup": w.get("setup") or {},
-                            "setup_v": w.get("setup_v") or 0,
+                            # it, so the study never joins popup text. The
+                            # stamp itself is one helper (Nov 15) so this
+                            # writer and the console's SOLD cannot drift.
+                            **_family_fields(w),
                         }) + "\n")
                     _journaled = True   # the receipt is on disk — the row may go
                     # THE PACE GOVERNOR RECOMPUTES ON THE CLOSE ANNOTATION:
@@ -10167,6 +10360,12 @@ def main():
     threading.Thread(target=_light_watchdog,
                      args=(exchange, cfg, _light_stop, _slow_episode),
                      name="exit-watch", daemon=True).start()
+    # THE FAST STOP BEAT (Nov 15): its own thread and its own clock, so a
+    # breached stop is judged against a fresh price every FAST_STOP_TICK_S
+    # instead of whenever the light sweep reaches that row.
+    threading.Thread(target=_fast_stop_watchdog,
+                     args=(exchange, cfg, _light_stop),
+                     name="fast-stop", daemon=True).start()
 
     while True:
         now = _now_mst()

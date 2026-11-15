@@ -63,6 +63,32 @@ Thirteen of the fifteen fall inside one 7-minute cascade on Nov 5 (two bursts
 independent ones. The two stopped-out closes outside the cascade overshot by
 $1.49 combined.
 
+## Fixed (Nov 15): the fast stop beat
+
+The stop was only read when the whole light sweep reached a row, and that sweep
+fetches one ticker per row at roughly 4s each — its own duration (~9 minutes
+observed) was the cadence, not the 25s tick. `_fast_stop_tick` now does ONE
+batched price read every 20s (`FAST_STOP_TICK_S`), evaluates the same hard-stop
+judge and the death floor against it, and only when something is actually
+breached hands the named pairs to the existing light pass (`_LIGHT_SCOPE`), so
+the close still runs through the same gates and the same ledger writer, with
+`apply_pnl`'s dedupe key and row removal standing between a repeat tick and a
+second booking. No breach means no extra sweep at all: one price batch per tick.
+
+Replaying the same six rows (`scratch/fast_stop_replay.py`, bound from the
+breach bar's descent):
+
+| cadence | six-row loss | saved vs the 18-minute booking |
+|---|---|---|
+| 18 min (actual) | $156.76 | — |
+| 5 min | $112.53 | $44.23 |
+| 1 min | $52.78 | $103.98 |
+| **20 s** | **$42.82** | **$113.94** |
+
+This is a bound, not a point estimate — a 5m bar cannot say where inside it the
+crossing happened — but the 20s column sits at the most favourable end of the
+same bound the 18-minute column came from.
+
 ## What it does not say
 
 - Lag resolution is 5 minutes (bar start), so "18 min" could be 13–18.
