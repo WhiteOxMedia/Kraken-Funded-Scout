@@ -43,6 +43,10 @@ class ScanResult:
     spread_pct: float | None = None
     volume_24h_usd: float | None = None
     liquid: bool = True
+    # Entry timing: where the last close sits inside the prior N-bar range.
+    # 0.0 = at the recent low (buying low), 1.0 = at the recent high (stretched).
+    # None = not computed (too little data). See _entry_quality.
+    entry_quality: float | None = None
 
     @property
     def actionable(self) -> bool:
@@ -177,7 +181,13 @@ def _check_liquidity(
 
 # ── Tournament scanner ───────────────────────────────────────────────────
 
-def _compare_signals(a: ScanResult, b: ScanResult, long_only: bool = True) -> tuple[ScanResult, ScanResult, str]:
+TIMING_RANGE_CANDLES = 12      # the 1h range on a 5m book
+TIMING_CONF_TOLERANCE = 10.0   # points of confidence within which timing may decide
+TIMING_STRETCHED = 0.75        # champion above this is flagged, never blocked
+
+
+def _compare_signals(a: ScanResult, b: ScanResult, long_only: bool = True,
+                     timing_tolerance: float = TIMING_CONF_TOLERANCE) -> tuple[ScanResult, ScanResult, str]:
     """Compare two scan results head-to-head. Returns (winner, loser, reason).
 
     long_only=True  → BOT/BRIDGE mode: a buy ALWAYS beats a sell (we never
@@ -206,6 +216,24 @@ def _compare_signals(a: ScanResult, b: ScanResult, long_only: bool = True) -> tu
         if b_buy and not a_buy:
             return b, a, f"{_asset(b.pair)} buy({b.signal.confidence:.0f}%) beats {_asset(a.pair)} short — longs only"
 
+    # Both actionable, same direction, comparable confidence — the cheaper entry
+    # wins. Measured on 1,106 entries (5m bars, Sep-Nov): the cheapest fifth of
+    # the 1h range won 52% in BOTH halves of the ledger, against 31-40% for entries
+    # bought mid-range or near the high, and expectancy in that fifth was about
+    # breakeven. So timing is a tiebreak that selects the less-bad population; it
+    # is deliberately NOT allowed to override a materially stronger signal.
+    if (a.signal.action == b.signal.action
+            and abs(a.signal.confidence - b.signal.confidence) <= timing_tolerance
+            and a.entry_quality is not None and b.entry_quality is not None
+            and abs(a.entry_quality - b.entry_quality) >= 0.15):
+        if a.entry_quality < b.entry_quality:
+            return a, b, (f"{_asset(a.pair)} {a.signal.action}({a.signal.confidence:.0f}%) "
+                          f"beats {_asset(b.pair)}({b.signal.confidence:.0f}%) on entry timing — "
+                          f"{a.entry_quality:.2f} vs {b.entry_quality:.2f} of the 1h range")
+        return b, a, (f"{_asset(b.pair)} {b.signal.action}({b.signal.confidence:.0f}%) "
+                      f"beats {_asset(a.pair)}({a.signal.confidence:.0f}%) on entry timing — "
+                      f"{b.entry_quality:.2f} vs {a.entry_quality:.2f} of the 1h range")
+
     # Both actionable — higher confidence wins (original contest rule)
     if a.signal.confidence > b.signal.confidence:
         return a, b, f"{_asset(a.pair)} {a.signal.action}({a.signal.confidence:.0f}%) beats {_asset(b.pair)} {b.signal.action}({b.signal.confidence:.0f}%)"
@@ -222,6 +250,32 @@ def _compare_signals(a: ScanResult, b: ScanResult, long_only: bool = True) -> tu
 
 def _asset(pair: str) -> str:
     return pair.split("/")[0] if "/" in pair else pair
+
+
+# ── Entry timing ────────────────────────────────────────────────────────
+# The bracket used to compare assets only on signal confidence, which selects
+# the asset that has already moved hardest — the tournament could not tell a
+# champion bought at the bottom of its range from one bought at the top. These
+# constants add that dimension and nothing else.
+
+def _entry_quality(df: "pd.DataFrame", n: int = TIMING_RANGE_CANDLES) -> float | None:
+    """Where the last close sits in the previous n bars' range: 0 low, 1 high.
+
+    Uses only the bars BEFORE the current one, so it is computable live at the
+    moment of the scan and carries no lookahead.
+    """
+    try:
+        if df is None or len(df) <= n:
+            return None
+        window = df.iloc[-(n + 1):-1]
+        hi = float(window["high"].max())
+        lo = float(window["low"].min())
+        px = float(df["close"].iloc[-1])
+    except Exception:
+        return None
+    if not (hi > lo) or px <= 0:
+        return None
+    return max(0.0, min(1.0, (px - lo) / (hi - lo)))
 
 
 def tournament_scan(
@@ -341,6 +395,21 @@ def tournament_scan(
     champion_pair = bracket[0]
     champion = evaluated[champion_pair]
 
+    # A bracket that ranks on signal confidence picks momentum, so say out loud
+    # when the winner is expensive relative to its own recent range. This is a
+    # label on the champion, never a veto: the entry still fires.
+    if champion.entry_quality is not None:
+        if champion.entry_quality >= TIMING_STRETCHED:
+            champion.signal.reasons.append(
+                "Timing: bought at %.0f%% of the 1h range — stretched, not a low"
+                % (100 * champion.entry_quality)
+            )
+        elif champion.entry_quality <= (1.0 - TIMING_STRETCHED):
+            champion.signal.reasons.append(
+                "Timing: bought at %.0f%% of the 1h range — near the low"
+                % (100 * champion.entry_quality)
+            )
+
     return champion, match_history
 
 
@@ -361,6 +430,7 @@ def _evaluate_single(kraken: KrakenAPI, pair: str, config: TradingConfig) -> Sca
     signal = evaluate_strategy(df, config)
 
     result = ScanResult(pair=pair, signal=signal, ohlcv_df=df)
+    result.entry_quality = _entry_quality(df)
 
     # Liquidity check
     if config.liquidity_filter_enabled:
@@ -409,6 +479,7 @@ def scan_pairs(
             signal = evaluate_strategy(df, config)
 
             result = ScanResult(pair=pair, signal=signal, ohlcv_df=df)
+            result.entry_quality = _entry_quality(df)
 
             # ── Multi-timeframe confluence ─────────────────────────────
             if config.mtf_enabled and signal.action in ("buy", "sell"):
