@@ -77,6 +77,13 @@ class Signal:
     # so the outcome can be graded; the flag decides whether it changes the
     # champion. See entry_timing.py.
     entry_timing: dict | None = None
+    # THE DEEP READ + THE SPEND DECISION (Nov 15): `spend_capacity` is the
+    # champion's own deep read (history depth, drawdowns, volatility, market,
+    # and the dollars the guard would allow); `spend_rank` is what the bracket
+    # decided about preferring the coin that carries more. Both recorded on
+    # every fire; see spend_capacity.py.
+    spend_capacity: dict | None = None
+    spend_rank: dict | None = None
     # Regime detected at signal time (for display + multi-timeframe logic)
     regime: str = "unknown"       # "bull_trend", "bear_trend", "ranging", "high_vol", "low_vol"
     volatility_rank: float = 0.0  # ATR as % of price, percentile rank (0-100)

@@ -17,6 +17,7 @@ from typing import Any
 
 import pandas as pd
 
+import spend_capacity as _spend
 from config import TradingConfig
 from entry_timing import apply as apply_entry_timing
 from kraken_api import KrakenAPI
@@ -48,6 +49,8 @@ class ScanResult:
     # 0.0 = at the recent low (buying low), 1.0 = at the recent high (stretched).
     # None = not computed (too little data). See _entry_quality.
     entry_quality: float | None = None
+    # The coin's deep read + what it can carry (see spend_capacity.deep_scan).
+    spend: dict | None = None
 
     @property
     def actionable(self) -> bool:
@@ -405,6 +408,16 @@ def tournament_scan(
     champion, _entry_timing = apply_entry_timing(champion, evaluated, config)
     champion.signal.entry_timing = _entry_timing
 
+    # THE SPEND QUESTION (Nov 15): of the coins that fit the bracket, which one
+    # could carry the most money? Same discipline as the timing decision — the
+    # verdict is recorded on every fire, and only `spend_rank` lets it move the
+    # champion. Runs after the timing decision, so with both flags on the spend
+    # ranking has the last word (and says so in its own record).
+    champion, _spend_rank = _spend.apply(champion, evaluated, config)
+    champion.signal.spend_rank = _spend_rank
+    champion.signal.spend_capacity = (champion.spend
+                                      if isinstance(champion.spend, dict) else None)
+
     # A bracket that ranks on signal confidence picks momentum, so say out loud
     # when the winner is expensive relative to its own recent range. This is a
     # label on the champion, never a veto: the entry still fires.
@@ -455,6 +468,17 @@ def _evaluate_single(kraken: KrakenAPI, pair: str, config: TradingConfig) -> Sca
     result = ScanResult(pair=pair, signal=signal, ohlcv_df=df)
     result.entry_quality = _entry_quality(df)
 
+    # THE DEEP READ (Nov 15): the tournament used to judge a coin on this
+    # window alone. Now every candidate also carries its own deeper history,
+    # the drawdowns and volatility that history proves, the day's market read,
+    # and the dollars the 3% guard would allow on it — so "which coin can carry
+    # the most spend" is a number at decision time, not a guess afterwards.
+    # Only an actionable read can be a champion, so only it pays for the deep
+    # fetch: a pass of holds stays as cheap as it was.
+    if (getattr(config, "deep_scan_enabled", False)
+            and signal.action in ("buy", "sell")):
+        result.spend = _spend.deep_scan(kraken, pair, config, bars=ohlcv)
+
     # Liquidity check
     if config.liquidity_filter_enabled:
         spread, volume, is_liquid = _check_liquidity(kraken, pair, config)
@@ -503,6 +527,9 @@ def scan_pairs(
 
             result = ScanResult(pair=pair, signal=signal, ohlcv_df=df)
             result.entry_quality = _entry_quality(df)
+            if (getattr(config, "deep_scan_enabled", False)
+                    and signal.action in ("buy", "sell")):
+                result.spend = _spend.deep_scan(kraken, pair, config, bars=ohlcv)
 
             # ── Multi-timeframe confluence ─────────────────────────────
             if config.mtf_enabled and signal.action in ("buy", "sell"):

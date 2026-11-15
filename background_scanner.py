@@ -44,6 +44,7 @@ from zoneinfo import ZoneInfo
 # dial-neutral: the machinery always ASKS, the module answers.
 import exit_extension as _exx   # noqa: E402  (deliberate stdlib-lazy import)
 from entry_timing import ENTRY_TIMING_STAMP_VERSION   # noqa: E402
+from spend_capacity import SPEND_STAMP_VERSION         # noqa: E402
 
 # the drive asserts these exist on the scanner module (0.1): the seam
 # callable + the guard marker that says the wiring is live
@@ -4326,7 +4327,8 @@ def _family_fields(w) -> dict:
     if not isinstance(w, dict):
         return {"setup": {}, "setup_v": 0, "strategy_v": STRATEGY_VERSION,
                 "entry_quality": None, "entry_quality_v": 0,
-                "entry_timing": None, "entry_timing_v": 0}
+                "entry_timing": None, "entry_timing_v": 0,
+                "spend_capacity": None, "spend_rank": None, "spend_v": 0}
     return {"setup": w.get("setup") or {},
             "setup_v": w.get("setup_v") or 0,
             "strategy_v": w.get("strategy_v") or STRATEGY_VERSION,
@@ -4337,7 +4339,12 @@ def _family_fields(w) -> dict:
             # THE SHADOW VERDICT rides it too: every closed row answers "what
             # would the timing ranking have done with this fire"
             "entry_timing": w.get("entry_timing"),
-            "entry_timing_v": w.get("entry_timing_v") or 0}
+            "entry_timing_v": w.get("entry_timing_v") or 0,
+            # THE DEEP READ rides the close too: "what could this coin carry,
+            # and would a bigger-carry coin have been the better pick"
+            "spend_capacity": w.get("spend_capacity"),
+            "spend_rank": w.get("spend_rank"),
+            "spend_v": w.get("spend_v") or 0}
 
 
 def _setup_tags(*, route: str = "", tide_state=None, tide_pct=None,
@@ -5606,7 +5613,9 @@ def auto_track_popup(pair: str, entry: float, size: float, goal_pct: float,
                      goal_usd: float | None = None,
                      bounce_exit_ts: float | None = None,
                      entry_quality: float | None = None,
-                     entry_timing: dict | None = None) -> bool:
+                     entry_timing: dict | None = None,
+                     spend_capacity: dict | None = None,
+                     spend_rank: dict | None = None) -> bool:
     """THE POPUP IS THE CONTRACT (Sep 21): every popup that fires —
     champion, Sure Thing, mover, DCA — auto-tracks at fire time. One
     writer for every route: never displaces an entry the user already
@@ -5745,6 +5754,15 @@ def auto_track_popup(pair: str, entry: float, size: float, goal_pct: float,
                    # journal like the family, so no close route can drop it
                    "entry_timing": _et_stamp,
                    "entry_timing_v": ENTRY_TIMING_STAMP_VERSION,
+                   # THE DEEP READ AND THE SPEND DECISION (Nov 15): what this
+                   # coin can carry, and whether the bracket would have taken a
+                   # coin that carries more. Carried to the journal, so the idea
+                   # is graded against closes instead of argued about.
+                   "spend_capacity": (dict(spend_capacity)
+                                      if isinstance(spend_capacity, dict) else None),
+                   "spend_rank": (dict(spend_rank)
+                                  if isinstance(spend_rank, dict) else None),
+                   "spend_v": SPEND_STAMP_VERSION,
                    # THE TOURNAMENT'S OWN TIMING NUMBER (Nov 15): the 0..1
                    # position in the prior-hour range that the bracket actually
                    # chose. The candle stamp above rebuilds the same idea at
@@ -10458,6 +10476,9 @@ def main():
                              entry_quality=getattr(signal, "entry_quality", None),
                              # the bracket's timing decision, shadow or applied
                              entry_timing=getattr(signal, "entry_timing", None),
+                             # the deep read + what the spend ranking would do
+                             spend_capacity=getattr(signal, "spend_capacity", None),
+                             spend_rank=getattr(signal, "spend_rank", None),
                              go_big=_go_big,
                              hm_mode=(_hail_mary_mode
                                       if _hail_mary and _hail_mary_mode == "opportunistic"
@@ -11681,6 +11702,8 @@ def main():
                                                      "mover",
                                                      entry_quality=getattr(signal, "entry_quality", None),
                                                      entry_timing=getattr(signal, "entry_timing", None),
+                                                     spend_capacity=getattr(signal, "spend_capacity", None),
+                                                     spend_rank=getattr(signal, "spend_rank", None),
                                                      setup=_setup_tags(
                                                          route=("contest_mover_fast" if _m_fast
                                                                 else "contest_mover"),

@@ -103,6 +103,25 @@ class TradingConfig:
     entry_timing_window: float = 10.0
     entry_timing_min_gain: float = 0.15
 
+    # ── The deep read + what a coin can carry (Nov 15) ──────────────────
+    # THE DEEP SCAN: the tournament used to judge a coin on the 200-candle
+    # evaluation window and one ticker — a quick check. With this on, each
+    # candidate also gets its own deep history (one fetch, `lookback` bars),
+    # the empirical worst window drawdown from it, realized volatility, the
+    # day's range, volume and spread, and the dollar capacity the 3% guard
+    # would allow on it. Data only: nothing here sizes or exits a live order.
+    deep_scan_enabled: bool = True
+    deep_lookback_candles: int = 1000
+
+    # THE SPEND RANKING, default OFF (same discipline as entry_timing_rank):
+    # every fire records whether the bracket would have preferred the coin that
+    # can carry the most spend, by how many dollars, and whether it would have
+    # changed the champion. `scratch/spend_capacity_study.py` is the evidence
+    # gate — flip only on data, never on the idea sounding right.
+    spend_rank: bool = False
+    spend_rank_window: float = 10.0
+    spend_rank_min_usd: float = 25.0
+
     # ── Risk management ────────────────────────────────────────────────
     # Risk per trade as % of starting balance.
     risk_per_trade_pct: float = 1.5
