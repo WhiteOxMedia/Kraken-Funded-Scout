@@ -135,6 +135,45 @@ No candidate variant exists on this side, so none was run and **nothing went liv
 Volume is also only 59% covered on the tape, so even a signal here would have needed
 new data before it could gate anything.
 
+## The 80% timing search: 216 shapes, every one negative
+
+The user rule — buy the dip inside an uptrend, get out fast so most trades win a
+little — was built and searched directly on the 5m tape: 55 symbols, Sep 3 – Nov 15,
+0.080% round trip, dips of 2–3 bars, trend filters (4h and 24h means, 24h momentum,
+deep-dip), targets 0.15–0.50%, stops 0.6–2.0%, timeouts 6–24 candles.
+
+**80% is reachable, and it loses.** The best 80% shape (`momentum24, dip 2,
+target 0.15%, stop 2.0%, 24 candles`) wins **80.5% of 6,046 trades** and books
+**−$726.90** (−$0.120/trade). The best net of all 216 shapes is **−$514.40** over
+4,365 trades at 65.3% wins. **Zero** shapes are positive on the train months;
+**zero** are positive in November.
+
+That is arithmetic, not bad luck. A win rate `p` with target `T` and stop `S` breaks
+even when `p·T = (1−p)·S`, so 80% needs `S = 4T` — four units of loss per one of
+gain. On a move with no directional edge the barrier-touch order is a martingale,
+which makes that shape break even *before* costs on average; the 0.080% round trip
+is then paid on every trade. **A win rate is a shape; an edge is a signal.** The
+same identity sizes every row of the table below:
+
+| stop | break-even target at 80% wins | after the 0.080% cost |
+|---|---|---|
+| 0.6% | 0.150% | +0.070% |
+| 1.0% | 0.250% | +0.170% |
+| 1.5% | 0.375% | +0.295% |
+| 2.0% | 0.500% | +0.420% |
+
+Every measured shape landed on the wrong side of that line because the entry has no
+measured directional edge — the same conclusion the closed entry axes reached, now
+confirmed from the other direction (by what it costs to win 80% rather than by what
+predicts a winner).
+
+**What was built:** `overwatch_timing.py` — the engine (dip entry, fast target,
+tight stop, candle timeout) as pure functions with `ARMED = False` and the measured
+rejection stored beside the switch, `should_arm()` reporting why, and
+`breakeven_target()` / `required_stop()` so the geometry is never guessed again.
+Covered by `test_overwatch_timing.py` (16 checks). **Nothing was armed:** at
+−$0.12/trade it would spend the $300 cushion in days.
+
 ## The binding constraint, named
 
 **After a 0.85+ breakout entry, the remaining move is small.** Losers peak at
