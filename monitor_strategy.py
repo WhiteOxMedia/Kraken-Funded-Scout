@@ -190,23 +190,21 @@ def _take_lock():
     for _ in range(40):
         try:
             fd = os.open(lock, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+            os.write(fd, ("pid=%d at=%s\n" % (os.getpid(),
+                        dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds"))).encode())
             os.close(fd)
             return lock
         except FileExistsError:
-            # A crash mid-record would otherwise brick every later run.
-            try:
-                stale = time.time() - lock.stat().st_mtime > 120
-            except OSError:
-                stale = False
-            if stale:
-                try:
-                    lock.unlink()
-                    print("removed a stale %s (older than 120s)" % lock.name)
-                except OSError:
-                    pass
-                continue
             time.sleep(0.05)
-    raise SystemExit("could not lock %s — another monitor run holds it" % lock.name)
+    # Never steal the lock: a paused writer is indistinguishable from a dead one,
+    # and taking its lock could let two runs record different looks. Say who holds
+    # it instead, so a genuinely abandoned lock is one deliberate delete away.
+    try:
+        holder = lock.read_text(encoding="utf-8", errors="ignore").strip()
+    except OSError:
+        holder = "(unreadable)"
+    raise SystemExit("could not lock %s — held by %s. If that process is gone, "
+                     "delete the lock file deliberately." % (lock.name, holder or "(empty)"))
 
 
 def save_looks(doc: dict) -> None:
