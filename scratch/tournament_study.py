@@ -157,8 +157,45 @@ def analyse(points, fit_frac):
     return out
 
 
+def live_report():
+    """The gate's live book: what it fired, what it refused, on what measurements.
+
+    Reads `contest_gate_log.jsonl` (one row per judged fire, written by the
+    shipped choke point) so the fit/holdout table beside it is answerable from
+    live rows instead of only from the tape study.
+    """
+    import breakout_gate as bg
+    print(f"\n{'='*92}\nLIVE GATE REPORT — {bg.GATE_LOG.name} | gate {bg.BREAKOUT_MIN:.2f} "
+          f"| study v{bg.BREAKOUT_STUDY_V}: fit {bg.BREAKOUT_STUDY['fit_n']} @ "
+          f"{bg.BREAKOUT_STUDY['fit_win_pct']}%, holdout {bg.BREAKOUT_STUDY['oos_n']} @ "
+          f"{bg.BREAKOUT_STUDY['oos_win_pct']}% CI {bg.BREAKOUT_STUDY['oos_ci']}, "
+          f"pooled {bg.BREAKOUT_STUDY['pooled_win_pct']}%\n{'='*92}")
+    if not bg.GATE_LOG.exists():
+        print("no live rows yet")
+        return {}
+    rows = [json.loads(l) for l in bg.GATE_LOG.read_text(encoding="utf-8").splitlines()
+            if l.strip()]
+    out = {}
+    for decision in ("fire", "veto", "unmeasured-fire"):
+        sel = [r for r in rows if r.get("decision") == decision]
+        eqs = [r["entry_quality"] for r in sel if r.get("entry_quality") is not None]
+        out[decision] = len(sel)
+        print(f"  {decision:<16} n={len(sel):>4}  mean entry_quality "
+              f"{statistics.mean(eqs):.3f}" if eqs else
+              f"  {decision:<16} n={len(sel):>4}  (no measurements)")
+    routes = {}
+    for r in rows:
+        routes[r.get("route")] = routes.get(r.get("route"), 0) + 1
+    print(f"  by route: {routes}")
+    print("  the gate's own record on each row: gate_v, entry_quality, pooled/OOS figures"
+          f" — all rows carry gate_v={rows[-1].get('gate_v')}")
+    return out
+
+
 def main():
     ap = argparse.ArgumentParser()
+    ap.add_argument("--live", action="store_true",
+                    help="report the gate's live rows beside the study table")
     ap.add_argument("--days", type=int, default=45)
     ap.add_argument("--step", type=float, default=6.0)
     ap.add_argument("--fit", type=float, default=0.6)
@@ -182,6 +219,8 @@ def main():
         collect(args.days, args.step, cost_pct, args.min_conf)
     points = [json.loads(l) for l in OUT.read_text(encoding="utf-8").splitlines() if l.strip()]
     analyse(points, args.fit)
+    if args.live:
+        live_report()
 
 
 if __name__ == "__main__":

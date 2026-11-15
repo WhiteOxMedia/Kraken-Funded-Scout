@@ -968,6 +968,11 @@ def deep_crown_pool(exchange, results, all_data, cfg, best_pair, best_signal,
                     "(need >= %.2f) — not a breakout, no fire",
                     best_pair.split("/")[0] if best_pair else "?",
                     float(_eq_g), _min_g)
+                # the crown's refusal is a record, not a log line: gate
+                # version, the measured position, and the study's numbers.
+                _bk_gate.record(best_pair or "?", "veto", _eq_g, route="crown",
+                                confidence=getattr(best_signal, "confidence", None),
+                                cfg=cfg)
                 best_pair, best_signal = None, None
     except Exception as exc:
         logger.debug("breakout gate skipped: %s", exc)
@@ -8656,6 +8661,21 @@ def main():
             logger.info("  %s %s signal suppressed — longs only (never short)", asset, signal.action.upper())
             return
 
+        # ── THE BREAKOUT GATE (Nov 15) — THE FIRE CHOKE POINT. Every route
+        #    (champion, fast, opportunistic, mover) reaches the popup and the
+        #    bridge through here, so the measured rule is judged exactly once,
+        #    before any side effect: a buy whose own range position is not a
+        #    breakout does not fire, and the refusal is journalled with its
+        #    entry_quality and the gate's fit/holdout numbers.
+        _gate_ok, _gate_eq = _bk_gate.evaluate(
+            pair, signal, cfg=cfg, exchange=exchange,
+            route=str(move_level or "champion"))
+        if not _gate_ok:
+            _log_suppression(pair, "breakout-gate",
+                             f"entry_quality {_gate_eq:.2f} < {cfg.champion_breakout_min:.2f}",
+                             quick=float(signal.confidence))
+            return
+
         # ── THE EDGE REGISTRY (mission, Nov 12): the ONLY research-to-live
         #    route. With no promoted policy this returns inactive immediately
         #    and changes nothing. With one, the scanner takes that policy's
@@ -11869,6 +11889,21 @@ def main():
                                                             weak_paid=_m_weak_paid):
                                         continue
                                     if _popup_already_watched(pair):
+                                        continue
+                                    # THE BREAKOUT GATE (Nov 15) — the mover
+                                    # route fires through the same measured
+                                    # rule as the champion: no breakout, no
+                                    # popup, and the refusal is journalled.
+                                    _m_gate_ok, _m_gate_eq = _bk_gate.evaluate(
+                                        pair, signal, cfg=cfg, exchange=exchange,
+                                        route="mover")
+                                    if not _m_gate_ok:
+                                        _log_suppression(
+                                            pair, "breakout-gate",
+                                            f"mover: entry_quality "
+                                            f"{_m_gate_eq:.2f} < "
+                                            f"{cfg.champion_breakout_min:.2f}",
+                                            quick=float(signal.confidence))
                                         continue
                                     notify_big(_m_title, _m_msg, spoken=_m_spoken)
                                     # AUTO-TRACK AT FIRE TIME — the mover

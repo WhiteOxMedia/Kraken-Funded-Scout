@@ -67,6 +67,19 @@ BREAKOUT_STUDY = {
 }
 
 
+import json
+import logging
+from datetime import datetime, timezone
+from pathlib import Path
+
+log = logging.getLogger(__name__)
+
+# THE GATE'S OWN JOURNAL: one row per judged fire, so the next 45 days of live
+# rows accumulate as evidence for or against the gate instead of evaporating
+# into a log line. A veto is as much a record as a fire.
+GATE_LOG = Path(__file__).resolve().with_name("contest_gate_log.jsonl")
+
+
 def passes(entry_quality, minimum: float = BREAKOUT_MIN) -> bool:
     """True when a fire may proceed. No measurement -> ship the old rule."""
     if entry_quality is None:
@@ -75,3 +88,76 @@ def passes(entry_quality, minimum: float = BREAKOUT_MIN) -> bool:
         return float(entry_quality) >= float(minimum)
     except (TypeError, ValueError):
         return True
+
+
+def measure(exchange, pair: str, limit: int = 720):
+    """The champion's position in its prior hour range, read from the pair's
+    own hourly bars — the same number the live deep read stamps when it has a
+    frame in hand. Fail-soft: no client, no bars, no verdict."""
+    try:
+        import scanner as _sc
+        bars = exchange.fetch_ohlcv(pair, timeframe="1h", limit=limit)
+        if not bars:
+            return None
+        return _sc._entry_quality(_sc._ohlcv_to_df(bars[-limit:]))
+    except Exception as exc:               # noqa: BLE001 - measurement is optional
+        log.debug("breakout measure(%s) unavailable: %s", pair, exc)
+        return None
+
+
+def record(pair: str, decision: str, entry_quality, *, route: str = "",
+           confidence=None, cfg=None, path=None) -> dict:
+    """Write one gate-journal row. Never raises: a broken write must not stop
+    a fire the gate already allowed."""
+    row = {
+        "ts": datetime.now(timezone.utc).astimezone().isoformat(),
+        "pair": pair, "route": route, "decision": decision,
+        "entry_quality": None if entry_quality is None else round(float(entry_quality), 4),
+        "gate_min": BREAKOUT_MIN,
+        "confidence": None if confidence is None else float(confidence),
+        "gate_v": BREAKOUT_STUDY_V,
+        "pooled_win_pct": BREAKOUT_STUDY["pooled_win_pct"],
+        "pooled_n": BREAKOUT_STUDY["pooled_n"],
+        "oos_win_pct": BREAKOUT_STUDY["oos_win_pct"],
+        "oos_ci": BREAKOUT_STUDY["oos_ci"],
+        "oos_net_per_dollar": BREAKOUT_STUDY["oos_net_per_dollar"],
+    }
+    try:
+        target = Path(path) if path is not None else GATE_LOG
+        with open(target, "a", encoding="utf-8") as fh:
+            fh.write(json.dumps(row) + "\n")
+    except Exception as exc:               # noqa: BLE001
+        log.debug("gate journal write failed: %s", exc)
+    return row
+
+
+def evaluate(pair: str, signal, *, cfg=None, exchange=None, route: str = "",
+             path=None):
+    """THE FIRE CHOKE POINT every route calls before it fires.
+
+    Returns `(ok, entry_quality)`. A buy whose measured range position is below
+    the gate is REFUSED and journalled; a measured breakout is allowed and
+    journalled; an unmeasurable buy keeps the old behaviour (and says so), so
+    the gate can only ever remove a fire it can prove is mislocated.
+    """
+    eq = getattr(signal, "entry_quality", None)
+    on = bool(getattr(cfg, "champion_breakout_gate", True))
+    minimum = float(getattr(cfg, "champion_breakout_min", BREAKOUT_MIN))
+    if not on:
+        return True, eq
+    if eq is None and exchange is not None:
+        eq = measure(exchange, pair)
+        if eq is not None:
+            try:
+                signal.entry_quality = eq
+            except Exception:              # noqa: BLE001 - slotted signals
+                pass
+    ok = passes(eq, minimum)
+    record(pair, "unmeasured-fire" if eq is None else ("fire" if ok else "veto"),
+           eq, route=route, confidence=getattr(signal, "confidence", None),
+           cfg=cfg, path=path)
+    if not ok:
+        log.info("  BREAKOUT GATE: %s sits %.2f in its prior-hour range "
+                 "(need >= %.2f) — not a breakout, no fire (%s)",
+                 pair, float(eq), minimum, route or "fire")
+    return ok, eq
