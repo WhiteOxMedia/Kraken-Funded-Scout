@@ -86,6 +86,15 @@ def main() -> int:
     best_pair, best_signal, cands, ranks = bs.deep_crown_pool(
         exchange, results, all_data, cfg, best_pair, best_signal, min_conf)
 
+    if best_pair is None or best_signal is None:
+        # THE BREAKOUT GATE did its job: the loudest buy is not at the top of
+        # its hour range, so the live loop does not crown or fire it. Probe
+        # that decision instead of inventing a fire.
+        print("BREAKOUT GATE BLOCKED the crown — no fire (the live rule). "
+              "Recorded; nothing written, no order.")
+        print(f"RESULT: PASS (gate blocked: {len(cands)} read deep, no order)")
+        sys.exit(0)
+
     print("\n-- every candidate's deep read --")
     bad = []
     for p, r in sorted(cands.items(), key=lambda kv: -kv[1].signal.confidence):

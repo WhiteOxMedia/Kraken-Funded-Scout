@@ -1,0 +1,65 @@
+{
+ "points": 154,
+ "fit_frac": 0.6,
+ "crown_pool": 6,
+ "rules": {
+  "conf": {
+   "fit_n": 92,
+   "fit_win_pct": 37.0,
+   "fit_net_per_dollar": -0.00208,
+   "fit_delta": 0.0,
+   "fit_ci": [
+    0.0,
+    0.0
+   ],
+   "hold_n": 62,
+   "hold_win_pct": 27.4,
+   "hold_net_per_dollar": -0.00318,
+   "hold_delta": 0.0,
+   "hold_ci": [
+    0.0,
+    0.0
+   ],
+   "clears": false
+  },
+  "pos_hour": {
+   "fit_n": 92,
+   "fit_win_pct": 25.0,
+   "fit_net_per_dollar": -0.00432,
+   "fit_delta": -0.2239,
+   "fit_ci": [
+    -0.3882,
+    -0.0595
+   ],
+   "hold_n": 62,
+   "hold_win_pct": 16.1,
+   "hold_net_per_dollar": -0.00577,
+   "hold_delta": -0.2594,
+   "hold_ci": [
+    -0.4543,
+    -0.0646
+   ],
+   "clears": false
+  },
+  "pos_hour_top3": {
+   "fit_n": 92,
+   "fit_win_pct": 28.3,
+   "fit_net_per_dollar": -0.00409,
+   "fit_delta": -0.2014,
+   "fit_ci": [
+    -0.3669,
+    -0.036
+   ],
+   "hold_n": 62,
+   "hold_win_pct": 17.7,
+   "hold_net_per_dollar": -0.00512,
+   "hold_delta": -0.1934,
+   "hold_ci": [
+    -0.3651,
+    -0.0218
+   ],
+   "clears": false
+  }
+ },
+ "winners": []
+}

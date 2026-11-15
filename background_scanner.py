@@ -48,6 +48,7 @@ import buy_low as _buy_low_mod                          # noqa: E402
 import spend_capacity as _spend_mod                     # noqa: E402
 from buy_low import BUY_LOW_STAMP_VERSION               # noqa: E402
 from exit_study import EXIT_STUDY, EXIT_STUDY_V         # noqa: E402
+import breakout_gate as _bk_gate                          # noqa: E402
 from entry_timing import apply as _entry_timing_apply    # noqa: E402
 from spend_capacity import SPEND_STAMP_VERSION         # noqa: E402
 
@@ -947,6 +948,29 @@ def deep_crown_pool(exchange, results, all_data, cfg, best_pair, best_signal,
             best_pair, best_signal = champ.pair, champ.signal
     except Exception as exc:
         logger.debug("champion deep stamp skipped: %s", exc)
+
+    # ── THE BREAKOUT GATE (Nov 15) — the one tournament change with a holdout
+    #    behind it. The champion must be a BREAKOUT: its close sitting in the
+    #    top 15% of its own prior hour's range. The grading (tournament_study:
+    #    154 champion decisions, fit then holdout) put that cohort at 80.6%
+    #    wins over 45d vs 18.6% below it, and crowning the cheap end of the
+    #    range loses 0.26%/trade out of sample. `None` (no measurement) fires
+    #    on the old rule, so the gate can only ever remove a fire.
+    try:
+        if (bool(getattr(cfg, "champion_breakout_gate", False))
+                and best_signal is not None and best_signal.action == "buy"):
+            _eq_g = getattr(best_signal, "entry_quality", None)
+            _min_g = float(getattr(cfg, "champion_breakout_min",
+                                   _bk_gate.BREAKOUT_MIN))
+            if not _bk_gate.passes(_eq_g, _min_g):
+                logger.info(
+                    "  BREAKOUT GATE: %s sits %.2f in its prior-hour range "
+                    "(need >= %.2f) — not a breakout, no fire",
+                    best_pair.split("/")[0] if best_pair else "?",
+                    float(_eq_g), _min_g)
+                best_pair, best_signal = None, None
+    except Exception as exc:
+        logger.debug("breakout gate skipped: %s", exc)
     return best_pair, best_signal, cands, ranks
 
 
@@ -4451,7 +4475,8 @@ def _family_fields(w) -> dict:
                 "entry_timing": None, "entry_timing_v": 0,
                 "spend_capacity": None, "spend_rank": None, "spend_v": 0,
                 "buy_low": None, "buy_low_rank": None, "buy_low_v": 0,
-                "exit_study": None, "exit_study_v": 0}
+                "exit_study": None, "exit_study_v": 0,
+                "breakout_gate": None, "breakout_gate_v": 0}
     return {"setup": w.get("setup") or {},
             "setup_v": w.get("setup_v") or 0,
             "strategy_v": w.get("strategy_v") or STRATEGY_VERSION,
@@ -4476,7 +4501,11 @@ def _family_fields(w) -> dict:
             # THE EXIT STUDY rides it too: the exit question's measurement
             # travels to every close, negative result included.
             "exit_study": w.get("exit_study"),
-            "exit_study_v": w.get("exit_study_v") or 0}
+            "exit_study_v": w.get("exit_study_v") or 0,
+            # THE BREAKOUT GATE rides it too: every close says which gate
+            # judged the fire and what the gate's evidence was.
+            "breakout_gate": w.get("breakout_gate"),
+            "breakout_gate_v": w.get("breakout_gate_v") or 0}
 
 
 def _setup_tags(*, route: str = "", tide_state=None, tide_pct=None,
@@ -5909,6 +5938,10 @@ def auto_track_popup(pair: str, entry: float, size: float, goal_pct: float,
                    # asked and answered, instead of it living only in a doc.
                    "exit_study": dict(EXIT_STUDY),
                    "exit_study_v": EXIT_STUDY_V,
+                   # THE BREAKOUT GATE'S EVIDENCE (Nov 15): the measured table
+                   # behind "a champion must be a breakout to fire".
+                   "breakout_gate": dict(_bk_gate.BREAKOUT_STUDY),
+                   "breakout_gate_v": _bk_gate.BREAKOUT_STUDY_V,
                    # THE TOURNAMENT'S OWN TIMING NUMBER (Nov 15): the 0..1
                    # position in the prior-hour range that the bracket actually
                    # chose. The candle stamp above rebuilds the same idea at

@@ -117,7 +117,9 @@ check("close: the helper keeps setup + setup_v and ADDS strategy_v",
           # Nov 15: the buy-low score and decision ride it too
           "buy_low": None, "buy_low_rank": None, "buy_low_v": 0,
           # Nov 15: the exit study's measurement rides the close too
-          "exit_study": None, "exit_study_v": 0})
+          "exit_study": None, "exit_study_v": 0,
+          # Nov 15: so does the breakout gate's study
+          "breakout_gate": None, "breakout_gate_v": 0})
 check("close: a legacy row without the stamp still lands versioned",
       bs._family_fields({"entry": 1.0})
       == {"setup": {}, "setup_v": 0,
@@ -127,7 +129,9 @@ check("close: a legacy row without the stamp still lands versioned",
           "spend_capacity": None, "spend_rank": None, "spend_v": 0,
           "buy_low": None, "buy_low_rank": None, "buy_low_v": 0,
           # Nov 15: the exit study's measurement rides the close too
-          "exit_study": None, "exit_study_v": 0})
+          "exit_study": None, "exit_study_v": 0,
+          # Nov 15: so does the breakout gate's study
+          "breakout_gate": None, "breakout_gate_v": 0})
 check("close: strategy_v is the MVP's rule counter, not the tag version",
       bs.STRATEGY_VERSION == 1)
 check("row: the fire stamp carries strategy_v onto the watch row",

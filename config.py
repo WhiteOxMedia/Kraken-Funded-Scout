@@ -133,6 +133,18 @@ class TradingConfig:
     buy_low_window: float = 10.0
     buy_low_min_gain: float = 0.15
 
+    # ── THE BREAKOUT GATE (Nov 15) — ON, because it cleared a holdout ───
+    # `scratch/tournament_study.py` graded the crown rule itself: crowning the
+    # cheapest buy in the pool loses (−0.26%/trade OOS), and timing as a
+    # ranking key is noise — but a champion sitting at the TOP of its prior
+    # hour's range wins 80.6% of the time over 45 days (+0.74%/trade, n=36)
+    # against 18.6% below it. So a buy is only fired when its own range
+    # position says the move is a breakout, not a fall. No measurement at all
+    # (too little history) still fires: the gate only removes fires it can
+    # prove are mislocated. Numbers: breakout_gate.BREAKOUT_STUDY.
+    champion_breakout_gate: bool = True
+    champion_breakout_min: float = 0.85
+
     # ── Risk management ────────────────────────────────────────────────
     # Risk per trade as % of starting balance.
     risk_per_trade_pct: float = 1.5
