@@ -4295,6 +4295,12 @@ def plan_spent_exit(row, exit_mod=None, now=None):
 
 
 SETUP_TAGS_VERSION = 1
+# THE ENTRY-QUALITY STAMP VERSION (Nov 15): the champion's 0..1 range position
+# is stamped at the fire and carried to the journal, exactly like setup_v — a
+# row with entry_quality_v 0 predates the field (or came from a route that never
+# ran the bracket), so a study can skip it instead of reading a hole as "the
+# low".
+ENTRY_QUALITY_STAMP_VERSION = 1
 
 # THE STRATEGY'S OWN VERSION (STRATEGY_MVP.md §4, Nov 6): the setup tags
 # describe WHAT fired; this describes the RULES it fired under. The MVP's
@@ -4317,10 +4323,15 @@ def _family_fields(w) -> dict:
     of a hole.
     """
     if not isinstance(w, dict):
-        return {"setup": {}, "setup_v": 0, "strategy_v": STRATEGY_VERSION}
+        return {"setup": {}, "setup_v": 0, "strategy_v": STRATEGY_VERSION,
+                "entry_quality": None, "entry_quality_v": 0}
     return {"setup": w.get("setup") or {},
             "setup_v": w.get("setup_v") or 0,
-            "strategy_v": w.get("strategy_v") or STRATEGY_VERSION}
+            "strategy_v": w.get("strategy_v") or STRATEGY_VERSION,
+            # THE TIMING NUMBER rides the close like the family does: both
+            # journal writers copy THIS dict, so neither can drop it silently.
+            "entry_quality": w.get("entry_quality"),
+            "entry_quality_v": w.get("entry_quality_v") or 0}
 
 
 def _setup_tags(*, route: str = "", tide_state=None, tide_pct=None,
@@ -5587,7 +5598,8 @@ def auto_track_popup(pair: str, entry: float, size: float, goal_pct: float,
                      go_big: bool = False,
                      hard_stop_usd: float | None = None,
                      goal_usd: float | None = None,
-                     bounce_exit_ts: float | None = None) -> bool:
+                     bounce_exit_ts: float | None = None,
+                     entry_quality: float | None = None) -> bool:
     """THE POPUP IS THE CONTRACT (Sep 21): every popup that fires —
     champion, Sure Thing, mover, DCA — auto-tracks at fire time. One
     writer for every route: never displaces an entry the user already
@@ -5712,6 +5724,15 @@ def auto_track_popup(pair: str, entry: float, size: float, goal_pct: float,
                    # THE ENTRY-TIMING STAMP (Nov 15): frozen at the fire, so a
                    # later study measures the decision instead of rebuilding it.
                    **_entry_timing_stamp(pair, entry, exchange),
+                   # THE TOURNAMENT'S OWN TIMING NUMBER (Nov 15): the 0..1
+                   # position in the prior-hour range that the bracket actually
+                   # chose. The candle stamp above rebuilds the same idea at
+                   # fire time; this is the decision, so a study measures what
+                   # the tournament did, not what the bars would have said.
+                   "entry_quality": (float(entry_quality)
+                                     if entry_quality is not None else None),
+                   "entry_quality_v": (ENTRY_QUALITY_STAMP_VERSION
+                                       if entry_quality is not None else 0),
                    # THE SETUP STAMP (Nov 6): the fire's own family, carried
                    # to the close so expectancy is a group-by. A route that
                    # passes nothing lands "untagged", never unmeasurable.
@@ -10403,6 +10424,9 @@ def main():
                                 if _hail_mary and _hail_mary_mode == "opportunistic"
                                 else "(champion)"),
                              "go_big" if _go_big else "champion",
+                             # the bracket's own timing number, persisted on the
+                             # fire so the close can be grouped by it later
+                             entry_quality=getattr(signal, "entry_quality", None),
                              go_big=_go_big,
                              hm_mode=(_hail_mary_mode
                                       if _hail_mary and _hail_mary_mode == "opportunistic"
@@ -11624,6 +11648,7 @@ def main():
                                                      float(_m_win or 0.0),
                                                      f"BUY {signal.confidence:.0f}% (mover)",
                                                      "mover",
+                                                     entry_quality=getattr(signal, "entry_quality", None),
                                                      setup=_setup_tags(
                                                          route=("contest_mover_fast" if _m_fast
                                                                 else "contest_mover"),

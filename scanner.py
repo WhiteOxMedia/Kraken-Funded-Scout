@@ -406,6 +406,9 @@ def tournament_scan(
     # at index 5 and was dropped by BOTH the bridge and the DB — the warning
     # existed only in the console. Nothing parses these strings (every reader is
     # a substring test or a slice), so the fix is the position, not the text.
+    # the number the label describes, carried on the signal itself so every
+    # fire route can persist it without reaching back into the bracket
+    champion.signal.entry_quality = champion.entry_quality
     if champion.entry_quality is not None:
         if champion.entry_quality >= TIMING_STRETCHED:
             champion.signal.reasons.insert(

@@ -93,6 +93,27 @@ gate (`exhaustion`, `breakout failure`, `exit signal`, momentum and liquidity
 checks), so the position was the only thing to fix. `test_timinglabel.py` holds
 it: 17 checks.
 
+## 4c. `entry_quality` on every close — the field, and where it lands
+
+The tournament's own timing number used to die with the bracket: it picked the
+champion, labelled it, and was gone. It is now persisted on the fire and carried
+to the journal, through the same plumbing the setup stamps use.
+
+| where | key | value |
+|---|---|---|
+| watch row (fire) | `entry_quality` | the champion's 0..1 position in its prior-hour range, exactly the number the bracket used; `None` when the route never ran the bracket (mover, DCA) |
+| watch row (fire) | `entry_quality_v` | `1` = stamped, `0` = not scored — a hole is never read as "the low" |
+| journal row (close) | `entry_quality`, `entry_quality_v` | copied by `_family_fields()`, the one helper both close writers use (the scanner's GET OUT and the console's SOLD), so neither can drop it silently |
+
+Chain: `tournament_scan` sets `champion.signal.entry_quality` → both fire routes
+pass `entry_quality=getattr(signal, "entry_quality", None)` into
+`auto_track_popup` → the watch row → `_family_fields(w)` → the journal line.
+
+Rows closed before this change carry `entry_quality_v == 0` and no value; unlike
+the setup stamps there is nothing to backfill them from, because the bracket's
+number was never written down. `timing_eq` (§4) is the bar-reconstructed cousin
+and is the right column for those older rows.
+
 ## 5. What the data needs
 
 A +5 pp win-rate shift from 40% at 80% power needs **1,531 closes per arm**

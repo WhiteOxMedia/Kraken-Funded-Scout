@@ -126,6 +126,48 @@ check("6.2 the ledger row carries the stamp and the peak",
 check("6.3 the stamp is computed from 5m candles with the forming bar dropped",
       'exchange.fetch_ohlcv(pair, timeframe="5m"' in src and "candles[:-1]" in src)
 
+print("== 7. the tournament's own number reaches the journal ==")
+import json as _json
+import tempfile as _tf
+
+_orig_watch_json = bs.CONTEST_WATCH_JSON
+_tmpdir = Path(_tf.mkdtemp(prefix="eq_stamp_"))
+bs.CONTEST_WATCH_JSON = str(_tmpdir / "contest_watch.json")
+try:
+    _ok = bs.auto_track_popup("EQ/USD", 50.0, 300.0, 2.0, 180.0,
+                              "BUY 71% (champion)", "champion",
+                              setup=bs._setup_tags(route="champion", conviction=71),
+                              entry_quality=0.23)
+    _row = _json.loads(Path(bs.CONTEST_WATCH_JSON).read_text())["EQ/USD"]
+    check("7.1 the fire stamps the bracket's number on the watch row",
+          _ok and _row.get("entry_quality") == 0.23
+          and _row.get("entry_quality_v") == bs.ENTRY_QUALITY_STAMP_VERSION,
+          {k: _row.get(k) for k in ("entry_quality", "entry_quality_v")})
+    _fam = bs._family_fields(_row)
+    check("7.2 the close's one helper carries it into the journal",
+          _fam.get("entry_quality") == 0.23 and _fam.get("entry_quality_v") == 1,
+          _fam)
+    _ok2 = bs.auto_track_popup("EQ2/USD", 10.0, 100.0, 2.0, 180.0,
+                               "BUY 60% (mover)", "mover")
+    _row2 = _json.loads(Path(bs.CONTEST_WATCH_JSON).read_text())["EQ2/USD"]
+    check("7.3 a route that never ran the bracket stamps None with v0 "
+          "(a hole is never read as 'the low')",
+          _ok2 and _row2.get("entry_quality") is None
+          and _row2.get("entry_quality_v") == 0,
+          {k: _row2.get(k) for k in ("entry_quality", "entry_quality_v")})
+    check("7.4 a pre-field row still lands a versioned hole, not a crash",
+          bs._family_fields({"entry": 1.0}).get("entry_quality") is None
+          and bs._family_fields({"entry": 1.0}).get("entry_quality_v") == 0)
+finally:
+    bs.CONTEST_WATCH_JSON = _orig_watch_json
+
+check("7.5 the bracket hands its number to the signal",
+      "champion.signal.entry_quality = champion.entry_quality" in open(
+          "scanner.py", encoding="utf-8").read())
+check("7.6 both fire routes pass it through",
+      open("background_scanner.py", encoding="utf-8").read().count(
+          "entry_quality=getattr(signal, \"entry_quality\", None)") == 2)
+
 print("\n".join(lines))
 print(f"\nRESULT: {PASS} passed, {FAIL} failed")
 sys.exit(1 if FAIL else 0)

@@ -64,6 +64,13 @@ class Signal:
     stop_loss: float | None = None
     take_profit: float | None = None
     risk_reward: float | None = None
+    # THE TIMING NUMBER (Nov 15): the tournament's 0..1 position of this entry
+    # inside its prior-hour range (0 = the low, 1 = the high). Stamped on the
+    # CHAMPION by tournament_scan and carried onto the fire's watch row and the
+    # journal row, so the effect of buying low can be measured on real closes
+    # instead of reconstructed from bars afterwards. None = not scored (the
+    # mover/DCA routes never run the bracket).
+    entry_quality: float | None = None
     # Regime detected at signal time (for display + multi-timeframe logic)
     regime: str = "unknown"       # "bull_trend", "bear_trend", "ranging", "high_vol", "low_vol"
     volatility_rank: float = 0.0  # ATR as % of price, percentile rank (0-100)
