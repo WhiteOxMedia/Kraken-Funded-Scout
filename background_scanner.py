@@ -44,6 +44,10 @@ from zoneinfo import ZoneInfo
 # dial-neutral: the machinery always ASKS, the module answers.
 import exit_extension as _exx   # noqa: E402  (deliberate stdlib-lazy import)
 from entry_timing import ENTRY_TIMING_STAMP_VERSION   # noqa: E402
+import buy_low as _buy_low_mod                          # noqa: E402
+import spend_capacity as _spend_mod                     # noqa: E402
+from buy_low import BUY_LOW_STAMP_VERSION               # noqa: E402
+from entry_timing import apply as _entry_timing_apply    # noqa: E402
 from spend_capacity import SPEND_STAMP_VERSION         # noqa: E402
 
 # the drive asserts these exist on the scanner module (0.1): the seam
@@ -4328,7 +4332,8 @@ def _family_fields(w) -> dict:
         return {"setup": {}, "setup_v": 0, "strategy_v": STRATEGY_VERSION,
                 "entry_quality": None, "entry_quality_v": 0,
                 "entry_timing": None, "entry_timing_v": 0,
-                "spend_capacity": None, "spend_rank": None, "spend_v": 0}
+                "spend_capacity": None, "spend_rank": None, "spend_v": 0,
+                "buy_low": None, "buy_low_rank": None, "buy_low_v": 0}
     return {"setup": w.get("setup") or {},
             "setup_v": w.get("setup_v") or 0,
             "strategy_v": w.get("strategy_v") or STRATEGY_VERSION,
@@ -4344,7 +4349,12 @@ def _family_fields(w) -> dict:
             # and would a bigger-carry coin have been the better pick"
             "spend_capacity": w.get("spend_capacity"),
             "spend_rank": w.get("spend_rank"),
-            "spend_v": w.get("spend_v") or 0}
+            "spend_v": w.get("spend_v") or 0,
+            # THE BUY-LOW DECISION rides the close: how cheap the fire was, and
+            # what a cheaper near-equal would have been
+            "buy_low": w.get("buy_low"),
+            "buy_low_rank": w.get("buy_low_rank"),
+            "buy_low_v": w.get("buy_low_v") or 0}
 
 
 def _setup_tags(*, route: str = "", tide_state=None, tide_pct=None,
@@ -5615,7 +5625,9 @@ def auto_track_popup(pair: str, entry: float, size: float, goal_pct: float,
                      entry_quality: float | None = None,
                      entry_timing: dict | None = None,
                      spend_capacity: dict | None = None,
-                     spend_rank: dict | None = None) -> bool:
+                     spend_rank: dict | None = None,
+                     buy_low: dict | None = None,
+                     buy_low_rank: dict | None = None) -> bool:
     """THE POPUP IS THE CONTRACT (Sep 21): every popup that fires —
     champion, Sure Thing, mover, DCA — auto-tracks at fire time. One
     writer for every route: never displaces an entry the user already
@@ -5763,6 +5775,12 @@ def auto_track_popup(pair: str, entry: float, size: float, goal_pct: float,
                    "spend_rank": (dict(spend_rank)
                                   if isinstance(spend_rank, dict) else None),
                    "spend_v": SPEND_STAMP_VERSION,
+                   # THE BUY-LOW DECISION (Nov 15): how cheap this fire was, and
+                   # whether the bracket would have preferred a cheaper equal.
+                   "buy_low": (dict(buy_low) if isinstance(buy_low, dict) else None),
+                   "buy_low_rank": (dict(buy_low_rank)
+                                    if isinstance(buy_low_rank, dict) else None),
+                   "buy_low_v": BUY_LOW_STAMP_VERSION,
                    # THE TOURNAMENT'S OWN TIMING NUMBER (Nov 15): the 0..1
                    # position in the prior-hour range that the bracket actually
                    # chose. The candle stamp above rebuilds the same idea at
@@ -10479,6 +10497,8 @@ def main():
                              # the deep read + what the spend ranking would do
                              spend_capacity=getattr(signal, "spend_capacity", None),
                              spend_rank=getattr(signal, "spend_rank", None),
+                             buy_low=getattr(signal, "buy_low", None),
+                             buy_low_rank=getattr(signal, "buy_low_rank", None),
                              go_big=_go_big,
                              hm_mode=(_hail_mary_mode
                                       if _hail_mary and _hail_mary_mode == "opportunistic"
@@ -11704,6 +11724,8 @@ def main():
                                                      entry_timing=getattr(signal, "entry_timing", None),
                                                      spend_capacity=getattr(signal, "spend_capacity", None),
                                                      spend_rank=getattr(signal, "spend_rank", None),
+                                                     buy_low=getattr(signal, "buy_low", None),
+                                                     buy_low_rank=getattr(signal, "buy_low_rank", None),
                                                      setup=_setup_tags(
                                                          route=("contest_mover_fast" if _m_fast
                                                                 else "contest_mover"),
@@ -12059,6 +12081,56 @@ def main():
                         best_signal = sig
 
                 if best_pair and best_signal:
+                    # ── THE DEEP READ AND THE SHADOW RANKINGS (Nov 15) ───────
+                    # The live bracket crowned on confidence alone, so the deep
+                    # per-coin data and the three rankings never reached a live
+                    # fire. Build the reads for the buy candidates, run the
+                    # rankings in their shipped order (timing, spend, buy-low)
+                    # and stamp the winner. Every flag is off, so no decision
+                    # changes here — the fire simply carries the evidence and
+                    # the comparison records. Fail-soft: a deep read that throws
+                    # leaves the champion exactly as the bracket crowned it.
+                    try:
+                        from scanner import (ScanResult as _ScanR,
+                                             _entry_quality as _eq_of_df)
+                        _cands: dict = {}
+                        for _p, _s in results.items():
+                            if _s.action != "buy" or _s.confidence < min_conf:
+                                continue
+                            _r = _ScanR(pair=_p, signal=_s)
+                            _df_p = all_data.get(_p)
+                            try:
+                                _r.entry_quality = (_eq_of_df(_df_p)
+                                                    if _df_p is not None else None)
+                            except Exception:
+                                _r.entry_quality = None
+                            _r.spend = _spend_mod.deep_scan(exchange, _p, cfg)
+                            _cands[_p] = _r
+                        _champ = _cands.get(best_pair)
+                        if _champ is not None and _cands:
+                            _champ, _et_rec = _entry_timing_apply(_champ, _cands, cfg)
+                            _champ, _sr_rec = _spend_mod.apply(_champ, _cands, cfg)
+                            _champ, _bl_rec = _buy_low_mod.apply(_champ, _cands, cfg)
+                            _champ.signal.entry_timing = _et_rec
+                            _champ.signal.spend_rank = _sr_rec
+                            _champ.signal.spend_capacity = (_champ.spend
+                                                            if isinstance(_champ.spend, dict)
+                                                            else None)
+                            _champ.signal.buy_low_rank = _bl_rec
+                            _champ.signal.buy_low = _buy_low_mod.cheapness(
+                                _champ.spend, _champ.entry_quality)
+                            logger.info(
+                                "  DEEP CHAMPION %s: %s cands, cap $%.0f, "
+                                "cheap %.2f (%s), timing=%s spend=%s buylow=%s",
+                                _champ.pair.split("/")[0], len(_cands),
+                                float((_champ.spend or {}).get("cap_usd") or 0.0),
+                                float((_champ.signal.buy_low or {}).get("cheap") or 0.0),
+                                (_champ.signal.buy_low or {}).get("src"),
+                                _et_rec.get("would"), _sr_rec.get("would"),
+                                _bl_rec.get("would"))
+                            best_pair, best_signal = _champ.pair, _champ.signal
+                    except Exception as _deep_exc:
+                        logger.debug("deep read / shadow rankings skipped: %s", _deep_exc)
                     asset = best_pair.split("/")[0]
                     logger.info("🏆 Momentum Champion: %s %s (%.0f%%)", best_signal.action, asset, best_signal.confidence)
 

@@ -84,6 +84,11 @@ class Signal:
     # every fire; see spend_capacity.py.
     spend_capacity: dict | None = None
     spend_rank: dict | None = None
+    # THE BUY-LOW DECISION (Nov 15): how cheap this champion is right now (0 at
+    # the lows, 1 extended) and what the bracket decided about preferring a
+    # cheaper near-equal candidate. See buy_low.py.
+    buy_low: dict | None = None
+    buy_low_rank: dict | None = None
     # Regime detected at signal time (for display + multi-timeframe logic)
     regime: str = "unknown"       # "bull_trend", "bear_trend", "ranging", "high_vol", "low_vol"
     volatility_rank: float = 0.0  # ATR as % of price, percentile rank (0-100)

@@ -17,6 +17,7 @@ from typing import Any
 
 import pandas as pd
 
+import buy_low as _buy_low
 import spend_capacity as _spend
 from config import TradingConfig
 from entry_timing import apply as apply_entry_timing
@@ -418,6 +419,15 @@ def tournament_scan(
     champion.signal.spend_capacity = (champion.spend
                                       if isinstance(champion.spend, dict) else None)
 
+    # BUY LOW, SELL HIGH (Nov 15), last so it sees the champion the earlier
+    # rankings produced: is a near-equal candidate being bought cheaper right
+    # now (low in its hour and low in its day)? Same discipline — the record is
+    # written every fire, and only `buy_low_rank` lets it move the champion.
+    champion, _buy_low_rank = _buy_low.apply(champion, evaluated, config)
+    champion.signal.buy_low_rank = _buy_low_rank
+    champion.signal.buy_low = _buy_low.cheapness(champion.spend,
+                                                champion.entry_quality)
+
     # A bracket that ranks on signal confidence picks momentum, so say out loud
     # when the winner is expensive relative to its own recent range. This is a
     # label on the champion, never a veto: the entry still fires.
@@ -478,6 +488,18 @@ def _evaluate_single(kraken: KrakenAPI, pair: str, config: TradingConfig) -> Sca
     if (getattr(config, "deep_scan_enabled", False)
             and signal.action in ("buy", "sell")):
         result.spend = _spend.deep_scan(kraken, pair, config, bars=ohlcv)
+        # A one-line receipt, so the running scanner's own log proves the deep
+        # path executed on a real candidate even when no popup fires.
+        try:
+            logger.info("DEEP %s: %s bars, dd %.2f%% (%s), cap $%.0f, "
+                        "daypos %s, src=%s", pair.split("/")[0],
+                        result.spend.get("bars"), float(result.spend.get("dd_pct") or 0.0),
+                        result.spend.get("dd_src"),
+                        float(result.spend.get("cap_usd") or 0.0),
+                        result.spend.get("pos_in_day_pct"),
+                        ",".join(result.spend.get("src") or []))
+        except Exception:
+            pass
 
     # Liquidity check
     if config.liquidity_filter_enabled:

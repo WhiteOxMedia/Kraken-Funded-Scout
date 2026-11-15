@@ -122,6 +122,17 @@ class TradingConfig:
     spend_rank_window: float = 10.0
     spend_rank_min_usd: float = 25.0
 
+    # BUY LOW, SELL HIGH (Nov 15), default OFF: among near-equal confidence
+    # candidates, prefer the coin being bought cheapest right now — low in its
+    # prior hour AND low in its day's range, read from the deep per-coin data.
+    # Every fire records the comparison (who was compared, their scores, what it
+    # would have preferred, whether the champion would have changed) whether or
+    # not this flag is on. It runs after the timing and spend rankings and never
+    # prices, sizes or exits anything: the dollars stay the guard's.
+    buy_low_rank: bool = False
+    buy_low_window: float = 10.0
+    buy_low_min_gain: float = 0.15
+
     # ── Risk management ────────────────────────────────────────────────
     # Risk per trade as % of starting balance.
     risk_per_trade_pct: float = 1.5
