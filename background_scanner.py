@@ -43,6 +43,7 @@ from zoneinfo import ZoneInfo
 # absence) reverts every stamp to the incumbent machinery. The wiring is
 # dial-neutral: the machinery always ASKS, the module answers.
 import exit_extension as _exx   # noqa: E402  (deliberate stdlib-lazy import)
+from entry_timing import ENTRY_TIMING_STAMP_VERSION   # noqa: E402
 
 # the drive asserts these exist on the scanner module (0.1): the seam
 # callable + the guard marker that says the wiring is live
@@ -4324,14 +4325,19 @@ def _family_fields(w) -> dict:
     """
     if not isinstance(w, dict):
         return {"setup": {}, "setup_v": 0, "strategy_v": STRATEGY_VERSION,
-                "entry_quality": None, "entry_quality_v": 0}
+                "entry_quality": None, "entry_quality_v": 0,
+                "entry_timing": None, "entry_timing_v": 0}
     return {"setup": w.get("setup") or {},
             "setup_v": w.get("setup_v") or 0,
             "strategy_v": w.get("strategy_v") or STRATEGY_VERSION,
             # THE TIMING NUMBER rides the close like the family does: both
             # journal writers copy THIS dict, so neither can drop it silently.
             "entry_quality": w.get("entry_quality"),
-            "entry_quality_v": w.get("entry_quality_v") or 0}
+            "entry_quality_v": w.get("entry_quality_v") or 0,
+            # THE SHADOW VERDICT rides it too: every closed row answers "what
+            # would the timing ranking have done with this fire"
+            "entry_timing": w.get("entry_timing"),
+            "entry_timing_v": w.get("entry_timing_v") or 0}
 
 
 def _setup_tags(*, route: str = "", tide_state=None, tide_pct=None,
@@ -5599,7 +5605,8 @@ def auto_track_popup(pair: str, entry: float, size: float, goal_pct: float,
                      hard_stop_usd: float | None = None,
                      goal_usd: float | None = None,
                      bounce_exit_ts: float | None = None,
-                     entry_quality: float | None = None) -> bool:
+                     entry_quality: float | None = None,
+                     entry_timing: dict | None = None) -> bool:
     """THE POPUP IS THE CONTRACT (Sep 21): every popup that fires —
     champion, Sure Thing, mover, DCA — auto-tracks at fire time. One
     writer for every route: never displaces an entry the user already
@@ -5693,6 +5700,16 @@ def auto_track_popup(pair: str, entry: float, size: float, goal_pct: float,
             logger.debug("dollar goal stamp unavailable for %s (%s) — the "
                          "%% goal stands", pair, _gs_exc)
             _goal_usd_e = 0.0
+        # THE TIMING DECISION, SHADOW OR LIVE (Nov 15): what the entry-timing
+        # ranking would have done with this champion, frozen at the fire so a
+        # future study grades the decision against the close instead of
+        # rebuilding it from bars. Flag off => applied False, order untouched.
+        # Every fire gets a record; a route with no bracket says so.
+        _et_stamp = (dict(entry_timing) if isinstance(entry_timing, dict)
+                     else {"flag": "entry_timing_rank", "would": "no_bracket",
+                           "src": "none", "applied": False, "eq": None,
+                           "veto": False})
+        _et_stamp.setdefault("v", ENTRY_TIMING_STAMP_VERSION)
         w[pair] = {"entry": float(entry or 0.0),
                    "high": float(entry or 0.0),
                    "added": _now_mst().isoformat(),
@@ -5724,6 +5741,10 @@ def auto_track_popup(pair: str, entry: float, size: float, goal_pct: float,
                    # THE ENTRY-TIMING STAMP (Nov 15): frozen at the fire, so a
                    # later study measures the decision instead of rebuilding it.
                    **_entry_timing_stamp(pair, entry, exchange),
+                   # the decision itself (see entry_timing.py): carried to the
+                   # journal like the family, so no close route can drop it
+                   "entry_timing": _et_stamp,
+                   "entry_timing_v": ENTRY_TIMING_STAMP_VERSION,
                    # THE TOURNAMENT'S OWN TIMING NUMBER (Nov 15): the 0..1
                    # position in the prior-hour range that the bracket actually
                    # chose. The candle stamp above rebuilds the same idea at
@@ -5743,6 +5764,14 @@ def auto_track_popup(pair: str, entry: float, size: float, goal_pct: float,
                    # like the family, so every ledger row is attributable to
                    # both WHAT and WHICH RULES
                    "strategy_v": STRATEGY_VERSION}
+        # THE timing_eq FALLBACK (Nov 15): a champion whose bracket number is
+        # missing (short history) still gets a resolved position recorded from
+        # the bar stamp, named for where it came from — the same fallback the
+        # study applies to older rows, so a shadow verdict is never blank.
+        if (_et_stamp.get("eq") is None
+                and isinstance(w[pair].get("timing_eq"), (int, float))):
+            _et_stamp["eq"] = round(float(w[pair]["timing_eq"]), 4)
+            _et_stamp["eq_src"] = "timing_eq"
         if hm_mode:
             # THE OPPORTUNISTIC STAMP (user ask, Oct 1): the exit watch
             # reads this key to judge the 2% hard stop — without it the
@@ -10427,6 +10456,8 @@ def main():
                              # the bracket's own timing number, persisted on the
                              # fire so the close can be grouped by it later
                              entry_quality=getattr(signal, "entry_quality", None),
+                             # the bracket's timing decision, shadow or applied
+                             entry_timing=getattr(signal, "entry_timing", None),
                              go_big=_go_big,
                              hm_mode=(_hail_mary_mode
                                       if _hail_mary and _hail_mary_mode == "opportunistic"
@@ -11649,6 +11680,7 @@ def main():
                                                      f"BUY {signal.confidence:.0f}% (mover)",
                                                      "mover",
                                                      entry_quality=getattr(signal, "entry_quality", None),
+                                                     entry_timing=getattr(signal, "entry_timing", None),
                                                      setup=_setup_tags(
                                                          route=("contest_mover_fast" if _m_fast
                                                                 else "contest_mover"),

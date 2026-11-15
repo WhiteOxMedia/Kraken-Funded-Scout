@@ -108,13 +108,16 @@ check("close: the helper keeps setup + setup_v and ADDS strategy_v",
       bs._family_fields({"setup": tags, "setup_v": 1,
                          "strategy_v": 7})
       == {"setup": tags, "setup_v": 1, "strategy_v": 7,
-          # Nov 15: the champion's timing number rides the same helper
-          "entry_quality": None, "entry_quality_v": 0})
+          # Nov 15: the champion's timing number and the timing decision
+          # ride the same helper
+          "entry_quality": None, "entry_quality_v": 0,
+          "entry_timing": None, "entry_timing_v": 0})
 check("close: a legacy row without the stamp still lands versioned",
       bs._family_fields({"entry": 1.0})
       == {"setup": {}, "setup_v": 0,
           "strategy_v": bs.STRATEGY_VERSION,
-          "entry_quality": None, "entry_quality_v": 0})
+          "entry_quality": None, "entry_quality_v": 0,
+          "entry_timing": None, "entry_timing_v": 0})
 check("close: strategy_v is the MVP's rule counter, not the tag version",
       bs.STRATEGY_VERSION == 1)
 check("row: the fire stamp carries strategy_v onto the watch row",

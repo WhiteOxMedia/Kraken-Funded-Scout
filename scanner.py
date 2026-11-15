@@ -18,6 +18,7 @@ from typing import Any
 import pandas as pd
 
 from config import TradingConfig
+from entry_timing import apply as apply_entry_timing
 from kraken_api import KrakenAPI
 from strategy import Signal, evaluate_strategy
 
@@ -394,6 +395,15 @@ def tournament_scan(
     # Champion
     champion_pair = bracket[0]
     champion = evaluated[champion_pair]
+
+    # THE ENTRY-TIMING DECISION (Nov 15). The bracket ranks on signal
+    # confidence, which selects whatever has already moved hardest; this asks
+    # whether a rival entered materially lower in its own prior-hour range at
+    # no real cost in signal. The flag decides whether the answer is honoured —
+    # off, the champion stands and only the verdict is recorded (`would`), so
+    # the choice can be graded against the close the shadow never took.
+    champion, _entry_timing = apply_entry_timing(champion, evaluated, config)
+    champion.signal.entry_timing = _entry_timing
 
     # A bracket that ranks on signal confidence picks momentum, so say out loud
     # when the winner is expensive relative to its own recent range. This is a

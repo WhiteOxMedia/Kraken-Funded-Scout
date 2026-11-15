@@ -79,10 +79,39 @@ class TradingConfig:
     profit_target_pct: float = 12.0        # profit target to pass challenge
     round_trip_fee_pct: float = 0.0        # no fees in Funded challenge
 
+    # ── Contest entry size (Nov 11) ────────────────────────────────────
+    # The fraction of the LIVE balance the scanner's base spend is. Before
+    # this knob existed the base was 100% of the balance and only the 3%
+    # guard's cap decided the size, so live traded anywhere from 4.7% to
+    # 29.7% of the balance depending on the coin's profiled drawdown and no
+    # configured number could bind. This is the CEILING: the 3% guard
+    # (contest_account.max_entry_usd) and the book-carry limit still cut it
+    # when the buffer is thin, so the traded size is
+    # min(contest_size_frac * balance, guard cap, book carry, weakened size).
+    contest_size_frac: float = 0.09
+
+    # ── Entry timing as a decision (Nov 15) ────────────────────────────
+    # DEFAULT OFF, and deliberately so: the bracket records a shadow verdict on
+    # every fire (what the ranking WOULD do, in the journal's `entry_timing`),
+    # but the champion only changes when this flag is on. Flip it only on
+    # evidence — ENTRY_TIMING.md carries the replay's numbers and the sample
+    # size the effect needs. `entry_timing_window` is the confidence tolerance
+    # for "as good a signal"; `entry_timing_min_gain` is how much lower (in the
+    # prior-hour range) a rival must have entered before it can replace the
+    # champion. Neither touches exits, stops or the death-line guard.
+    entry_timing_rank: bool = False
+    entry_timing_window: float = 10.0
+    entry_timing_min_gain: float = 0.15
+
     # ── Risk management ────────────────────────────────────────────────
     # Risk per trade as % of starting balance.
     risk_per_trade_pct: float = 1.5
     # Risk:reward ratio — take-profit is placed at entry + (risk × R:R)
+    # Nov 11 (24-start sweep on the CORRECTED guard model): 2.0/2.0 is the
+    # WORST option measured — worst death-line cushion $2.07 vs $5.30 and mean
+    # span return -0.66% vs +2.57%. It only won while the lab's guard was
+    # silently inert. Geometry stays at the shipped 2.5/1.5; the death-line
+    # margin is bought in the guard block below instead.
     risk_reward_ratio: float = 2.5
     # ATR multiplier for stop-loss distance (1.5 × ATR below entry for buys)
     atr_multiplier: float = 1.5
@@ -131,12 +160,38 @@ class TradingConfig:
     # ── Challenge survival + streak protection ─────────────────────────
     # After consecutive losses, automatically reduce risk per trade.
     # If the losing streak deepens, pause recommendations entirely.
+    # (These feed the ADVISORY survival read in scanner.py. The ENFORCED guard
+    #  on the live entry path is the survival_guard_* block below.)
     streak_protection_enabled: bool = True
     streak_reduce_after: int = 2           # reduce risk after 2 consecutive losses
     streak_reduce_factor: float = 0.5      # halve risk per trade
     streak_pause_after: int = 3            # stop recommending after 3 losses
     # Survival probability: estimate P(pass) from current balance + win rate
     survival_win_rate: float = 0.5         # assumed win rate for probability calc
+
+    # ── THE SURVIVABILITY GUARD (Nov 10 — enforced, not advisory) ──────
+    # The per-entry backtest: 56.8% of starts reach +12%, but 38.8% touch the
+    # -3% line. The deaths are a CLUSTER of losses in a bad regime, so the
+    # guard brakes the DECISION to trade instead of adding another exit.
+    # Trips are evaluated only when a trade CLOSES; a trip pauses new entries
+    # (open positions keep their exits); the cooldown reset resumes at the
+    # probe size, and the first win restores full size. State lives in
+    # survival_guard_state.json so a restart cannot forget a pause.
+    # Parameters picked from the harness (Nov 10 sweep + rolling-window check):
+    # a 3-loss/12h streak trip and a 24h drawdown pause both COST a contest
+    # pass (the 09-18 window stopped passing), so the shipped set is the one
+    # that removes every deathline window while keeping both passes.
+    survival_guard_enabled: bool = True
+    survival_guard_loss_streak: int = 4        # consecutive losses that trip a pause
+    # Nov 11, 24-start sweep (corrected guard model): the dd trip at 0.9% of
+    # start with a 4h cooldown measures worst cushion $7.05 vs $5.30 and mean
+    # span return +3.74% vs +2.57% — better on BOTH axes, and 11/24 paired
+    # wins (t=+2.59). The plateau is flat: 0.8 / 1.0 / 1.2% all land at
+    # $6.74-$7.07 and +2.6 to +3.9%, so this is not a fitted corner.
+    survival_guard_cooldown_hours: float = 4.0  # pause length after a streak trip
+    survival_guard_dd_trip_pct: float = 0.9    # drawdown from peak (% of START) that trips
+    survival_guard_dd_cooldown_hours: float = 4.0  # pause length after a drawdown trip
+    survival_guard_probe_fraction: float = 0.5  # entry size after a reset, until a win
 
     # ── Indicator periods (shared by strategy + indicators) ────────────
     # Faster RSI — reacts to price changes sooner (9 instead of 14)

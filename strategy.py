@@ -71,6 +71,12 @@ class Signal:
     # instead of reconstructed from bars afterwards. None = not scored (the
     # mover/DCA routes never run the bracket).
     entry_quality: float | None = None
+    # THE TIMING DECISION (Nov 15): what the bracket's entry-timing ranking
+    # decided about this champion — `would` = hold/prefer/insufficient/
+    # no_bracket, whether it was applied, and the swing. Recorded on every fire
+    # so the outcome can be graded; the flag decides whether it changes the
+    # champion. See entry_timing.py.
+    entry_timing: dict | None = None
     # Regime detected at signal time (for display + multi-timeframe logic)
     regime: str = "unknown"       # "bull_trend", "bear_trend", "ranging", "high_vol", "low_vol"
     volatility_rank: float = 0.0  # ATR as % of price, percentile rank (0-100)

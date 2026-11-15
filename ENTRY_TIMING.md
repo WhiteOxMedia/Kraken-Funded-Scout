@@ -114,6 +114,66 @@ the setup stamps there is nothing to backfill them from, because the bracket's
 number was never written down. `timing_eq` (§4) is the bar-reconstructed cousin
 and is the right column for those older rows.
 
+## 4d. The tournament's timing decision — flag, shadow, and what the closes say
+
+**The flag.** `config.TradingConfig.entry_timing_rank`, default **False**. Off,
+`tournament_scan` chooses exactly the champion it always chose; the only new
+thing is a record. On, the winner may be swapped for a candidate that entered
+materially lower in its own prior-hour range — provided that candidate's signal
+confidence is within `entry_timing_window` (10 points) of the champion's and it
+entered at least `entry_timing_min_gain` (0.15) lower. It never promotes a
+materially weaker signal, and it cannot touch exits, stops or the death line.
+
+Why a window and not a hard gate: the earlier diagnosis (1,106 entries) found
+that buying low redraws *who* wins among equals but does not lift expectancy by
+itself; a gate at `eq <= 0.2` returned **−$1.54** held-out. The veto is therefore
+recorded (`veto: true` for a champion at or above 0.85 of its range with nothing
+better on offer) and never enforced.
+
+**The shadow record.** Every fire writes `entry_timing` (dict, versioned by
+`entry_timing_v`) onto the watch row, and `_family_fields()` carries it into the
+journal for both close routes. Keys: `would` (`hold` / `prefer` /
+`insufficient` / `no_bracket`), `applied`, `src`, `eq`, `veto`, `pool`, and on a
+swing `from`/`from_eq`/`to`/`to_eq`/`gain`. A route with no bracket (mover, DCA)
+lands `would: no_bracket` — a record, never a blank. A champion whose bracket
+number is missing gets `eq` filled from the fire's `timing_eq` bar stamp with
+`eq_src: "timing_eq"`.
+
+**The replay — `scratch/entry_quality_replay.py`.** Real closes, not simulation:
+`contest_trades.jsonl`, positioned by the local 5m tape over the twelve bars
+before the entry. Of 2,706 closes, **1,129** are usable; 1,577 are excluded
+because the tape covers 29 of the 55 traded pairs (no other exclusion). Zero
+stored rows carry `entry_quality` or `timing_eq`, so every number below is
+**rebuilt** — the same quantity, not the field.
+
+| entry position | n | win rate | 95% CI | mean close | net |
+|---|---|---|---|---|---|
+| 0.0–0.2 (low) | 395 | 45.6% | 40.7–50.5 | +0.04% | −$100 |
+| 0.2–0.4 | 230 | 32.6% | 26.9–38.9 | −0.23% | −$425 |
+| 0.4–0.6 | 166 | 35.5% | 28.7–43.1 | −0.10% | −$346 |
+| 0.6–0.8 | 170 | 36.5% | 29.6–43.9 | −0.07% | −$78 |
+| 0.8–1.0 (high) | 168 | 38.1% | 31.1–45.6 | +0.12% | −$53 |
+
+Low (≤0.25) vs high (≥0.75): win **44.1% vs 36.7%** = +7.3 pp, but the intervals
+overlap (39.6–48.6 vs 30.7–43.2). Mean close **+0.02% vs +0.06%** = −0.05 pp,
+bootstrap 95% CI −0.21 to +0.11. Split-half sign is consistent for the quintile
+cut (+4.8 pp, +10.1 pp) and not for thirds (−2.2 pp, +9.1 pp).
+
+**Verdict: the win-rate edge points the right way and is NOT resolvable at this
+sample; the money edge is flat to slightly negative.** Buying low shifted the
+win rate but not the payoff, which is what the earlier diagnosis found — the
+leak was dead entries and exit giveback, not buying high. Closes per arm for
++5 pp at 80% power: **1,458**; for +8 pp: **570**. At the measured 15.4
+closes/day that is ~95 and ~37 trading days per arm respectively — and the tape
+only covers half the pairs, so a full-arm study also needs the missing 26 pairs'
+bars archived first.
+
+**What this means for the flag.** It stays off. The evidence does not yet earn a
+live change, and the mechanism is built so the owner can flip it in one line
+when it does. Turning it on costs champion swaps that the shadow has already
+been logging; the comparison to grade is `would: prefer` rows' realized closes
+against the champion that actually fired.
+
 ## 5. What the data needs
 
 A +5 pp win-rate shift from 40% at 80% power needs **1,531 closes per arm**
