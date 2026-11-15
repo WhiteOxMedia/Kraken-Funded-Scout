@@ -11425,6 +11425,22 @@ def main():
                             logger.debug("mover learned entry rule unavailable: %s",
                                          _m_entry_exc)
 
+                        # THE BREAKOUT GATE (Nov 15) — BEFORE the bridge write:
+                        # a mover outside the fifty-four is still a new buy, and
+                        # the bot may take it, so it is judged here or not at
+                        # all. (This used to sit at the popup, which the
+                        # bridge-only route never reaches — a real bypass.)
+                        _mv_gate_ok, _mv_eq = _bk_gate.evaluate(
+                            pair, signal, cfg=cfg, exchange=exchange,
+                            route="mover-bridge")
+                        if not _mv_gate_ok:
+                            _log_suppression(
+                                pair, "breakout-gate",
+                                f"mover-bridge: entry_quality {_mv_eq:.2f} < "
+                                f"{cfg.champion_breakout_min:.2f}",
+                                quick=float(signal.confidence))
+                            continue
+
                         logger.info("  🚀 MOVER SIGNAL: %s %s (%.0f%%, 24h %+.0f%%) — mover outside the 54",
                                     signal.action.upper(), asset, signal.confidence, _mv_pct)
 
@@ -11923,21 +11939,9 @@ def main():
                                         continue
                                     if _popup_already_watched(pair):
                                         continue
-                                    # THE BREAKOUT GATE (Nov 15) — the mover
-                                    # route fires through the same measured
-                                    # rule as the champion: no breakout, no
-                                    # popup, and the refusal is journalled.
-                                    _m_gate_ok, _m_gate_eq = _bk_gate.evaluate(
-                                        pair, signal, cfg=cfg, exchange=exchange,
-                                        route="mover")
-                                    if not _m_gate_ok:
-                                        _log_suppression(
-                                            pair, "breakout-gate",
-                                            f"mover: entry_quality "
-                                            f"{_m_gate_eq:.2f} < "
-                                            f"{cfg.champion_breakout_min:.2f}",
-                                            quick=float(signal.confidence))
-                                        continue
+                                    # (the breakout gate already judged this
+                                    # mover above, before its bridge write —
+                                    # one judgement per fire, no second choke)
                                     notify_big(_m_title, _m_msg, spoken=_m_spoken)
                                     # AUTO-TRACK AT FIRE TIME — the mover
                                     # popup tracks too (the ZEC lesson: a

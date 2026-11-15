@@ -1,0 +1,30 @@
+cost 0.080%/trade, hold 180m, gate 0.85
+decision points: 154
+
+========================================================================================================
+PICKER STUDY: 154 cycles | fit 92 | holdout 62 | cost 0.080% | hold 180m
+========================================================================================================
+picker          span      cycles trades  ret/cycle              95% CI   hit%  ret/trade  mean MAE  worst MAE
+live_today      fit           92     24    0.26525  [0.06213, 0.46837]   70.8    1.01681    -0.441     -1.774
+live_today      holdout       62     12    0.15520 [-0.03855, 0.34895]   75.0    0.80188    -0.336     -0.867
+gated_conf      fit           92     37    0.33991  [0.11482, 0.56501]   67.6    0.84519    -0.460     -1.774
+gated_conf      holdout       62     15    0.15585 [-0.03821, 0.34992]   73.3    0.64419    -0.389     -0.947
+least_ext       fit           92     37    0.30564  [0.08001, 0.53127]   67.6    0.75997    -0.454     -1.774
+least_ext       holdout       62     15    0.16988  [-0.0262, 0.36595]   73.3    0.70215    -0.371     -0.947
+
+-- score_k grid, tuned on the FIT span only --
+  k=0.2   fit ret/cycle +0.32620 hit 67.6% (37 trades) | holdout ret/cycle +0.15585 hit 73.3% (15 trades)
+  k=0.5   fit ret/cycle +0.32620 hit 67.6% (37 trades) | holdout ret/cycle +0.15585 hit 73.3% (15 trades)
+  k=1.0   fit ret/cycle +0.32620 hit 67.6% (37 trades) | holdout ret/cycle +0.15585 hit 73.3% (15 trades)
+  k=2.0   fit ret/cycle +0.32620 hit 67.6% (37 trades) | holdout ret/cycle +0.15585 hit 73.3% (15 trades)
+  k=4.0   fit ret/cycle +0.32620 hit 67.6% (37 trades) | holdout ret/cycle +0.15585 hit 73.3% (15 trades)
+  fit picks k=0.2
+
+-- holdout comparison vs live_today --
+  live_today  ret/cycle +0.15520 CI [-0.03855, 0.34895] hit 75.0% trades 12/62 worst MAE -0.87%
+  gated_conf   ret/cycle +0.15585 CI [-0.03821, 0.34992] hit 73.3% trades 15/62 worst MAE -0.95%  -> ret UP, hit down, tail WORSE
+  least_ext    ret/cycle +0.16988 CI [-0.0262, 0.36595] hit 73.3% trades 15/62 worst MAE -0.95%  -> ret UP, hit down, tail WORSE
+  score_0.2    ret/cycle +0.15585 CI [-0.03821, 0.34992] hit 73.3% trades 15/62 worst MAE -0.95%  -> ret UP, hit down, tail WORSE
+
+holdout winners: NONE
+wrote scratch/_picker_result.json

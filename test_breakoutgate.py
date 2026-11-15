@@ -211,9 +211,11 @@ _send = _send[:_send.index("def log_winner(")]
 check("6.8 the alert route judges every buy at the choke point before any write",
       "_bk_gate.evaluate(" in _send
       and _send.index("_bk_gate.evaluate(") < _send.index("write_buy_signal"))
-check("6.9 the mover route is judged too, before its popup",
-      "route=\"mover\"" in _src
-      and _src.index("_m_gate_ok") < _src.index("notify_big(_m_title"))
+check("6.9 the mover route is judged BEFORE its bridge write, and only once",
+      'route="mover-bridge"' in _src
+      and _src.index('route="mover-bridge"') < _src.index("sid = write_buy_signal(")
+      and _src.count('route="mover-bridge"') == 1
+      and "_m_gate_ok" not in _src)
 check("6.10 the crown's refusal is journalled by the same choke, under its own route",
       'route="champion"' in _src
       and "_bk_gate.evaluate(" in _src[_src.index("def crown_cycle("):

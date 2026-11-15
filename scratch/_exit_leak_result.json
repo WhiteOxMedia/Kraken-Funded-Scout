@@ -1,0 +1,132 @@
+{
+ "trades": 2375,
+ "days": 45,
+ "booked_usd": -2182.82,
+ "held_usd": -2207.1,
+ "leak_usd": 24.28,
+ "by_reason": {
+  "exit watch (trend reversal)": {
+   "n": 1830,
+   "booked_pct": -0.154,
+   "held_pct": -0.155,
+   "leak_pct": 0.001,
+   "leak_usd": -68.91,
+   "booked_usd": -1758.62,
+   "hit": 36.5,
+   "mfe_capture": 0.0
+  },
+  "no reason recorded": {
+   "n": 17,
+   "booked_pct": 1.051,
+   "held_pct": 1.114,
+   "leak_pct": -0.063,
+   "leak_usd": -27.49,
+   "booked_usd": 80.68,
+   "hit": 94.1,
+   "mfe_capture": 0.0
+  },
+  "trend bar broke": {
+   "n": 210,
+   "booked_pct": 0.043,
+   "held_pct": 0.052,
+   "leak_pct": -0.009,
+   "leak_usd": -26.26,
+   "booked_usd": 110.82,
+   "hit": 42.4,
+   "mfe_capture": 0.0
+  },
+  "other: watch lost this row \u2014 unse": {
+   "n": 1,
+   "booked_pct": -0.989,
+   "held_pct": -1.235,
+   "leak_pct": 0.245,
+   "leak_usd": 0.22,
+   "booked_usd": -0.89,
+   "hit": 0.0,
+   "mfe_capture": 0.0
+  },
+  "take profit": {
+   "n": 1,
+   "booked_pct": 1.765,
+   "held_pct": 1.655,
+   "leak_pct": 0.109,
+   "leak_usd": 1.17,
+   "booked_usd": 18.84,
+   "hit": 100.0,
+   "mfe_capture": 0.0
+  },
+  "climax candle": {
+   "n": 20,
+   "booked_pct": 0.225,
+   "held_pct": 0.263,
+   "leak_pct": -0.039,
+   "leak_usd": 4.34,
+   "booked_usd": 47.63,
+   "hit": 40.0,
+   "mfe_capture": 0.0
+  },
+  "hard stop": {
+   "n": 13,
+   "booked_pct": -1.757,
+   "held_pct": -1.667,
+   "leak_pct": -0.091,
+   "leak_usd": 6.12,
+   "booked_usd": -229.01,
+   "hit": 0.0,
+   "mfe_capture": 0.0
+  },
+  "profit guard (trail)": {
+   "n": 283,
+   "booked_pct": 0.039,
+   "held_pct": -0.122,
+   "leak_pct": 0.161,
+   "leak_usd": 135.1,
+   "booked_usd": -452.27,
+   "hit": 60.1,
+   "mfe_capture": 0.0
+  }
+ },
+ "by_band": {
+  "60-180m": {
+   "n": 315,
+   "booked_pct": -0.254,
+   "held_pct": -0.255,
+   "leak_pct": 0.001,
+   "leak_usd": -64.13,
+   "booked_usd": -1135.59,
+   "hit": 39.4,
+   "mfe_capture": 0.0
+  },
+  "<15m": {
+   "n": 233,
+   "booked_pct": -0.146,
+   "held_pct": -0.129,
+   "leak_pct": -0.017,
+   "leak_usd": -57.51,
+   "booked_usd": -125.68,
+   "hit": 28.8,
+   "mfe_capture": 0.0
+  },
+  "15-60m": {
+   "n": 1687,
+   "booked_pct": -0.101,
+   "held_pct": -0.12,
+   "leak_pct": 0.018,
+   "leak_usd": 65.3,
+   "booked_usd": -1179.92,
+   "hit": 40.0,
+   "mfe_capture": 0.0
+  },
+  ">=180m": {
+   "n": 140,
+   "booked_pct": 0.163,
+   "held_pct": 0.054,
+   "leak_pct": 0.109,
+   "leak_usd": 80.61,
+   "booked_usd": 258.37,
+   "hit": 61.4,
+   "mfe_capture": 0.0
+  }
+ },
+ "biggest_leak": "exit watch (trend reversal)"
+}
