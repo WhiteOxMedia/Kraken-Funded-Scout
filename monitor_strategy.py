@@ -44,6 +44,8 @@ import argparse
 import datetime as dt
 import json
 import math
+import os
+import time
 import random
 import statistics
 from pathlib import Path
@@ -168,16 +170,36 @@ def _cohort_key(since: str, strategy_v: int) -> str:
 
 
 def load_looks() -> dict:
+    """Missing means no looks yet. Corrupt does NOT mean missing."""
+    if not LOOKS_FILE.exists():
+        return {}
     try:
         doc = json.loads(LOOKS_FILE.read_text(encoding="utf-8"))
-        return doc if isinstance(doc, dict) else {}
-    except (OSError, ValueError):
-        return {}
+    except (OSError, ValueError) as exc:
+        raise SystemExit("look record %s is unreadable (%s) — refusing to take a look; "
+                         "repair it, or delete it deliberately and say so"
+                         % (LOOKS_FILE.name, exc))
+    if not isinstance(doc, dict):
+        raise SystemExit("look record %s is not an object — refusing to take a look"
+                         % LOOKS_FILE.name)
+    return doc
+
+
+def _take_lock():
+    lock = LOOKS_FILE.with_suffix(".lock")
+    for _ in range(40):
+        try:
+            fd = os.open(lock, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+            os.close(fd)
+            return lock
+        except FileExistsError:
+            time.sleep(0.05)
+    raise SystemExit("could not lock %s — another monitor run holds it" % lock.name)
 
 
 def save_looks(doc: dict) -> None:
     tmp = LOOKS_FILE.with_suffix(".json.tmp")
-    tmp.write_text(json.dumps(doc, indent=2, default=str), encoding="utf-8")
+    tmp.write_text(json.dumps(doc, indent=2, allow_nan=False, default=str), encoding="utf-8")
     tmp.replace(LOOKS_FILE)
 
 
@@ -190,7 +212,20 @@ def _num(v):
 
 
 def record_look(key: str, which: str, st: dict, lines: list[str]) -> None:
+    lock = _take_lock()
+    try:
+        _record_look_locked(key, which, st, lines)
+    finally:
+        try:
+            lock.unlink()
+        except OSError:
+            pass
+
+
+def _record_look_locked(key: str, which: str, st: dict, lines: list[str]) -> None:
     doc = load_looks()
+    if which in doc.get(key, {}):
+        return  # someone else recorded it first; the first one stands
     doc.setdefault(key, {})[which] = {
         "at": dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds"),
         "n": st.get("n"), "mean": st.get("mean"), "z": st.get("z"),
@@ -209,8 +244,11 @@ def look_of(n: int) -> str:
     return "FINAL LOOK (bar |z| >= %.2f)" % Z_FINAL
 
 
-def verdict(st: dict, balance: float, interim: bool = False) -> list[str]:
+def verdict(st: dict, balance: float, interim: bool = False,
+            decide: bool = True) -> list[str]:
     out: list[str] = []
+    if not decide:
+        return ["no new decision — the final look is on record (replayed above)"]
     n = st["n"]
     if n == 0:
         return ["no closes in this cohort yet — nothing to read"]
@@ -234,7 +272,11 @@ def verdict(st: dict, balance: float, interim: bool = False) -> list[str]:
     elif st["z"] < 0:
         out.append("look is NEGATIVE beyond the bar (|z| %.2f) — the program is losing, not noise" % st["z"])
     else:
-        out.append("look is POSITIVE beyond the bar (|z| %.2f) — continue to the next look" % st["z"])
+        if n >= N_FINAL:
+            out.append("final look is POSITIVE beyond the bar (|z| %.2f)" % st["z"])
+        else:
+            out.append("interim look is POSITIVE beyond the bar (|z| %.2f) — the test is "
+                       "unchanged until the final" % st["z"])
     if n >= N_FINAL and st["z"] < Z_FINAL:
         out.append("KILL — final z %.2f < %.2f: the pre-registered test failed"
                    % (st["z"], Z_FINAL))
@@ -254,7 +296,7 @@ def verdict(st: dict, balance: float, interim: bool = False) -> list[str]:
 
 
 def report(label: str, rows: list[dict], balance: float, interim: bool = False,
-          quiet: bool = False) -> dict:
+          quiet: bool = False, decide: bool = True) -> dict:
     vals = [_f(r.get("pnl_net")) for r in rows]
     st = stats(vals, rows)
     def say(text=""):
@@ -264,7 +306,7 @@ def report(label: str, rows: list[dict], balance: float, interim: bool = False,
     say(f"\n=== {label} ===")
     if st["n"] == 0:
         say("  n=0 — no closes in this cohort yet")
-        for line in verdict(st, balance, interim):
+        for line in verdict(st, balance, interim, decide):
             say("  " + line)
         return st
     n = st["n"]
@@ -284,7 +326,7 @@ def report(label: str, rows: list[dict], balance: float, interim: bool = False,
         say(f"  top pair        {st['top_pair']} ${st['top_pair_net']:+.2f} = n/a (net <= 0)")
     mde = (1.96 * st["sd"] / math.sqrt(n)) if n > 1 else 0.0
     say(f"  pairs           {st['pairs']}   smallest detectable effect ~${mde:.2f}/trade at this n")
-    lines = verdict(st, balance, interim)
+    lines = verdict(st, balance, interim, decide)
     for line in lines:
         say("  " + line)
     st = dict(st)
@@ -343,8 +385,19 @@ def main(argv=None) -> int:
         else:
             do_interim = True
 
+    decide_test = True
+    if n_test >= N_FINAL and "final" in looks:
+        rec = looks["final"]
+        decide_test = False
+        if not q:
+            print("\n=== TEST — the final look was already taken ===")
+            print(f"  taken {rec.get('at')} at n={rec.get('n')}  mean ${_f(rec.get('mean')):+.2f}  z {_f(rec.get('z')):+.2f}")
+            for line in rec.get("verdict") or ():
+                print("  " + line)
+            print("  the verdict is fixed; newer closes are descriptive only")
+
     st_test = report(f"TEST — strategy_v={a.strategy_v} and the strategy's cuts (judged)",
-                     test, balance, do_interim, q)
+                     test, balance, do_interim, q, decide_test)
     if n_test and not q:
         pass
     if n_test >= N_INTERIM:

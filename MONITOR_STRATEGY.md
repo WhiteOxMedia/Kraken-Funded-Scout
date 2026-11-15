@@ -17,7 +17,11 @@ with the look schedule pre-committed so a good run at 30 closes cannot end it.
 Looks are **recorded**. `--interim` writes the look to `monitor_strategy_looks.json`
 (`since` + `strategy_v` → `{at, n, mean, z, net, ci, verdict}`); a second
 `--interim` on the same cohort prints that record instead of a new verdict, so
-the registered alpha cannot be spent twice. Delete the file only to discard a
+the registered alpha cannot be spent twice. The final is recorded the same way:
+from n = 170 the first run fixes the verdict, and later runs replay it — closes
+that arrive after the final are descriptive, not a second test. A corrupt record
+is an error, not an empty one: the script refuses to take a look rather than
+treat a spent look as unspent. Delete the file only to discard a
 look, and then say so — a discarded look is still a look.
 
 The script **refuses to render an edge verdict off-schedule**: before n = 85 it
