@@ -115,6 +115,31 @@ selection side.
 
 ### The fire path, proven on live data without an order (`scratch/fire_probe.py`)
 
+**Multi-candidate record (v2, 05:22 MST).** The probe walks the live book
+(`cfg.trading_pairs`, 54 pairs) and the ranking now records every priceable
+candidate it read — not only the buys — marking which ones could actually be
+crowned. KAITO/USD row:
+
+```json
+"buy_low_rank": {"v": 2, "flag": "buy_low_rank", "on": false, "applied": false,
+ "would": "hold", "pool": 2, "eligible": 2,
+ "compared": [
+  {"pair": "KAITO/USD", "cheap": 0.6448, "conf": 33.1, "src": "hour+day", "action": "buy",  "eligible": true},
+  {"pair": "CRV/USD",   "cheap": 0.6174, "conf": 32.7, "src": "hour+day", "action": "buy",  "eligible": true},
+  {"pair": "TRX/USD",   "cheap": 0.229,  "conf": 55.6, "src": "hour+day", "action": "sell", "eligible": false},
+  {"pair": "SOL/USD",   "cheap": 0.2075, "conf": 39.5, "src": "hour+day", "action": "sell", "eligible": false},
+  {"pair": "POL/USD",   "cheap": 0.1801, "conf": 39.6, "src": "hour+day", "action": "hold", "eligible": false},
+  {"pair": "PNUT/USD",  "cheap": 0.172,  "conf": 39.5, "src": "hour+day", "action": "hold", "eligible": false}],
+ "champion": {"pair": "KAITO/USD", "cheap": 0.6448, "src": "hour+day"},
+ "cheapest": {"pair": "KAITO/USD", "cheap": 0.6448, "src": "hour+day"},
+ "gain_cheap": 0.0, "min_gain": 0.15, "would_change": false}
+```
+
+The champion was already the cheapest eligible buy (CRV is 0.027 more extended),
+so the explicit verdict is **hold — the bracket would not change**, stated on the
+record itself rather than left to inference.
+
+
 The probe drives the loop's own `deep_crown_pool()` and then the loop's own
 `auto_track_popup()` — the same two functions a live fire calls — against the
 current Kraken read, with the watch file pointed at `scratch/_probe_watch.json`.

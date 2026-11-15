@@ -31,7 +31,7 @@ cap as its `cap_usd` — this ranking never prices capacity.
 from __future__ import annotations
 
 # Bump when the record's shape or meaning changes.
-BUY_LOW_STAMP_VERSION = 1
+BUY_LOW_STAMP_VERSION = 2
 
 # "As good a signal": confidence may be this many points under the champion's.
 BUY_LOW_CONF_WINDOW = 10.0
@@ -98,17 +98,21 @@ def verdict(champion, results, flag_on: bool, *,
            "on": bool(flag_on), "would": "insufficient", "applied": False,
            "pool": 0, "compared": []}
     try:
-        pool = []
+        pool = []          # eligible: a buy with a measurement
+        _others = []       # read, priceable, but not eligible to be crowned
         items = results.values() if hasattr(results, "values") else results
         for r in items:
             sig = getattr(r, "signal", None)
-            if sig is None or getattr(sig, "action", "") != "buy":
+            if sig is None:
                 continue
             cs = cheapness(getattr(r, "spend", None),
                            getattr(r, "entry_quality", None))
             if cs is None:
                 continue
-            pool.append((r, cs))
+            if getattr(sig, "action", "") == "buy":
+                pool.append((r, cs))
+            else:
+                _others.append((r, cs))
         out["pool"] = len(pool)
 
         ch_cs = cheapness(getattr(champion, "spend", None),
@@ -128,19 +132,43 @@ def verdict(champion, results, flag_on: bool, *,
                  >= conf - float(window)]
         if not cands:
             cands = [(champion, ch_cs)]
-        # what it compared, so the record can be audited without the bracket
-        out["compared"] = [
-            {"pair": getattr(r, "pair", ""),
-             "cheap": cs["cheap"],
-             "conf": _num(getattr(r.signal, "confidence", None)),
-             "src": cs["src"]}
-            for (r, cs) in sorted(cands, key=lambda t: -t[1]["cheap"])[:5]
-        ]
+        # WHAT IT COMPARED (Nov 15): the priceable set the deep read produced —
+        # every candidate with a cheapness, whatever its action — so a night
+        # with a single eligible buy still yields a real comparison instead of
+        # a one-item list. `eligible` marks the ones that could actually be
+        # crowned, and the DECISION below still only ever prefers those.
+        _seen = []
+        for _r, _cs in pool:
+            _seen.append({"pair": getattr(_r, "pair", ""),
+                          "cheap": _cs["cheap"],
+                          "conf": _num(getattr(_r.signal, "confidence", None)),
+                          "src": _cs["src"],
+                          "action": getattr(_r.signal, "action", None),
+                          "eligible": True})
+        for _r, _cs in _others:
+            _seen.append({"pair": getattr(_r, "pair", ""),
+                          "cheap": _cs["cheap"],
+                          "conf": _num(getattr(_r.signal, "confidence", None)),
+                          "src": _cs["src"],
+                          "action": getattr(_r.signal, "action", None),
+                          "eligible": False})
+        out["compared"] = sorted(_seen, key=lambda x: -x["cheap"])[:6]
+        out["eligible"] = len(pool)
         best_r, best_cs = max(
             cands, key=lambda t: (round(t[1]["cheap"], 6),
                                   _num(getattr(t[0].signal, "confidence", None)) or 0.0))
         gain = round(best_cs["cheap"] - ch_cs["cheap"], 4)
-        if best_r is champion or gain < float(min_gain):
+        # THE PREFERENCE IS ALWAYS STATED (Nov 15): a "hold" that does not say
+        # which coin it would rather own, by how much, and against which
+        # threshold is an opinion, not a record. These fields are additive;
+        # `would`/`applied` still decide everything the flag ever acts on.
+        out["cheapest"] = {"pair": getattr(best_r, "pair", ""),
+                           "cheap": best_cs["cheap"], "src": best_cs["src"]}
+        out["gain_cheap"] = gain
+        out["min_gain"] = round(float(min_gain), 4)
+        out["would_change"] = bool(best_r is not champion
+                                   and gain >= float(min_gain))
+        if not out["would_change"]:
             out["would"] = "hold"
             return out
         out.update({"would": "prefer",

@@ -860,7 +860,11 @@ def deep_crown_pool(exchange, results, all_data, cfg, best_pair, best_signal,
         _buys = [t for t in _all if t[2].action == "buy"]
         _all.sort(key=lambda t: t[0])
         _buys.sort(key=lambda t: t[0])
-        pool = _buys[-6:] if _buys else _all[-6:]
+        # The crown can only be a buy, but the buy-low record has to show a
+        # real comparison even on a night with one buy: read the near-buy top of
+        # the book beside it (marked ineligible in the record, never preferred).
+        _others = [t for t in _all if t[2].action != "buy"][-4:]
+        pool = (_buys[-6:] if _buys else []) + _others
         for _conf, p, s in pool:             # the crown pool + margin
             r = _ScanR(pair=p, signal=s)
             df = all_data.get(p)
@@ -870,19 +874,25 @@ def deep_crown_pool(exchange, results, all_data, cfg, best_pair, best_signal,
                 r.entry_quality = None
             r.spend = _spend_mod.deep_scan(exchange, p, cfg)
             cands[p] = r
-        has_buy = any(r.signal.action == "buy" for r in cands.values())
+        _eligible = [r for r in cands.values() if r.signal.action == "buy"]
+        has_buy = bool(_eligible)
         if cands and has_buy:
-            top = max(cands.values(), key=lambda r: r.signal.confidence)
+            # THE CROWN IS A BUY (Nov 15): the read now also covers the loudest
+            # non-buys so the buy-low record has a real comparison set, and a
+            # sell at 59% must not be crowned by `max(confidence)` over the
+            # whole pool — that crowned a sell and then ran the rankings with
+            # it as champion.
+            top = max(_eligible, key=lambda r: r.signal.confidence)
             top, ranks["timing"] = _entry_timing_apply(top, cands, cfg)
             top, ranks["spend"] = _spend_mod.apply(top, cands, cfg)
             top, ranks["buylow"] = _buy_low_mod.apply(top, cands, cfg)
             _cheap = _buy_low_mod.cheapness(top.spend, top.entry_quality) or {}
             logger.info(
-                "  DEEP PASS: %d buy candidate(s) read deep "
+                "  DEEP PASS: %d read deep, %d eligible buy(s) "
                 "(best %s %.0f%%, min_conf %d, %s bars, src=%s) — "
                 "timing=%s spend=%s buylow=%s, cheap %.2f (%s) vs %s",
-                len(cands), top.pair.split("/")[0], top.signal.confidence,
-                min_conf, (top.spend or {}).get("bars"),
+                len(cands), len(_eligible), top.pair.split("/")[0],
+                top.signal.confidence, min_conf, (top.spend or {}).get("bars"),
                 ",".join((top.spend or {}).get("src") or []),
                 ranks["timing"].get("would"), ranks["spend"].get("would"),
                 ranks["buylow"].get("would"),

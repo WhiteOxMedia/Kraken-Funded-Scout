@@ -96,6 +96,19 @@ check("3.7 a 0.05 edge is not a different entry",
       bl.verdict(result("S/USD", 60.0, 0.50),
                  {"S/USD": result("S/USD", 60.0, 0.50),
                   "T/USD": result("T/USD", 60.0, 0.45)}, True)["would"] == "hold")
+_hold = bl.verdict(result("S/USD", 60.0, 0.50),
+                   {"S/USD": result("S/USD", 60.0, 0.50),
+                    "T/USD": result("T/USD", 60.0, 0.45)}, True)
+check("3.8 even a hold names the coin it would rather own, the margin and the bar",
+      (_hold.get("cheapest") or {}).get("pair") == "T/USD"
+      and abs((_hold.get("gain_cheap") or 0) - 0.05) < 1e-6
+      and _hold.get("min_gain") == bl.BUY_LOW_MIN_GAIN
+      and _hold.get("would_change") is False, _hold)
+_pref = bl.verdict(ext, pool, True)
+check("3.9 a real preference says would_change, with from/to and the gain",
+      _pref.get("would_change") is True and _pref.get("to") == "LOW/USD"
+      and _pref.get("gain_cheap") == round(_pref["to_cheap"] - _pref["from_cheap"], 4)
+      and (_pref.get("cheapest") or {}).get("pair") == _pref.get("to"), _pref)
 
 print("== 4. apply()")
 check("4.1 flag off returns the same champion",
@@ -229,8 +242,10 @@ _bp, _bsig, _cands, _ranks = bs.deep_crown_pool(
     _DeadEx(), _res, {}, config.TradingConfig(), None, None, 50)
 check("8.1 the only buy candidate is read even under seven louder holds",
       "Q/USD" in _cands and len(_cands) <= 6, sorted(_cands))
-check("8.2 the loudest holds do not crowd the pool",
-      "H6/USD" not in _cands or len(_cands) == 6, sorted(_cands))
+check("8.2 the buy rides with the four loudest non-buys (the comparison set), "
+      "and the far tail is not read",
+      {"Q/USD", "H3/USD", "H4/USD", "H5/USD", "H6/USD"} <= set(_cands)
+      and not ({"H0/USD", "H1/USD"} & set(_cands)), sorted(_cands))
 
 _res2 = {"BUY/USD": sc.Signal(action="buy", confidence=70, price=1.0, reasons=["r"]),
          "HOLD/USD": sc.Signal(action="hold", confidence=72, price=1.0, reasons=["r"])}

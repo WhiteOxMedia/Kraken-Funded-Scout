@@ -21,19 +21,15 @@ os.chdir(ROOT)
 import ccxt  # noqa: E402
 
 import background_scanner as bs      # noqa: E402
+import buy_low                       # noqa: E402
 import config                        # noqa: E402
 import strategy                      # noqa: E402
 
 PROBE_WATCH = ROOT / "scratch" / "_probe_watch.json"
-# the liquid book the live full scan walks — wide enough that a real BUY is
-# actually in the bracket on a given night (a market-wide dump can leave the
-# top six by confidence all sells; the pool fix reads the buy set first)
-PAIRS = ["BTC/USD", "ETH/USD", "SOL/USD", "XRP/USD", "ADA/USD", "LINK/USD",
-         "ZEC/USD", "SUI/USD", "AAVE/USD", "HYPE/USD", "DOGE/USD", "AVAX/USD",
-         "DOT/USD", "ATOM/USD", "NEAR/USD", "INJ/USD", "ARB/USD", "OP/USD",
-         "CRV/USD", "UNI/USD", "WIF/USD", "JUP/USD", "WLD/USD", "GRASS/USD",
-         "ASTER/USD", "BNB/USD", "BCH/USD", "TRX/USD", "ALGO/USD", "POL/USD",
-         "KAITO/USD"]
+# THE LIVE BOOK ITSELF: the same pair list the running loop's full scan walks,
+# so the pool and every comparison in the record is made of the coins the live
+# bracket actually evaluated. No synthetic candidates, no hand-picked pairs.
+PAIRS = None            # filled from config.TradingConfig().trading_pairs
 
 
 def main() -> int:
@@ -54,7 +50,9 @@ def main() -> int:
         print("balance read failed:", exc)
 
     # ── the bracket exactly as the full scan builds it ──────────────────
-    all_data = bs.fetch_ohlcv_parallel(exchange, PAIRS, max_workers=8)
+    PAIRS = list(cfg.trading_pairs)      # the running loop's own full-scan book
+    print(f"live book: {len(PAIRS)} pairs")
+    all_data = bs.fetch_ohlcv_parallel(exchange, PAIRS, max_workers=10)
     print(f"fetched {len(all_data)}/{len(PAIRS)} pairs")
     strategy.disable_deep_analysis()
     results = {}
@@ -159,13 +157,22 @@ def main() -> int:
     chk("row carries the buy-low shadow record, flag OFF and nothing applied",
         blr.get("on") is False and blr.get("applied") is False,
         (blr.get("on"), blr.get("applied")))
-    chk("it names the candidates it compared",
-        isinstance(blr.get("compared"), list) and len(blr["compared"]) >= 1,
-        [c.get("pair") for c in (blr.get("compared") or [])])
-    chk("it states its preference and whether the bracket would change",
-        blr.get("would") in ("hold", "prefer", "insufficient", "no_read")
-        and "to" in blr or blr.get("would") == "hold",
-        {k: blr.get(k) for k in ("would", "to", "from", "gain", "gain_cheap")})
+    _cmp = blr.get("compared") or []
+    chk("it names TWO OR MORE real candidates it compared",
+        isinstance(_cmp, list) and len(_cmp) >= 2,
+        [(c.get("pair"), c.get("cheap"), c.get("conf"), c.get("src")) for c in _cmp])
+    chk("every compared candidate carries pair/cheap/conf/src",
+        all(c.get("pair") and c.get("cheap") is not None
+            and c.get("conf") is not None and c.get("src") for c in _cmp),
+        _cmp)
+    chk("it states its preference, the margin and the threshold",
+        (blr.get("cheapest") or {}).get("pair") and blr.get("gain_cheap") is not None
+        and blr.get("min_gain") is not None,
+        {k: blr.get(k) for k in ("cheapest", "gain_cheap", "min_gain")})
+    chk("it states explicitly whether the bracket would change",
+        isinstance(blr.get("would_change"), bool)
+        and blr.get("would") in ("prefer" if blr["would_change"] else "hold", "hold"),
+        {k: blr.get(k) for k in ("would", "would_change", "to", "gain")})
     chk("spend_rank is recorded too, and off",
         (row.get("spend_rank") or {}).get("on") is False,
         (row.get("spend_rank") or {}).get("would"))
@@ -173,7 +180,7 @@ def main() -> int:
     chk("the journal's one writer carries all of it",
         fam.get("buy_low") is not None and fam.get("buy_low_rank") is not None
         and fam.get("spend_capacity") is not None
-        and fam.get("buy_low_v") == 1,
+        and fam.get("buy_low_v") == buy_low.BUY_LOW_STAMP_VERSION,
         (fam.get("buy_low_v"), fam.get("spend_v")))
 
     bal_after = None
