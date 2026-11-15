@@ -100,10 +100,18 @@ def shape_ok(r: dict) -> bool:
 
 
 def cohorts(rows: list[dict], since: str, strategy_v: int) -> tuple[list, list]:
+    """TEST = generation stamp AND the strategy's cuts.
+
+    `strategy_v` alone does NOT identify this strategy: the close writers stamp
+    STRATEGY_VERSION on every fire (family_fields falls back to the constant),
+    so it marks which rule generation wrote the row, not which strategy fired.
+    Counting it alone would pour every ordinary fire into the judged cohort.
+    """
     test = [r for r in rows
             if r.get("strategy_v") is not None
             and int(_f(r.get("strategy_v"), -1)) == strategy_v
-            and str(r.get("sold_at") or "")[:10] >= since]
+            and str(r.get("sold_at") or "")[:10] >= since
+            and shape_ok(r)]
     hist = [r for r in rows
             if r not in test
             and str(r.get("sold_at") or "")[:10] >= since
@@ -161,7 +169,7 @@ def look_of(n: int) -> str:
     return "FINAL LOOK (bar |z| >= %.2f)" % Z_FINAL
 
 
-def verdict(st: dict, balance: float) -> list[str]:
+def verdict(st: dict, balance: float, interim: bool = False) -> list[str]:
     out: list[str] = []
     n = st["n"]
     if n == 0:
@@ -173,6 +181,13 @@ def verdict(st: dict, balance: float) -> list[str]:
     if n < N_INTERIM:
         out.append("verdict withheld: the pre-registration allows no look before n = %d" % N_INTERIM)
         return out
+    if n < N_FINAL and not interim:
+        # THE SCHEDULE IS THE TEST. Reading the numbers at n=120 and again at
+        # n=150 and stopping when they look good is the trap this monitor
+        # exists to close. One interim look, then the final; nothing between.
+        out.append("report only — no decision off-schedule. Pass --interim ONCE, "
+                   "at the first read past n=%d, to consume the registered look" % N_INTERIM)
+        return out
     bar = Z_INTERIM if n < N_FINAL else Z_FINAL
     if abs(st["z"]) < bar:
         out.append("no decision — |z| %.2f below the %.2f bar at this look" % (st["z"], bar))
@@ -180,6 +195,10 @@ def verdict(st: dict, balance: float) -> list[str]:
         out.append("look is NEGATIVE beyond the bar (|z| %.2f) — the program is losing, not noise" % st["z"])
     else:
         out.append("look is POSITIVE beyond the bar (|z| %.2f) — continue to the next look" % st["z"])
+    if n >= N_FINAL and st["z"] < Z_FINAL:
+        out.append("KILL — final z %.2f < %.2f: the pre-registered test failed"
+                   % (st["z"], Z_FINAL))
+        return out
     if n >= N_FINAL:
         checks = {
             "edge exists (lower 95% bound > 0)": st["ci"][0] > 0,
@@ -194,34 +213,42 @@ def verdict(st: dict, balance: float) -> list[str]:
     return out
 
 
-def report(label: str, rows: list[dict], balance: float) -> dict:
+def report(label: str, rows: list[dict], balance: float, interim: bool = False,
+          quiet: bool = False) -> dict:
     vals = [_f(r.get("pnl_net")) for r in rows]
     st = stats(vals, rows)
-    print(f"\n=== {label} ===")
+    def say(text=""):
+        if not quiet:
+            print(text)
+
+    say(f"\n=== {label} ===")
     if st["n"] == 0:
-        print("  n=0 — no closes in this cohort yet")
-        for line in verdict(st, balance):
-            print("  " + line)
+        say("  n=0 — no closes in this cohort yet")
+        for line in verdict(st, balance, interim):
+            say("  " + line)
         return st
     n = st["n"]
-    print(f"  {look_of(n)}   n={n}   progress {min(n, N_FINAL)}/{N_FINAL}")
-    print(f"  mean            ${st['mean']:+.2f}/trade   95% bootstrap CI "
-          f"[${st['ci'][0]:+.2f}, ${st['ci'][1]:+.2f}]")
-    print(f"  t (z) vs zero   {st['z']:+.2f}          sd ${st['sd']:.2f}   se ${st['se']:.2f}")
-    print(f"  win rate        {st['win']:.0f}%           net ${st['net']:+.2f}")
+    say(f"  {look_of(n)}   n={n}   progress {min(n, N_FINAL)}/{N_FINAL}")
+    say(f"  mean            ${st['mean']:+.2f}/trade   95% bootstrap CI "
+        f"[${st['ci'][0]:+.2f}, ${st['ci'][1]:+.2f}]")
+    say(f"  t (z) vs zero   {st['z']:+.2f}          sd ${st['sd']:.2f}   se ${st['se']:.2f}")
+    say(f"  win rate        {st['win']:.0f}%           net ${st['net']:+.2f}")
     if st["ex3_n"]:
-        print(f"  exp excl top 3  ${st['ex3_mean']:+.2f}/trade   (n={st['ex3_n']})")
+        say(f"  exp excl top 3  ${st['ex3_mean']:+.2f}/trade   (n={st['ex3_n']})")
     else:
-        print("  exp excl top 3  n/a (fewer than 4 closes)")
+        say("  exp excl top 3  n/a (fewer than 4 closes)")
     if st["top_share"] == st["top_share"]:
-        print(f"  top pair        {st['top_pair']} ${st['top_pair_net']:+.2f} = "
-              f"{100*st['top_share']:.0f}% of net")
+        say(f"  top pair        {st['top_pair']} ${st['top_pair_net']:+.2f} = "
+            f"{100*st['top_share']:.0f}% of net")
     else:
-        print(f"  top pair        {st['top_pair']} ${st['top_pair_net']:+.2f} = n/a (net <= 0)")
+        say(f"  top pair        {st['top_pair']} ${st['top_pair_net']:+.2f} = n/a (net <= 0)")
     mde = (1.96 * st["sd"] / math.sqrt(n)) if n > 1 else 0.0
-    print(f"  pairs           {st['pairs']}   smallest detectable effect ~${mde:.2f}/trade at this n")
-    for line in verdict(st, balance):
-        print("  " + line)
+    say(f"  pairs           {st['pairs']}   smallest detectable effect ~${mde:.2f}/trade at this n")
+    lines = verdict(st, balance, interim)
+    for line in lines:
+        say("  " + line)
+    st = dict(st)
+    st["verdict"] = lines
     return st
 
 
@@ -233,6 +260,8 @@ def main(argv=None) -> int:
     ap.add_argument("--balance", type=float, default=None,
                     help="balance the -4%% kill is measured against")
     ap.add_argument("--json", action="store_true")
+    ap.add_argument("--interim", action="store_true",
+                    help="consume the ONE registered interim look (first read past n=85)")
     a = ap.parse_args(argv)
 
     balance = a.balance
@@ -246,19 +275,24 @@ def main(argv=None) -> int:
 
     rows = load(Path(a.trades))
     test, hist = cohorts(rows, a.since, a.strategy_v)
-    print("PRE-REGISTERED STRATEGY MONITOR — STRATEGY_MVP.md §4")
-    print(f"ledger: {a.trades}   closes: {len(rows)}   since: {a.since}")
-    print(f"design: N={N_FINAL}, interim n={N_INTERIM}, alpha=0.05 two-sided, "
-          f"|z|>={Z_INTERIM} interim / >={Z_FINAL} final, kill at -{KILL_FRAC:.0%} of ${balance:,.0f}")
-    st_test = report(f"TEST — closes stamped strategy_v={a.strategy_v} (the judged cohort)",
-                     test, balance)
+    q = a.json
+    if not q:
+        print("PRE-REGISTERED STRATEGY MONITOR — STRATEGY_MVP.md §4")
+        print(f"ledger: {a.trades}   closes: {len(rows)}   since: {a.since}")
+        print(f"design: N={N_FINAL}, interim n={N_INTERIM}, alpha=0.05 two-sided, "
+              f"|z|>={Z_INTERIM} interim / >={Z_FINAL} final, kill at -{KILL_FRAC:.0%} of ${balance:,.0f}")
+        print("cohort: strategy_v stamp AND the strategy's cuts — the stamp alone is a"
+              " rule-generation marker, not a cohort selector")
+    st_test = report(f"TEST — strategy_v={a.strategy_v} and the strategy's cuts (judged)",
+                     test, balance, a.interim, q)
     st_hist = report("HISTORY — pre-coding closes that match the strategy's shape (NOT the test)",
-                     hist, balance)
+                     hist, balance, a.interim, q)
     if a.json:
-        print("\n" + json.dumps({"test": {k: (list(v) if isinstance(v, tuple) else v)
-                                          for k, v in st_test.items()},
-                                 "history": {k: (list(v) if isinstance(v, tuple) else v)
-                                             for k, v in st_hist.items()}}, indent=2, default=str))
+        def clean(st):
+            return {k: (list(v) if isinstance(v, tuple) else v) for k, v in st.items()}
+        print(json.dumps({"test": clean(st_test), "history": clean(st_hist),
+                          "interim_flag": a.interim, "since": a.since,
+                          "ledger": a.trades}, indent=2, default=str))
     return 0
 
 
