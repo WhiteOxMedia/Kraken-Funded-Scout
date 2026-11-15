@@ -1,0 +1,106 @@
+{
+ "cohort": "EXIT WATCH trend-reversal",
+ "trades": 1778,
+ "fit": {
+  "shipped": {
+   "n": 1066,
+   "booked_pct": -0.1659,
+   "usd": -955.67,
+   "hit": 35.7,
+   "mae": -0.4744,
+   "p1": -2.123,
+   "p5": -1.305,
+   "per_trade": -0.897
+  },
+  "hold180": {
+   "n": 1066,
+   "booked_pct": -0.1539,
+   "usd": -7.7,
+   "hit": 39.6,
+   "mae": -1.4811,
+   "p1": -4.729,
+   "p5": -2.9,
+   "per_trade": -0.007
+  },
+  "stop180": {
+   "n": 1066,
+   "booked_pct": -0.2373,
+   "usd": -111.14,
+   "hit": 38.4,
+   "mae": -1.4059,
+   "p1": -3.083,
+   "p5": -3.08,
+   "per_trade": -0.104
+  },
+  "trail180": {
+   "n": 1066,
+   "booked_pct": -0.2418,
+   "usd": -106.96,
+   "hit": 37.9,
+   "mae": -1.3224,
+   "p1": -3.083,
+   "p5": -3.08,
+   "per_trade": -0.1
+  }
+ },
+ "holdout": {
+  "shipped": {
+   "n": 712,
+   "booked_pct": -0.1291,
+   "usd": -773.82,
+   "hit": 38.6,
+   "mae": -0.5147,
+   "p1": -2.286,
+   "p5": -1.359,
+   "per_trade": -1.087
+  },
+  "hold180": {
+   "n": 712,
+   "booked_pct": -0.3137,
+   "usd": -1290.97,
+   "hit": 37.9,
+   "mae": -1.3266,
+   "p1": -5.886,
+   "p5": -2.842,
+   "per_trade": -1.813
+  },
+  "stop180": {
+   "n": 712,
+   "booked_pct": -0.2548,
+   "usd": -1073.77,
+   "hit": 37.6,
+   "mae": -1.2293,
+   "p1": -3.081,
+   "p5": -3.079,
+   "per_trade": -1.508
+  },
+  "trail180": {
+   "n": 712,
+   "booked_pct": -0.2745,
+   "usd": -1064.85,
+   "hit": 35.7,
+   "mae": -1.1533,
+   "p1": -3.081,
+   "p5": -3.079,
+   "per_trade": -1.496
+  }
+ },
+ "verdicts": {
+  "hold180": {
+   "better_per_trade": false,
+   "tail_ok": false,
+   "wins": false
+  },
+  "stop180": {
+   "better_per_trade": false,
+   "tail_ok": false,
+   "wins": false
+  },
+  "trail180": {
+   "better_per_trade": false,
+   "tail_ok": false,
+   "wins": false
+  }
+ },
+ "winners": []
+}
