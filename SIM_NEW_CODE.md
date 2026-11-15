@@ -3,10 +3,13 @@
 **Headline, corrected and out of sample.** With the unmeasured leak closed, today's
 gate books **−$197.27** over Sep 3 – Nov 15 at **45.1%** wins, against **−$1,972.24**
 at 40.8% without it — it avoids the death-line and cuts the worst fire from −$431
-to −$58, but it is **not profitable**. The kept fires lose for one measurable
-reason: **the exit gives back a gain that was there** (winners capture only 42% of
-their peak), not the entry timing — and a +2% take-profit on those fires turns the
-window to ≈break-even, but **November is still −$1.13, so live stays unchanged.**
+to −$58, but it is **not profitable**. The kept fires lose because **the exit gives
+back a gain that was there** (winners capture only 42% of their peak); a +2%
+take-profit turns the window to ≈break-even, but **November is still −$1.13**, so
+live stays unchanged. **The entry side is now closed too:** participation, range
+compression and pullback structure — the axes never tested — separate winners from
+losers no better than price extension did (no feature reaches |d| ≥ 0.5; the
+largest, volume expansion at the fire, is d = −0.21 and points the wrong way).
 
 Only one thing shipped today changes behaviour: the **breakout gate** (`entry_quality`
 ≥ 0.85). The near-miss recorder is shadow-only; the entry and exit studies changed
@@ -94,6 +97,38 @@ statistically zero, not positive. What the split does show is that the improveme
 is real and large relative to the shipped exit: **−$12.48 → −$1.13 on the same
 engine, and −$159.76 → −$1.13 against what was actually booked**, with the drawdown
 falling from $173 (booked) and $32 (sim) to $40. But zero is zero: no live change.
+
+## The entry side is closed — every untested axis is noise
+
+Participation, compression and pullback structure, computed strictly from bars
+before the fill, on the same kept fires (349 with a full pre-entry frame; volume
+exists for 205 of them — the aligned tape carries no spot volume for the alts).
+
+| axis | feature | n (w/l) | winners | losers | diff | 95% CI | d |
+|---|---|---|---|---|---|---|---|
+| participation | volume vs own baseline (last hour) | 85/120 | 2.67× | 3.77× | −1.11 | −2.41…+0.20 | **−0.21** |
+| participation | volume trend 3h vs prior 3h | 85/120 | 2.33× | 2.69× | −0.36 | −1.69…+0.97 | −0.07 |
+| participation | 6h volume vs own 6h baseline | 85/120 | 1.72× | 1.56× | +0.16 | −0.24…+0.55 | +0.11 |
+| participation | 24h volume vs prior 24h | 85/120 | 1.20× | 1.52× | −0.32 | −0.73…+0.08 | −0.20 |
+| compression | 6h range width (%) | 158/191 | 3.39 | 3.29 | +0.10 | −0.20…+0.40 | +0.07 |
+| compression | 6h range / 24h range | 158/191 | 0.59 | 0.56 | +0.03 | −0.01…+0.07 | +0.14 |
+| compression | hours coiled (range < half norm) | 158/191 | 0.55 | 0.62 | −0.07 | −0.28…+0.14 | −0.07 |
+| compression | 6h range vs 48h range | 158/191 | 1.01 | 0.99 | +0.02 | −0.04…+0.08 | +0.07 |
+| structure | dip from 12h high to 3h low (%) | 158/191 | 2.64 | 2.57 | +0.08 | −0.18…+0.33 | +0.06 |
+| structure | fill's recovery within that dip | 158/191 | 0.80 | 0.79 | +0.01 | −0.02…+0.05 | +0.08 |
+| structure | first break of the prior high | 158/191 | 0.27 | 0.32 | −0.06 | −0.16…+0.04 | −0.13 |
+| structure | distinct re-breaks in 6h | 158/191 | 0.96 | 0.85 | +0.11 | −0.01…+0.24 | +0.19 |
+| structure | hours since the 24h high | 158/191 | 6.01 | 5.62 | +0.39 | −1.45…+2.24 | +0.04 |
+
+**Nothing clears a real effect size: `|d| ≥ 0.5` with a CI excluding zero — none do.**
+The largest new-axis effect is volume expansion at the fire (d = −0.21, CI spanning
+zero) and it points the *wrong* way: losers fired on bigger volume expansion (3.77×
+baseline) than winners (2.67×). Coiling, range compression, dip-and-recover
+structure, first-break vs re-break, hours since the high: all |d| ≤ 0.20.
+
+No candidate variant exists on this side, so none was run and **nothing went live**.
+Volume is also only 59% covered on the tape, so even a signal here would have needed
+new data before it could gate anything.
 
 ## The binding constraint, named
 
