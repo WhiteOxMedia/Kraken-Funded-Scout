@@ -6152,7 +6152,12 @@ FAST_STOP_FALLBACK_MAX = int(os.environ.get("FAST_STOP_FALLBACK_MAX") or 8)
 # how often the beat reports its cadence into the log (seconds)
 FAST_STOP_REPORT_S = float(os.environ.get("FAST_STOP_REPORT_S") or 300.0)
 _FAST_STOP_LOCK = threading.Lock()
-_FAST_STOP_CLOCK = {"at": 0.0, "ticks": 0, "breaches": 0, "priced": 0,
+# "beats" counts every swing of the clock, book or no book: an empty book is
+# still a beat, and the cadence proof must not read "0 ticks" just because the
+# account is flat (the live check made exactly that mistake). "ticks" stays the
+# count of ticks that actually had a book to price.
+_FAST_STOP_CLOCK = {"at": 0.0, "ticks": 0, "beats": 0, "book": 0,
+                    "breaches": 0, "priced": 0,
                     "errors": 0, "secs": 0.0, "last": None}
 
 
@@ -6230,8 +6235,12 @@ def _fast_stop_tick(exchange, cfg) -> tuple[list, dict]:
     if not _FAST_STOP_LOCK.acquire(blocking=False):
         return [], {}                 # a sweep is in flight; never overlap
     try:
+        _FAST_STOP_CLOCK["beats"] = int(_FAST_STOP_CLOCK.get("beats") or 0) + 1
+        _FAST_STOP_CLOCK["at"] = time.time()
         try:
             watch = _load_contest_watch() or {}
+            _FAST_STOP_CLOCK["book"] = len([p for p, w in watch.items()
+                                            if isinstance(w, dict)])
         except Exception as exc:
             _FAST_STOP_CLOCK["errors"] += 1
             logger.debug("fast stop: watch unreadable (%s)", exc)
@@ -6246,7 +6255,6 @@ def _fast_stop_tick(exchange, cfg) -> tuple[list, dict]:
             _FAST_STOP_CLOCK["errors"] += 1
             logger.debug("fast stop scan failed (%s) — no action this tick", exc)
             return [], {}
-        _FAST_STOP_CLOCK["at"] = time.time()
         _FAST_STOP_CLOCK["ticks"] = int(_FAST_STOP_CLOCK.get("ticks") or 0) + 1
         _FAST_STOP_CLOCK["priced"] = len(px)
         if not px:
@@ -6303,16 +6311,17 @@ def _fast_stop_watchdog(exchange, cfg, stop: threading.Event):
         if next_at <= time.time():          # the tick overran its own period
             next_at = time.time() + period * 0.1
         # THE BEAT HEARTBEAT: the cadence must be provable from the log of
-        # the LIVE process, not from a replay. The first three ticks speak
+        # the LIVE process, not from a replay. The first three beats speak
         # at once (boot evidence), then once per FAST_STOP_REPORT_S.
-        _ticks_fs = int(_FAST_STOP_CLOCK.get("ticks") or 0)
+        _beats_fs = int(_FAST_STOP_CLOCK.get("beats") or 0)
         _now_fs = time.time()
-        if _ticks_fs <= 3 or _now_fs - _reported >= FAST_STOP_REPORT_S:
+        if _beats_fs <= 3 or _now_fs - _reported >= FAST_STOP_REPORT_S:
             _reported = _now_fs
-            logger.info("\u23f1 FAST STOP beat: %d ticks in %.0fs (%.2fs apart), "
-                        "last tick %.3fs, %d pairs priced, beat %.0fs",
-                        _ticks_fs, _now_fs - _started,
-                        (_now_fs - _started) / _ticks_fs if _ticks_fs else 0.0,
+            logger.info("\u23f1 FAST STOP beat: %d beats in %.0fs (%.2fs apart), "
+                        "book %d pair(s), last tick %.3fs, %d priced, beat %.0fs",
+                        _beats_fs, _now_fs - _started,
+                        (_now_fs - _started) / _beats_fs if _beats_fs else 0.0,
+                        int(_FAST_STOP_CLOCK.get("book") or 0),
                         float(_FAST_STOP_CLOCK.get("secs") or 0.0),
                         int(_FAST_STOP_CLOCK.get("priced") or 0), period)
 

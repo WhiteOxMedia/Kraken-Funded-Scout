@@ -43,8 +43,9 @@ LOCK = SBX / "_scanner_singleton.lock"
 
 # the live pair is observed, never written
 LIVE_PID = Path(ss.SCANNER_PID_FILE)
+LIVE_LOCK = Path(ss.SCANNER_LOCK_FILE)     # captured BEFORE the sandbox rebind
 _live_before = LIVE_PID.read_text(encoding="utf-8").strip() if LIVE_PID.exists() else None
-_live_lock_before = Path(ss.SCANNER_LOCK_FILE).exists()
+_live_lock_before = LIVE_LOCK.exists()
 
 for _f in (PID, LOCK):
     try:
@@ -177,7 +178,7 @@ _live_after = LIVE_PID.read_text(encoding="utf-8").strip() if LIVE_PID.exists() 
 check("7.1 the LIVE .scanner.pid still names the same holder",
       _live_after == _live_before, (_live_before, _live_after))
 check("7.2 the LIVE .scanner.lock existence is unchanged",
-      Path(ss.SCANNER_LOCK_FILE).exists() == _live_lock_before)
+      LIVE_LOCK.exists() == _live_lock_before, (_live_lock_before, LIVE_LOCK.exists()))
 
 print("== 8. the beat proves its own cadence in the log ==")
 import logging
@@ -221,9 +222,43 @@ finally:
 
 _beats = [m for m in _records if "FAST STOP beat" in m]
 check("8.1 the live beat reports its cadence into the log", len(_beats) >= 1, _records[:3])
-check("8.2 the report carries ticks, interval, tick duration and the priced count",
+check("8.2 the report carries beats, interval, book size, tick duration and priced count",
       bool(_beats) and "apart" in _beats[0] and "last tick" in _beats[0]
-      and "pairs priced" in _beats[0], _beats[:1])
+      and "book " in _beats[0] and "priced" in _beats[0], _beats[:1])
+
+# the flat-book trap the live check fell into: a beat with NO open rows must
+# still count, or the cadence proof reads "0 ticks" on a flat account
+_orig_watch3 = bs._load_contest_watch
+_orig_tick3 = bs._fast_stop_tick
+_records.clear()
+_handler2 = _Grab()
+bs.logger.addHandler(_handler2)
+bs.logger.setLevel(logging.INFO)
+try:
+    bs._load_contest_watch = lambda: {}          # flat book
+    bs.FAST_STOP_TICK_S = 0.05
+    bs.FAST_STOP_REPORT_S = 60.0
+    bs._FAST_STOP_CLOCK["beats"] = 0
+    _stop3 = threading.Event()
+    _th3 = threading.Thread(target=bs._fast_stop_watchdog, args=(None, None, _stop3),
+                            daemon=True)
+    _th3.start()
+    time.sleep(0.5)
+    _stop3.set()
+    _th3.join(timeout=2.0)
+finally:
+    bs._load_contest_watch = _orig_watch3
+    bs._fast_stop_tick = _orig_tick3
+    bs.FAST_STOP_TICK_S = _orig_period
+    bs.FAST_STOP_REPORT_S = _orig_report
+    bs.logger.removeHandler(_handler2)
+    bs.logger.setLevel(_orig_level)
+
+_flat = [m for m in _records if "FAST STOP beat" in m]
+check("8.3 a flat book still reports beats (the cadence proof cannot read 0 on "
+      "an empty account)",
+      bool(_flat) and "0 beats" not in _flat[0] and "book 0" in _flat[0],
+      _flat[:1])
 
 passed, failed = results.count(True), results.count(False)
 print(f"RESULT: {passed} passed, {failed} failed")
