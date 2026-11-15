@@ -41,6 +41,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import datetime as dt
 import json
 import math
 import random
@@ -48,6 +49,7 @@ import statistics
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
+LOOKS_FILE = HERE / "monitor_strategy_looks.json"
 
 Z_INTERIM = 2.96
 Z_FINAL = 1.98
@@ -159,6 +161,44 @@ def stats(vals: list[float], rows: list[dict]) -> dict:
         "top_pair": top_pair, "top_pair_net": top_net, "top_share": share,
         "pairs": len(per_pair),
     }
+
+
+def _cohort_key(since: str, strategy_v: int) -> str:
+    return f"since={since}|strategy_v={strategy_v}"
+
+
+def load_looks() -> dict:
+    try:
+        doc = json.loads(LOOKS_FILE.read_text(encoding="utf-8"))
+        return doc if isinstance(doc, dict) else {}
+    except (OSError, ValueError):
+        return {}
+
+
+def save_looks(doc: dict) -> None:
+    tmp = LOOKS_FILE.with_suffix(".json.tmp")
+    tmp.write_text(json.dumps(doc, indent=2, default=str), encoding="utf-8")
+    tmp.replace(LOOKS_FILE)
+
+
+def _num(v):
+    """NaN is not JSON; a missing ratio is null."""
+    try:
+        return None if v is None or v != v else v
+    except TypeError:
+        return v
+
+
+def record_look(key: str, which: str, st: dict, lines: list[str]) -> None:
+    doc = load_looks()
+    doc.setdefault(key, {})[which] = {
+        "at": dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds"),
+        "n": st.get("n"), "mean": st.get("mean"), "z": st.get("z"),
+        "net": st.get("net"), "ci": list(st.get("ci") or ()),
+        "ex3_mean": st.get("ex3_mean"), "top_share": _num(st.get("top_share")),
+        "verdict": lines,
+    }
+    save_looks(doc)
 
 
 def look_of(n: int) -> str:
@@ -283,13 +323,41 @@ def main(argv=None) -> int:
               f"|z|>={Z_INTERIM} interim / >={Z_FINAL} final, kill at -{KILL_FRAC:.0%} of ${balance:,.0f}")
         print("cohort: strategy_v stamp AND the strategy's cuts — the stamp alone is a"
               " rule-generation marker, not a cohort selector")
+    # THE LOOK RECORD: the schedule is only a schedule if a look cannot be
+    # taken twice. The interim is written to disk the first time it is
+    # rendered; a second --interim on the same cohort shows the recorded look
+    # instead of a fresh one, so the registered alpha stays honest.
+    key = _cohort_key(a.since, a.strategy_v)
+    looks = load_looks().get(key, {})
+    n_test = len(test)
+    do_interim = False
+    if a.interim and N_INTERIM <= n_test < N_FINAL:
+        if "interim" in looks:
+            rec = looks["interim"]
+            if not q:
+                print("\n=== TEST — the registered interim look was already taken ===")
+                print(f"  taken {rec.get('at')} at n={rec.get('n')}  mean ${_f(rec.get('mean')):+.2f}  z {_f(rec.get('z')):+.2f}")
+                for line in rec.get("verdict") or ():
+                    print("  " + line)
+                print("  a second interim look is not registered — the next decision is the final at n=%d" % N_FINAL)
+        else:
+            do_interim = True
+
     st_test = report(f"TEST — strategy_v={a.strategy_v} and the strategy's cuts (judged)",
-                     test, balance, a.interim, q)
+                     test, balance, do_interim, q)
+    if n_test and not q:
+        pass
+    if n_test >= N_INTERIM:
+        which = "final" if n_test >= N_FINAL else ("interim" if do_interim else None)
+        if which and which not in looks:
+            record_look(key, which, st_test, st_test.get("verdict") or [])
     st_hist = report("HISTORY — pre-coding closes that match the strategy's shape (NOT the test)",
-                     hist, balance, a.interim, q)
+                     hist, balance, False, q)
     if a.json:
         def clean(st):
-            return {k: (list(v) if isinstance(v, tuple) else v) for k, v in st.items()}
+            return {k: (_num(v) if isinstance(v, float) else
+                        ([_num(x) for x in v] if isinstance(v, tuple) else v))
+                    for k, v in st.items()}
         print(json.dumps({"test": clean(st_test), "history": clean(st_hist),
                           "interim_flag": a.interim, "since": a.since,
                           "ledger": a.trades}, indent=2, default=str))

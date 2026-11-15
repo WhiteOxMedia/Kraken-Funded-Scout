@@ -156,3 +156,11 @@ artifacts/evidence/rotations/
 push_topic.txt
 _ntfydiag.txt
 .workshop/
+
+# the KNIFE_BLOCK dial: runtime state the running scanner re-reads every
+# cycle. It must never be committed -- a stale "0" in the repo would
+# silently disarm the downtrend gate on the next boot (Nov 10).
+KNIFE_BLOCK.dial
+
+# monitor look record (runtime state, not source)
+monitor_strategy_looks.json

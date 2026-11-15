@@ -14,6 +14,12 @@ with the look schedule pre-committed so a good run at 30 closes cannot end it.
 | estimators | mean + 20,000-resample bootstrap 95% CI, t vs zero, expectancy excluding the top 3 closes, largest pair's share of net — all four, every run |
 | decision | *edge exists*: final lower bound > 0. *Worth the budget*: point ≥ +$2.00 **and** lower bound > 0 **and** ex-top-3 > 0 **and** top-pair share < 40%. *Kill*: cumulative net ≤ −4% of balance at any look, or final z < 1.98 |
 
+Looks are **recorded**. `--interim` writes the look to `monitor_strategy_looks.json`
+(`since` + `strategy_v` → `{at, n, mean, z, net, ci, verdict}`); a second
+`--interim` on the same cohort prints that record instead of a new verdict, so
+the registered alpha cannot be spent twice. Delete the file only to discard a
+look, and then say so — a discarded look is still a look.
+
 The script **refuses to render an edge verdict off-schedule**: before n = 85 it
 withholds; between 85 and 169 it prints the numbers but takes no decision unless
 you pass `--interim` once; only the final (n ≥ 170) decides. A negative final
