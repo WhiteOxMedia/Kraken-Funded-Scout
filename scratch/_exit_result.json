@@ -1,0 +1,213 @@
+{
+ "shipped": "shipped (tp 3.0 / stop 3.0 / hold 180)",
+ "variants": {
+  "shipped (tp 3.0 / stop 3.0 / hold 180)": {
+   "fit_n": 88,
+   "fit_diff": 0.0,
+   "fit_ci": [
+    0.0,
+    0.0
+   ],
+   "hold_n": 59,
+   "hold_diff": 0.0,
+   "hold_ci": [
+    0.0,
+    0.0
+   ],
+   "hold_win_pct": 30.5,
+   "hold_net_per_dollar": -0.00473,
+   "clears": false
+  },
+  "hold 60": {
+   "fit_n": 88,
+   "fit_diff": 0.0499,
+   "fit_ci": [
+    -0.2038,
+    0.3037
+   ],
+   "hold_n": 59,
+   "hold_diff": 0.1378,
+   "hold_ci": [
+    -0.1111,
+    0.3868
+   ],
+   "hold_win_pct": 27.1,
+   "hold_net_per_dollar": -0.00335,
+   "clears": false
+  },
+  "hold 120": {
+   "fit_n": 88,
+   "fit_diff": -0.0521,
+   "fit_ci": [
+    -0.1991,
+    0.0949
+   ],
+   "hold_n": 59,
+   "hold_diff": -0.0412,
+   "hold_ci": [
+    -0.2554,
+    0.173
+   ],
+   "hold_win_pct": 32.2,
+   "hold_net_per_dollar": -0.00514,
+   "clears": false
+  },
+  "hold 240": {
+   "fit_n": 88,
+   "fit_diff": -0.0982,
+   "fit_ci": [
+    -0.2382,
+    0.0417
+   ],
+   "hold_n": 59,
+   "hold_diff": -0.0566,
+   "hold_ci": [
+    -0.2047,
+    0.0914
+   ],
+   "hold_win_pct": 35.6,
+   "hold_net_per_dollar": -0.0053,
+   "clears": false
+  },
+  "tp 1.5": {
+   "fit_n": 88,
+   "fit_diff": -0.0871,
+   "fit_ci": [
+    -0.1989,
+    0.0247
+   ],
+   "hold_n": 59,
+   "hold_diff": -0.0357,
+   "hold_ci": [
+    -0.1307,
+    0.0592
+   ],
+   "hold_win_pct": 30.5,
+   "hold_net_per_dollar": -0.00509,
+   "clears": false
+  },
+  "tp 2.0": {
+   "fit_n": 88,
+   "fit_diff": -0.0056,
+   "fit_ci": [
+    -0.1065,
+    0.0954
+   ],
+   "hold_n": 59,
+   "hold_diff": -0.045,
+   "hold_ci": [
+    -0.0959,
+    0.0059
+   ],
+   "hold_win_pct": 30.5,
+   "hold_net_per_dollar": -0.00518,
+   "clears": false
+  },
+  "tp 4.0": {
+   "fit_n": 88,
+   "fit_diff": 0.0725,
+   "fit_ci": [
+    0.0192,
+    0.1259
+   ],
+   "hold_n": 59,
+   "hold_diff": 0.0281,
+   "hold_ci": [
+    -0.0113,
+    0.0675
+   ],
+   "hold_win_pct": 30.5,
+   "hold_net_per_dollar": -0.00445,
+   "clears": false
+  },
+  "tp 5.0": {
+   "fit_n": 88,
+   "fit_diff": 0.1207,
+   "fit_ci": [
+    0.0233,
+    0.2182
+   ],
+   "hold_n": 59,
+   "hold_diff": 0.045,
+   "hold_ci": [
+    -0.0245,
+    0.1146
+   ],
+   "hold_win_pct": 30.5,
+   "hold_net_per_dollar": -0.00428,
+   "clears": false
+  },
+  "stop 2.0 (tighter)": {
+   "fit_n": 88,
+   "fit_diff": 0.0861,
+   "fit_ci": [
+    -0.0189,
+    0.1911
+   ],
+   "hold_n": 59,
+   "hold_diff": -0.0693,
+   "hold_ci": [
+    -0.2666,
+    0.128
+   ],
+   "hold_win_pct": 28.8,
+   "hold_net_per_dollar": -0.00542,
+   "clears": false
+  },
+  "stop 1.5 (tighter)": {
+   "fit_n": 88,
+   "fit_diff": 0.119,
+   "fit_ci": [
+    -0.0498,
+    0.2877
+   ],
+   "hold_n": 59,
+   "hold_diff": 0.0013,
+   "hold_ci": [
+    -0.2031,
+    0.2057
+   ],
+   "hold_win_pct": 28.8,
+   "hold_net_per_dollar": -0.00472,
+   "clears": false
+  },
+  "tp 2.0 + hold 120": {
+   "fit_n": 88,
+   "fit_diff": -0.0242,
+   "fit_ci": [
+    -0.1912,
+    0.1427
+   ],
+   "hold_n": 59,
+   "hold_diff": -0.0582,
+   "hold_ci": [
+    -0.2747,
+    0.1584
+   ],
+   "hold_win_pct": 32.2,
+   "hold_net_per_dollar": -0.00531,
+   "clears": false
+  },
+  "tp 2.0 + stop 2.0": {
+   "fit_n": 88,
+   "fit_diff": 0.0806,
+   "fit_ci": [
+    -0.0652,
+    0.2264
+   ],
+   "hold_n": 59,
+   "hold_diff": -0.0974,
+   "hold_ci": [
+    -0.2979,
+    0.1032
+   ],
+   "hold_win_pct": 28.8,
+   "hold_net_per_dollar": -0.0057,
+   "clears": false
+  }
+ },
+ "winners": [],
+ "fit_frac": 0.6,
+ "entries": 147,
+ "cost_pct": 0.07996674770782694
+}

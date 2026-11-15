@@ -176,11 +176,21 @@ try:
           ok and row["buy_low"]["cheap"] == 0.82
           and row["buy_low_rank"]["v"] == bl.BUY_LOW_STAMP_VERSION
           and row.get("buy_low_v") == bl.BUY_LOW_STAMP_VERSION)
+    _es = row.get("exit_study") or {}
+    check("6.1b the fire carries the exit study's verdict and holdout numbers",
+          _es.get("winners") == []
+          and "no variant clears" in (_es.get("verdict") or "")
+          and _es["variants"]["tp 5.0"]["oos_ci"][0] < 0
+          and row.get("exit_study_v") == 1,
+          (_es.get("verdict"), _es.get("oos_n")))
     fam = bs._family_fields(row)
     check("6.2 the journal's one writer carries both to the close",
           fam["buy_low"]["cheap"] == 0.82
           and fam["buy_low_rank"] is not None
           and fam["buy_low_v"] == bl.BUY_LOW_STAMP_VERSION)
+    check("6.2b ... and the exit study rides it too",
+          (fam.get("exit_study") or {}).get("winners") == []
+          and fam.get("exit_study_v") == 1)
     check("6.3 a pre-field row lands empty and versioned",
           bs._family_fields({"entry": 1.0})["buy_low"] is None
           and bs._family_fields({"entry": 1.0})["buy_low_v"] == 0)

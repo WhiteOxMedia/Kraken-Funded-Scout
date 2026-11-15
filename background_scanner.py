@@ -47,6 +47,7 @@ from entry_timing import ENTRY_TIMING_STAMP_VERSION   # noqa: E402
 import buy_low as _buy_low_mod                          # noqa: E402
 import spend_capacity as _spend_mod                     # noqa: E402
 from buy_low import BUY_LOW_STAMP_VERSION               # noqa: E402
+from exit_study import EXIT_STUDY, EXIT_STUDY_V         # noqa: E402
 from entry_timing import apply as _entry_timing_apply    # noqa: E402
 from spend_capacity import SPEND_STAMP_VERSION         # noqa: E402
 
@@ -4449,7 +4450,8 @@ def _family_fields(w) -> dict:
                 "entry_quality": None, "entry_quality_v": 0,
                 "entry_timing": None, "entry_timing_v": 0,
                 "spend_capacity": None, "spend_rank": None, "spend_v": 0,
-                "buy_low": None, "buy_low_rank": None, "buy_low_v": 0}
+                "buy_low": None, "buy_low_rank": None, "buy_low_v": 0,
+                "exit_study": None, "exit_study_v": 0}
     return {"setup": w.get("setup") or {},
             "setup_v": w.get("setup_v") or 0,
             "strategy_v": w.get("strategy_v") or STRATEGY_VERSION,
@@ -4470,7 +4472,11 @@ def _family_fields(w) -> dict:
             # what a cheaper near-equal would have been
             "buy_low": w.get("buy_low"),
             "buy_low_rank": w.get("buy_low_rank"),
-            "buy_low_v": w.get("buy_low_v") or 0}
+            "buy_low_v": w.get("buy_low_v") or 0,
+            # THE EXIT STUDY rides it too: the exit question's measurement
+            # travels to every close, negative result included.
+            "exit_study": w.get("exit_study"),
+            "exit_study_v": w.get("exit_study_v") or 0}
 
 
 def _setup_tags(*, route: str = "", tide_state=None, tide_pct=None,
@@ -5897,6 +5903,12 @@ def auto_track_popup(pair: str, entry: float, size: float, goal_pct: float,
                    "buy_low_rank": (dict(buy_low_rank)
                                     if isinstance(buy_low_rank, dict) else None),
                    "buy_low_v": BUY_LOW_STAMP_VERSION,
+                   # THE EXIT STUDY RIDES THE FIRE (Nov 15): which exit variant
+                   # was measured against the shipped one, its holdout numbers
+                   # and the verdict — so a close knows the exit question was
+                   # asked and answered, instead of it living only in a doc.
+                   "exit_study": dict(EXIT_STUDY),
+                   "exit_study_v": EXIT_STUDY_V,
                    # THE TOURNAMENT'S OWN TIMING NUMBER (Nov 15): the 0..1
                    # position in the prior-hour range that the bracket actually
                    # chose. The candle stamp above rebuilds the same idea at
