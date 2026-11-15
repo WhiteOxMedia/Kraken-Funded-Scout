@@ -81,6 +81,18 @@ and at the close the row carries those plus `mfe_pct` (its own running high vs
 entry). One OHLCV read per fire; fail-soft (no exchange or a broken read leaves
 the row unstamped and still tracking). `test_entrystamp.py`: 20 checks.
 
+## 4b. The champion's timing label leads the list
+
+The label on the champion's `reasons` is inserted at index 0, not appended. Every
+reader truncates from the head — the bridge stores `"; ".join(reasons[:3])[:200]`,
+the winner row stores `reasons[:5]`, only the console reads nine — and a champion
+already carries five reasons, so an appended label was dropped by the bridge and
+the database and showed only on screen. Nothing parses these strings (every
+reader is a substring test or a slice), and the label shares no keyword with any
+gate (`exhaustion`, `breakout failure`, `exit signal`, momentum and liquidity
+checks), so the position was the only thing to fix. `test_timinglabel.py` holds
+it: 17 checks.
+
 ## 5. What the data needs
 
 A +5 pp win-rate shift from 40% at 80% power needs **1,531 closes per arm**

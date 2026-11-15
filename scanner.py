@@ -398,14 +398,24 @@ def tournament_scan(
     # A bracket that ranks on signal confidence picks momentum, so say out loud
     # when the winner is expensive relative to its own recent range. This is a
     # label on the champion, never a veto: the entry still fires.
+    #
+    # IT GOES FIRST, NOT LAST (Nov 15). Every consumer of reasons truncates from
+    # the head: the bridge stores "; ".join(reasons[:3])[:200] (signal_bridge),
+    # the winner row stores reasons[:5] (log_winner), only the console reads
+    # nine. A champion carries five reasons already, so an appended label lived
+    # at index 5 and was dropped by BOTH the bridge and the DB — the warning
+    # existed only in the console. Nothing parses these strings (every reader is
+    # a substring test or a slice), so the fix is the position, not the text.
     if champion.entry_quality is not None:
         if champion.entry_quality >= TIMING_STRETCHED:
-            champion.signal.reasons.append(
+            champion.signal.reasons.insert(
+                0,
                 "Timing: bought at %.0f%% of the 1h range — stretched, not a low"
                 % (100 * champion.entry_quality)
             )
         elif champion.entry_quality <= (1.0 - TIMING_STRETCHED):
-            champion.signal.reasons.append(
+            champion.signal.reasons.insert(
+                0,
                 "Timing: bought at %.0f%% of the 1h range — near the low"
                 % (100 * champion.entry_quality)
             )
