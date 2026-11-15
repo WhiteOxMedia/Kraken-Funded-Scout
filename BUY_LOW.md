@@ -100,9 +100,31 @@ selection side.
 
 ## 4. What is live right now
 
-- the deep read runs **in the running scanner** (pid reported in the delivery
-  note), logging `DEEP <coin>: <bars> bars, dd … (volatility_profile), cap $…,
-  daypos …, src=deep_history,ticker` for every actionable candidate;
+- the deep read runs in the **running scanner**, every full pass, over the top of
+  the bracket (six candidates), and logs before the crown:
+
+  ```
+  DEEP PASS: 6 candidate(s) read deep, no buy among them — readings CRV 0.6578, …
+             (min_conf 48, 720 bars, src=deep_history,ticker)
+  DEEP CHAMPION ZEC: cap $2670, cheap 0.18 (hour+day), dd 3.6%, src=deep_history,ticker
+  ```
+
 - every fire stamps `spend_capacity`, `spend_rank`, `buy_low`, `buy_low_rank` on
-  the watch row and carries them to the journal;
+  the watch row and carries them to the journal (`_family_fields`);
 - `entry_timing_rank`, `spend_rank`, `buy_low_rank` are all **False**.
+
+### Two bugs the live run found (both fixed)
+
+1. **The loop never read deep at all.** `scanner.tournament_scan` — where the
+   deep read and the three rankings were wired — is not what the running
+   scanner uses to crown. Its full-scan loop calls `evaluate_strategy` directly
+   and picks max confidence, so no live fire could ever carry a deep field. The
+   loop now builds reads for its crown pool, runs the rankings in order and
+   stamps the winner (fail-soft, flags off ⇒ no decision moves).
+2. **Every deep read said `no_history`.** The loop hands `deep_scan` a bare ccxt
+   exchange, not `KrakenAPI`; the read called `fetch_ohlcv(pair=…,
+   interval_minutes=…)`, which ccxt rejects, and the fallback swallowed it. A
+   candidate like ZEC was priced on its ticker alone (`src=no_history,ticker`).
+   `_fetch_history()` now tries the wrapper shape, then ccxt's positional
+   `(symbol, '1h', None, limit)` with the limit capped at Kraken's 720 ceiling.
+   Verified live: same coin now reads `720 bars, src=deep_history,ticker`.

@@ -89,8 +89,11 @@ sp.profile_dd_pct = lambda pair: (_PROFILE.get(pair, 2.0), "test_profile")
 try:
     k = FakeKraken(dd_pct=6.0)
     d = sp.deep_scan(k, "AAA/USD", config.TradingConfig())
+    # Nov 15: the read is capped at Kraken's 720-bar hourly ceiling (asking for
+    # 1000 made ccxt clients refuse and every read fell back to no_history).
+    # Still far beyond the 200-bar quick window — that is the point of the check.
     check("2.1 it fetches the coin's own deep history, not the quick window",
-          k.calls and k.calls[0][1] == 60 and k.calls[0][2] >= 1000, k.calls[:1])
+          k.calls and k.calls[0][1] == 60 and 700 <= k.calls[0][2] <= 720, k.calls[:1])
     check("2.2 the empirical drawdown is measured from that history",
           d.get("dd_4h_pct") is not None and abs(d["dd_4h_pct"] - 6.0) < 0.6,
           d.get("dd_4h_pct"))

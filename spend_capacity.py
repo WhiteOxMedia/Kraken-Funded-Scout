@@ -121,6 +121,33 @@ _CACHE: dict[tuple, tuple[float, dict]] = {}
 _CACHE_TTL_S = 600.0
 
 
+_TF_BY_MIN = {1: "1m", 5: "5m", 15: "15m", 30: "30m", 60: "1h",
+              240: "4h", 1440: "1d"}
+
+
+def _fetch_history(kraken, pair: str, minutes: int, limit: int):
+    """History from either client shape the app hands us.
+
+    KrakenAPI takes (pair, interval_minutes, limit); a bare ccxt exchange takes
+    (symbol, timeframe, since, limit) and rejects the keyword form outright.
+    Nov 15: the live loop passes the ccxt object, so every deep read silently
+    fell back to `no_history` — the champion was priced on its ticker alone.
+    """
+    limit = max(30, min(int(limit or 0), 720))     # Kraken's hourly ceiling
+    try:
+        out = kraken.fetch_ohlcv(pair=pair, interval_minutes=minutes, limit=limit)
+        if out:
+            return out
+    except TypeError:
+        pass                                       # not the wrapper — try ccxt
+    except Exception:
+        return None
+    try:
+        return kraken.fetch_ohlcv(pair, _TF_BY_MIN.get(minutes, "1h"), None, limit)
+    except Exception:
+        return None
+
+
 def deep_scan(kraken, pair: str, config=None, *, bars=None) -> dict:
     """THE DEEP READ for one coin: history, volatility, market, capacity.
 
@@ -142,11 +169,7 @@ def deep_scan(kraken, pair: str, config=None, *, bars=None) -> dict:
 
     deep = None
     if kraken is not None and lookback > 0:
-        try:
-            deep = kraken.fetch_ohlcv(pair=pair, interval_minutes=60,
-                                      limit=lookback)
-        except Exception:
-            deep = None
+        deep = _fetch_history(kraken, pair, 60, lookback)
     if deep and len(deep) >= 30:
         out["src"].append("deep_history")
         out["bars"] = len(deep)
@@ -170,6 +193,10 @@ def deep_scan(kraken, pair: str, config=None, *, bars=None) -> dict:
         if hi and lo and last and hi > lo:
             out["day_range_pct"] = round((hi - lo) / lo * 100.0, 3)
             out["pos_in_day_pct"] = round((last - lo) / (hi - lo) * 100.0, 1)
+            # distance from its own recent high, and how much of the day's range
+            # is already spent — the "is this extended?" half of buy-low
+            out["off_high_pct"] = round((hi / last - 1.0) * 100.0, 3)
+            out["off_low_pct"] = round((last / lo - 1.0) * 100.0, 3)
         vol = _num(tk.get("quoteVolume")) or _num(tk.get("baseVolume"))
         if vol:
             out["volume_24h_usd"] = round(vol, 0)

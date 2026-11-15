@@ -162,12 +162,51 @@ check("6.4 both fire routes pass the score and the decision",
       and src_bg.count('buy_low_rank=getattr(signal, "buy_low_rank", None)') == 2)
 _src_bg = open("background_scanner.py", encoding="utf-8").read()
 check("6.6 the LIVE full scan reads deep and runs all three rankings in order",
-      "DEEP CHAMPION" in _src_bg
-      and _src_bg.index("_spend_mod.deep_scan(") < _src_bg.index("_entry_timing_apply(_champ")
-      < _src_bg.index("_spend_mod.apply(_champ") < _src_bg.index("_buy_low_mod.apply(_champ"))
+      "DEEP PASS" in _src_bg and "DEEP CHAMPION" in _src_bg
+      and _src_bg.index("_spend_mod.deep_scan(") < _src_bg.index("_entry_timing_apply(_top")
+      < _src_bg.index("_spend_mod.apply(_top") < _src_bg.index("_buy_low_mod.apply(_top"))
 check("6.5 the scanner applies the ranking after the spend one",
       open("scanner.py", encoding="utf-8").read().index("_buy_low.apply(")
       > open("scanner.py", encoding="utf-8").read().index("_spend.apply("))
+
+print("== 7. the deep read reaches any client shape (Nov 15 live bug)")
+import spend_capacity as _sp
+
+
+class _Wrapper:
+    """KrakenAPI's shape: the keyword call works."""
+
+    def fetch_ohlcv(self, pair, interval_minutes=60, limit=200):
+        return [[i * 3_600_000, 1.0, 1.1, 0.9, 1.05, 5.0] for i in range(40)]
+
+
+class _Ccxt:
+    """A bare ccxt exchange: (symbol, timeframe, since, limit), no kwargs."""
+
+    def __init__(self):
+        self.calls = []
+
+    def fetch_ohlcv(self, symbol, timeframe="1m", since=None, limit=200):
+        self.calls.append((symbol, timeframe, since, limit))
+        return [[i * 3_600_000, 1.0, 1.1, 0.9, 1.05, 5.0] for i in range(40)]
+
+
+check("7.1 the wrapper shape still works",
+      len(_sp._fetch_history(_Wrapper(), "X/USD", 60, 1000) or []) == 40)
+_cc = _Ccxt()
+_rows = _sp._fetch_history(_cc, "X/USD", 60, 1000)
+check("7.2 a ccxt exchange gets the positional call, capped at Kraken's ceiling",
+      len(_rows or []) == 40 and _cc.calls and _cc.calls[0][1] == "1h"
+      and _cc.calls[0][3] == 720, _cc.calls)
+
+
+class _Dead:
+    def fetch_ohlcv(self, *a, **k):
+        raise RuntimeError("down")
+
+
+check("7.3 a dead client returns None instead of raising",
+      _sp._fetch_history(_Dead(), "X/USD", 60, 100) is None)
 
 print("\n".join(lines))
 print(f"\nRESULT: {PASS} passed, {FAIL} failed")
