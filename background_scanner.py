@@ -6149,6 +6149,8 @@ FAST_STOP_ENABLED = (os.environ.get("FAST_STOP_ENABLED", "1") not in ("0", "fals
 # this tick stays unpriced (the sweep leaves it alone rather than guessing) and
 # the next batched read tries again.
 FAST_STOP_FALLBACK_MAX = int(os.environ.get("FAST_STOP_FALLBACK_MAX") or 8)
+# how often the beat reports its cadence into the log (seconds)
+FAST_STOP_REPORT_S = float(os.environ.get("FAST_STOP_REPORT_S") or 300.0)
 _FAST_STOP_LOCK = threading.Lock()
 _FAST_STOP_CLOCK = {"at": 0.0, "ticks": 0, "breaches": 0, "priced": 0,
                     "errors": 0, "secs": 0.0, "last": None}
@@ -6284,6 +6286,8 @@ def _fast_stop_watchdog(exchange, cfg, stop: threading.Event):
     """
     period = float(FAST_STOP_TICK_S) if FAST_STOP_TICK_S > 0 else 20.0
     next_at = time.time() + period
+    _started = time.time()
+    _reported = 0.0
     while not stop.is_set():
         delay = next_at - time.time()
         if delay > 0 and stop.wait(delay):
@@ -6298,6 +6302,19 @@ def _fast_stop_watchdog(exchange, cfg, stop: threading.Event):
         next_at += period
         if next_at <= time.time():          # the tick overran its own period
             next_at = time.time() + period * 0.1
+        # THE BEAT HEARTBEAT: the cadence must be provable from the log of
+        # the LIVE process, not from a replay. The first three ticks speak
+        # at once (boot evidence), then once per FAST_STOP_REPORT_S.
+        _ticks_fs = int(_FAST_STOP_CLOCK.get("ticks") or 0)
+        _now_fs = time.time()
+        if _ticks_fs <= 3 or _now_fs - _reported >= FAST_STOP_REPORT_S:
+            _reported = _now_fs
+            logger.info("\u23f1 FAST STOP beat: %d ticks in %.0fs (%.2fs apart), "
+                        "last tick %.3fs, %d pairs priced, beat %.0fs",
+                        _ticks_fs, _now_fs - _started,
+                        (_now_fs - _started) / _ticks_fs if _ticks_fs else 0.0,
+                        float(_FAST_STOP_CLOCK.get("secs") or 0.0),
+                        int(_FAST_STOP_CLOCK.get("priced") or 0), period)
 
 
 def _day_review_spoken(now) -> bool:
@@ -12053,95 +12070,28 @@ if __name__ == "__main__":
     # nobody knows.
     import contest_account as _ca_boot
     _ca_boot.assert_state_on_boot("background_scanner")
-    # THE SINGLE-INSTANCE GUARD (Sep 8): the launch path runs the venv
-    # python twice over (the uv trampoline spawns the real interpreter
-    # with the same command line), so process-count checks see a
-    # phantom second scanner -- and a REAL second one is a real-money
-    # risk: two scanners write the bridge, and the spot account does
-    # not know a signal was already acted on. Atomic O_EXCL pid file:
-    # the first process owns it; any second one refuses to start; a
-    # crashed run's stale file (its pid no longer alive) is unlinked
-    # and taken over. The guard FAILS CLOSED (Copilot, Sep 8): a guard
-    # error means we cannot know whether another scanner is live, and
-    # an unguarded duplicate double-signals the bridge -- so the start
-    # aborts loudly instead of continuing unprotected. (The popups
+    # THE SINGLE-INSTANCE GUARD: the launch path runs the venv python
+    # twice over (the uv trampoline spawns the real interpreter with the
+    # same command line), so process-count checks see a phantom second
+    # scanner -- and a REAL second one is a real-money risk: two scanners
+    # write the bridge, and the spot account does not know a signal was
+    # already acted on. The guard FAILS CLOSED: if we cannot prove no
+    # other scanner is live, the start refuses loudly. (The popups
     # missing is visible within minutes; a double order is not.)
-    _GUARD = os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                          ".scanner.pid")
-    _owned = False
-    _gerr = None
-    for _attempt in (1, 2):   # one retry: a transient AV hold on the
-        try:                  # file must not kill the scanner outright
-            if os.path.exists(_GUARD):
-                _old = ""
-                try:
-                    _old = open(_GUARD, "r", encoding="utf-8").read().strip()
-                except OSError:
-                    pass  # why: an unreadable guard file is treated as stale and taken over
-                _alive = False
-                if _old.isdigit():
-                    try:
-                        # ctypes OpenProcess: os.kill(pid, 0) succeeds
-                        # on Windows for ANY pid (it is a POSIX no-op
-                        # there), so the takeover check needs a real
-                        # liveness probe. (Sep 11: alive must ALSO mean
-                        # "a python owns the pid" -- after a crash the
-                        # OS recycles the pid onto any exe, and a plain
-                        # OpenProcess hit then made the guard refuse
-                        # forever, a silent no-start. Same rule as
-                        # main()'s tasklist probe: any OTHER image on
-                        # the pid is a stale lock, take it back.)
-                        import ctypes
-                        import subprocess as _sp2
-                        _k32 = ctypes.windll.kernel32
-                        _SYNCHRONIZE = 0x00100000
-                        _h = _k32.OpenProcess(_SYNCHRONIZE, False, int(_old))
-                        if _h:
-                            _k32.CloseHandle(_h)
-                            _probe = _sp2.run(
-                                ["tasklist", "/FI", f"PID eq {_old}",
-                                 "/FO", "CSV", "/NH"],
-                                capture_output=True, text=True, timeout=5)
-                            _alive = "python" in (_probe.stdout or "").lower()
-                        # no handle -> pid dead -> stale, take over
-                    except Exception:
-                        _alive = True   # unknown -- assume alive, stay down
-                else:
-                    _alive = False   # empty/corrupt file: nothing owns it
-                if _alive:
-                    print(f"A scanner is already running (pid {_old}). Not "
-                          f"starting a second one -- the single-instance "
-                          f"guard refused. Close that one first.")
-                    sys.exit(0)
-                print(f"Stale scanner pid file ({_old or 'empty'}) -- "
-                      f"taking over.")
-                try:
-                    os.unlink(_GUARD)   # the stale file blocks O_EXCL
-                except FileNotFoundError:
-                    pass  # why: nothing to unlink means the takeover race resolved itself
-            _fd = os.open(_GUARD, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
-            try:
-                os.write(_fd, str(os.getpid()).encode())
-            finally:
-                os.close(_fd)
-            _owned = True
-            break
-        except SystemExit:
-            raise
-        except Exception as _exc:
-            _gerr = _exc
-            time.sleep(1.0)
-    if not _owned:
-        print(f"SINGLE-INSTANCE GUARD FAILED ({_gerr}) -- refusing to "
-              f"start: cannot verify no other scanner is live, and an "
-              f"unguarded duplicate double-signals the bridge (real "
-              f"money). Fix the error above, then relaunch.")
-        sys.exit(1)
+    # THE SINGLETON ARBITER (Nov 15): the kernel byte-range lock decides now
+    # — see scanner_singleton. The old O_EXCL pid file could be unlinked
+    # between the "is it stale?" read and the create, so two racing starts
+    # could both believe they won, and a recycled pid needed a takeover path
+    # that was itself a race. A lock byte cannot be double-held, a killed
+    # scanner's lock dies with it (no retake path to get wrong), and only the
+    # holder writes .scanner.pid, which stays the readable record of who runs.
+    import scanner_singleton as _singleton
+    if not _singleton.claim_lock():
+        print("Refusing to start a second scanner -- the single-instance "
+              "guard refused (see the line above). Close that one first.")
+        sys.exit(0)
+    atexit.register(_singleton.release_lock)
     try:
-        atexit.register(lambda: os.path.exists(_GUARD)
-                        and open(_GUARD, "r", encoding="utf-8").read().strip()
-                        == str(os.getpid())
-                        and os.remove(_GUARD))
         main()
     except KeyboardInterrupt:
         print("\nStopped.")
