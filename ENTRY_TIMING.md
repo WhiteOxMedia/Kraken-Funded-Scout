@@ -141,32 +141,43 @@ number is missing gets `eq` filled from the fire's `timing_eq` bar stamp with
 
 **The replay — `scratch/entry_quality_replay.py`.** Real closes, not simulation:
 `contest_trades.jsonl`, positioned by the local 5m tape over the twelve bars
-before the entry. Of 2,706 closes, **1,129** are usable; 1,577 are excluded
-because the tape covers 29 of the 55 traded pairs (no other exclusion). Zero
-stored rows carry `entry_quality` or `timing_eq`, so every number below is
+before the entry. The tape is now the aligned archive plus
+`scratch/kraken_5m_cover_2026-11-15.json`, the coverage backfill
+(`scratch/fetch_missing_tape.py`) that closed the 26-pair gap; the replay merges
+both by timestamp, 55 symbols on disk.
+
+**Coverage.** 2,706 closes on disk, **2,536 positioned (93.7%)** — up from 1,129
+before the backfill. **170 excluded (6.3%), each with a reason:**
+
+| reason | n | symbols | what the venue does |
+|---|---|---|---|
+| no tape pair — contract absent | 82 | AIXBT ×78, FAKE ×4 | AIXBT: `PF_AIXBTUSD` 5m returns **0 candles for every day of its Oct 12–Nov 7 trades** (a 3-hour Sep 30 window returns 37, so history exists only there); no AIXBT contract in `/derivatives/api/v3/instruments`; spot `AIXBTUSD` OHLC returns no candles. FAKE: 0 candles, spot returns `EQuery:Unknown asset pair`. |
+| entry after the tape's last bar | 40 | S | `PF_SUSD` stops serving after Oct 14 21:30; 0 candles on every probed day Oct 14 → Nov 10; no SUSD contract in the instruments list; spot `SUSD` 5m returns no candles (spot keeps only ~720 bars anyway). |
+| window has no range | 48 | S | the served bars are **degenerate** there (high == low; 24.4% of S's tape), so there is no hour to measure a position in. |
+
+Zero stored rows carry `entry_quality` or `timing_eq`, so every number below is
 **rebuilt** — the same quantity, not the field.
 
 | entry position | n | win rate | 95% CI | mean close | net |
 |---|---|---|---|---|---|
-| 0.0–0.2 (low) | 395 | 45.6% | 40.7–50.5 | +0.04% | −$100 |
-| 0.2–0.4 | 230 | 32.6% | 26.9–38.9 | −0.23% | −$425 |
-| 0.4–0.6 | 166 | 35.5% | 28.7–43.1 | −0.10% | −$346 |
-| 0.6–0.8 | 170 | 36.5% | 29.6–43.9 | −0.07% | −$78 |
-| 0.8–1.0 (high) | 168 | 38.1% | 31.1–45.6 | +0.12% | −$53 |
+| 0.0–0.2 (low) | 900 | 47.0% | 43.8–50.3 | +0.05% | −$59 |
+| 0.2–0.4 | 543 | 35.0% | 31.1–39.1 | −0.13% | −$1,077 |
+| 0.4–0.6 | 377 | 34.5% | 29.9–39.4 | −0.17% | −$993 |
+| 0.6–0.8 | 377 | 39.3% | 34.5–44.3 | −0.00% | +$129 |
+| 0.8–1.0 (high) | 339 | 39.2% | 34.2–44.5 | +0.10% | −$21 |
 
-Low (≤0.25) vs high (≥0.75): win **44.1% vs 36.7%** = +7.3 pp, but the intervals
-overlap (39.6–48.6 vs 30.7–43.2). Mean close **+0.02% vs +0.06%** = −0.05 pp,
-bootstrap 95% CI −0.21 to +0.11. Split-half sign is consistent for the quintile
-cut (+4.8 pp, +10.1 pp) and not for thirds (−2.2 pp, +9.1 pp).
+Low (≤0.25) vs high (≥0.75): **n = 1,055 vs 449**, win **46.1% vs 39.0%** =
+**+7.1 pp** with the intervals still overlapping (43.1–49.1 vs 34.6–43.6). Mean
+close **+0.05% vs +0.09%** = −0.04 pp, bootstrap 95% CI −0.17 to +0.09. Split-half
+sign consistent (+6.5 pp, +7.5 pp); thirds +4.1 pp overall (+2.6, +5.3).
 
-**Verdict: the win-rate edge points the right way and is NOT resolvable at this
-sample; the money edge is flat to slightly negative.** Buying low shifted the
-win rate but not the payoff, which is what the earlier diagnosis found — the
-leak was dead entries and exit giveback, not buying high. Closes per arm for
-+5 pp at 80% power: **1,458**; for +8 pp: **570**. At the measured 15.4
-closes/day that is ~95 and ~37 trading days per arm respectively — and the tape
-only covers half the pairs, so a full-arm study also needs the missing 26 pairs'
-bars archived first.
+**Verdict: NOT RESOLVABLE at 2,536 closes.** The extra 1,407 positioned closes
+moved the quintile gap from +7.3 pp (n=463/226) to +7.1 pp (n=1,055/449) and left
+the intervals overlapping — more sample, same answer. The win-rate edge points
+the right way and is still inside the noise; the money edge is zero to slightly
+negative. Closes per arm at 80% power: **1,492** for +5 pp, **583** for +8 pp,
+**742** for the +7.1 pp now observed. At 15.4 closes/day that is ~48 trading days
+per arm for the observed effect — about 3× the ledger that exists.
 
 **What this means for the flag.** It stays off. The evidence does not yet earn a
 live change, and the mechanism is built so the owner can flip it in one line

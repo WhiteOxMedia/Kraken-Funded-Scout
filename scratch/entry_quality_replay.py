@@ -34,20 +34,40 @@ from datetime import datetime
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-TAPE = ROOT / "scratch" / "kraken_5m_long_183d_aligned.json"
+# The aligned archive first (29 pairs, 183 days), then the coverage backfill that
+# closed the gap for the 26 other traded pairs (scratch/fetch_missing_tape.py).
+# Both are the repo's own Kraken-Futures-charts 5m tape; merging by timestamp
+# means a symbol in both keeps every bar either archive served.
+ARCHIVES = [ROOT / "scratch" / "kraken_5m_long_183d_aligned.json",
+            ROOT / "scratch" / "kraken_5m_cover_2026-11-15.json"]
 TRADES = ROOT / "contest_trades.jsonl"
 PRIOR_BARS = 12          # twelve 5m bars = the prior hour, same as TIMING_RANGE_CANDLES
 MIN_BARS = 6             # a window thinner than this is not a range
 
 
 def load_tape():
-    with open(TAPE, encoding="utf-8") as fh:
-        raw = json.load(fh)
+    """Every 5m bar the repo has, merged across archives by timestamp."""
+    merged: dict[str, dict[int, list]] = {}
+    origin = {}
+    for path in ARCHIVES:
+        if not path.exists():
+            continue
+        with open(path, encoding="utf-8") as fh:
+            raw = json.load(fh)
+        for sym, bars in (raw.get("pairs") or {}).items():
+            slot = merged.setdefault(sym, {})
+            origin.setdefault(sym, path.name)
+            for b in bars:
+                slot.setdefault(int(b[0]), b)
+        for sym in (raw.get("refused") or {}):
+            origin.setdefault(sym, "refused by venue")
     pairs = {}
-    for sym, bars in (raw.get("pairs") or {}).items():
-        pairs[sym] = {"ts": [int(b[0]) for b in bars], "hi": [float(b[2]) for b in bars],
-                      "lo": [float(b[3]) for b in bars]}
-    return pairs
+    for sym, by_ts in merged.items():
+        rows = [by_ts[t] for t in sorted(by_ts)]
+        pairs[sym] = {"ts": [int(b[0]) for b in rows],
+                      "hi": [float(b[2]) for b in rows],
+                      "lo": [float(b[3]) for b in rows]}
+    return pairs, origin
 
 
 def iso_epoch(s):
@@ -62,8 +82,13 @@ def iso_epoch(s):
 def position(pair_bars, at_ts, price):
     """(price - low) / (high - low) over the bars strictly before at_ts."""
     ts = pair_bars["ts"]
+    # An entry the tape cannot actually bracket is NOT positioned: past the last
+    # bar the "prior hour" would be a stale window from days earlier, and that is
+    # a fabricated measurement, not a thin one. Refuse both ends explicitly.
+    if not ts or at_ts > ts[-1] + 300 or at_ts < ts[0]:
+        return None
     i = bisect.bisect_left(ts, at_ts)          # first bar at/after the entry
-    if i <= MIN_BARS:
+    if i <= MIN_BARS or i < PRIOR_BARS:
         return None
     lo_i, hi_i = i - PRIOR_BARS, i
     if hi_i - lo_i < MIN_BARS:
@@ -116,9 +141,11 @@ def bucket(eq):
 
 
 def main():
-    pairs = load_tape()
+    pairs, origin = load_tape()
     rows, skipped = [], {"no_tape_pair": 0, "no_time": 0, "no_numbers": 0,
                          "no_window": 0, "stored_eq": 0, "stored_timing_eq": 0}
+    missing_syms = {}
+    window_miss: dict[str, dict[str, int]] = {}
     with open(TRADES, encoding="utf-8") as fh:
         for line in fh:
             line = line.strip()
@@ -132,6 +159,7 @@ def main():
             bars = pairs.get(sym)
             if bars is None:
                 skipped["no_tape_pair"] += 1
+                missing_syms[sym] = missing_syms.get(sym, 0) + 1
                 continue
             try:
                 entry, exit_ = float(r.get("entry")), float(r.get("exit"))
@@ -156,18 +184,48 @@ def main():
                 src = "rebuilt"
             if eq is None:
                 skipped["no_window"] += 1
+                # say WHICH kind of miss, so the residual is a number and a reason
+                at = sold - held * 60.0
+                ts_b = bars["ts"]
+                if not ts_b:
+                    why = "tape empty"
+                elif at < ts_b[0]:
+                    why = "entry before the tape's first bar"
+                elif at > ts_b[-1]:
+                    why = "entry after the tape's last bar"
+                else:
+                    j = bisect.bisect_left(ts_b, at)
+                    w_hi = max(bars["hi"][max(0, j - PRIOR_BARS):j] or [0.0])
+                    w_lo = min(bars["lo"][max(0, j - PRIOR_BARS):j] or [0.0])
+                    why = ("window has no range (degenerate tape: high == low)"
+                           if w_hi <= w_lo else "window thinner than 6 bars")
+                window_miss.setdefault(why, {}).setdefault(sym, 0)
+                window_miss[why][sym] += 1
                 continue
             rows.append({"pair": r.get("pair"), "eq": eq, "src": src, "net": net,
                          "pct": (exit_ / entry - 1.0) * 100.0 if entry > 0 else None,
                          "win": net > 0, "sold": sold, "held": held})
 
+    total = sum(1 for line in open(TRADES, encoding="utf-8") if line.strip())
     print("== sample")
-    print(f"closes on disk           {sum(1 for _ in open(TRADES, encoding='utf-8'))}")
-    print(f"usable with a timing pos {len(rows)}")
+    print(f"closes on disk           {total}")
+    print(f"usable with a timing pos {len(rows)}  ({100 * len(rows) / total:.1f}%)")
+    print(f"tape archives            {', '.join(p.name for p in ARCHIVES if p.exists())}"
+          f"  ({len(pairs)} symbols on disk)")
     print(f"  of which stored entry_quality {skipped['stored_eq']}"
           f", stored timing_eq {skipped['stored_timing_eq']}"
           f", rebuilt from the 5m tape {sum(1 for r in rows if r['src'] == 'rebuilt')}")
     print(f"excluded                 {skipped}")
+    for why, syms in window_miss.items():
+        n = sum(syms.values())
+        print(f"  no window: {why}  x{n}  (" + ", ".join(
+            f"{s} x{c}" for s, c in sorted(syms.items(), key=lambda kv: -kv[1])[:6])
+            + (" ..." if len(syms) > 6 else "") + ")")
+    if missing_syms:
+        print("  residual, by symbol: " + ", ".join(
+            f"{s} x{n}" for s, n in sorted(missing_syms.items(), key=lambda kv: -kv[1])))
+        for s in sorted(missing_syms):
+            print(f"    {s:<9} x{missing_syms[s]:<4} {origin.get(s, 'no archive at all')}")
     if not rows:
         print("\nVERDICT: no usable closes — nothing to resolve.")
         return 1
@@ -234,7 +292,8 @@ def main():
                       f"  diff {100 * (sum(r['win'] for r in a) / len(a) - sum(r['win'] for r in b) / len(b)):+.1f}pp")
         base = hw / len(hi_g)
         print(f"  n per arm for +5pp at 80% power: {need_n(base, 0.05)}"
-              f"   for +8pp: {need_n(base, 0.08)}")
+              f"   for +8pp: {need_n(base, 0.08)}"
+              f"   for the {100 * abs(d):.1f}pp observed: {need_n(base, abs(d))}")
 
     print("\n== verdict")
     lo_g, lo_p = arm(lambda e: e <= 0.25)
