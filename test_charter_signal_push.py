@@ -81,6 +81,17 @@ UID = int(db.create_user("siguser", _hl.sha256(b"x").hexdigest(),
                          "sig@example.com"))
 ps.subscribe(UID, {"endpoint": "https://push.example/s/sig",
                    "keys": {"p256dh": "k", "auth": "a"}})
+# THE ENTITLEMENT (Nov 15): push_service.send_to_user gained the Oct 24 gate —
+# "a signal is the paid product", so signal_buy / signal_exit are refused to an
+# account without Kraken Scout Pro, however its toggles read. This fixture's
+# user is a real recipient (section 6 grades the TEMPLATING), so it must hold
+# what a paying customer holds; the drive drifted, not the server. The gate
+# itself is pinned below (6.2) so the grant can never be mistaken for a bypass.
+db.set_user_scout_pro(UID, time.time() + 3600)
+UNPAID = int(db.create_user("nocoin", _hl.sha256(b"y").hexdigest(),
+                            "nocoin@example.com"))
+ps.subscribe(UNPAID, {"endpoint": "https://push.example/s/unpaid",
+                      "keys": {"p256dh": "k", "auth": "a"}})
 
 # the fake webpush BEFORE background_scanner imports anything pushy
 _boxes = []
@@ -196,6 +207,20 @@ check(6.1, handed == 2 and len(sigs) == 2
       and sigs[1]["title"] == "📉 GET OUT NOW",
       f"the scanner's spool drained into {len(sigs)} real templated "
       f"sends (BUY NOW + GET OUT NOW titles byte-exact)")
+
+# 6.2 THE GATE STILL GATES (Nov 15): the grant above is an entitlement, not a
+# bypass — a subscribed but unpaid account receives no signal.
+before_unpaid = len(_boxes)
+pc.SPOOL.write_text(json.dumps({"event": "signal_buy", "ts": time.time(),
+                                "user_id": UNPAID}) + "\n", encoding="utf-8")
+handed_unpaid = ps.drain_spool(pc.SPOOL)
+unpaid_sends = [p for _e, p in _boxes[before_unpaid:]
+                if p["tag"] in ("signal-buy", "signal-exit")]
+check(6.2, handed_unpaid == 0 and unpaid_sends == []
+      and db.has_scout_pro(UNPAID) is False and db.has_scout_pro(UID) is True,
+      f"an unentitled subscriber is still refused the signal "
+      f"(handed={handed_unpaid}, sends={len(unpaid_sends)}) while the paid "
+      f"one is served")
 
 print("== 7. FAIL-SOFT BY CONTRACT ==")
 pc.SPOOL = SANDBOX / "no_dir_here" / "x" / "spool.jsonl"   # unwritable
