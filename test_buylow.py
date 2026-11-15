@@ -163,8 +163,10 @@ check("6.4 both fire routes pass the score and the decision",
 _src_bg = open("background_scanner.py", encoding="utf-8").read()
 check("6.6 the LIVE full scan reads deep and runs all three rankings in order",
       "DEEP PASS" in _src_bg and "DEEP CHAMPION" in _src_bg
-      and _src_bg.index("_spend_mod.deep_scan(") < _src_bg.index("_entry_timing_apply(_top")
-      < _src_bg.index("_spend_mod.apply(_top") < _src_bg.index("_buy_low_mod.apply(_top"))
+      and "deep_crown_pool(" in _src_bg.split("def deep_crown_pool")[1]
+      and _src_bg.index("_spend_mod.deep_scan(") < _src_bg.index("_entry_timing_apply(top")
+      < _src_bg.index("_spend_mod.apply(top") < _src_bg.index("_buy_low_mod.apply(top")
+      and "_buys[-6:] if _buys" in _src_bg)
 check("6.5 the scanner applies the ranking after the spend one",
       open("scanner.py", encoding="utf-8").read().index("_buy_low.apply(")
       > open("scanner.py", encoding="utf-8").read().index("_spend.apply("))
@@ -207,6 +209,42 @@ class _Dead:
 
 check("7.3 a dead client returns None instead of raising",
       _sp._fetch_history(_Dead(), "X/USD", 60, 100) is None)
+
+print("== 8. the live crown pool reads the BUY set, and stamps the signal")
+class _DeadEx:
+    """No history (every OHLCV fetch fails), but a real ticker: this grades the
+    pool and the stamping, not the tape."""
+    def fetch_ohlcv(self, *a, **k):
+        raise RuntimeError("offline")
+    def fetch_ticker(self, *a, **k):
+        return {"high": 10.0, "low": 8.0, "last": 9.0, "quoteVolume": 5e6}
+
+
+_res = {}
+for _i in range(7):                      # seven loud HOLDS above one quiet BUY
+    _p = f"H{_i}/USD"
+    _res[_p] = sc.Signal(action="hold", confidence=60 + _i, price=1.0, reasons=["r"])
+_res["Q/USD"] = sc.Signal(action="buy", confidence=20, price=1.0, reasons=["r"])
+_bp, _bsig, _cands, _ranks = bs.deep_crown_pool(
+    _DeadEx(), _res, {}, config.TradingConfig(), None, None, 50)
+check("8.1 the only buy candidate is read even under seven louder holds",
+      "Q/USD" in _cands and len(_cands) <= 6, sorted(_cands))
+check("8.2 the loudest holds do not crowd the pool",
+      "H6/USD" not in _cands or len(_cands) == 6, sorted(_cands))
+
+_res2 = {"BUY/USD": sc.Signal(action="buy", confidence=70, price=1.0, reasons=["r"]),
+         "HOLD/USD": sc.Signal(action="hold", confidence=72, price=1.0, reasons=["r"])}
+_bp2, _bsig2, _c2, _r2 = bs.deep_crown_pool(
+    _DeadEx(), _res2, {}, config.TradingConfig(), "BUY/USD", _res2["BUY/USD"], 50)
+check("8.3 the crowned buy's signal carries entry_quality for the fire sites",
+      hasattr(_bsig2, "entry_quality") and _bsig2.entry_quality == _c2[_bp2].entry_quality,
+      _bsig2.entry_quality)
+check("8.4 ... and all three records, so the row can never lose them",
+      isinstance(_bsig2.spend_capacity, dict) and _bsig2.spend_rank is not None
+      and _bsig2.buy_low_rank is not None and _bsig2.buy_low is not None,
+      (_bsig2.spend_rank or {}).get("would"))
+check("8.5 nothing was applied with every flag off",
+      all(not (r or {}).get("applied") for r in _r2.values()))
 
 print("\n".join(lines))
 print(f"\nRESULT: {PASS} passed, {FAIL} failed")

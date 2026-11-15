@@ -833,6 +833,112 @@ def fetch_kraken_losers(exchange, top_n: int = 20, min_volume_usd: float = 100_0
 
 # ── Bounce Hunter: losers tournament + champion vs champion ─────────────
 
+def deep_crown_pool(exchange, results, all_data, cfg, best_pair, best_signal,
+                    min_conf):
+    """THE DEEP READ + the three shadow rankings for a full-scan crown pool.
+
+    One implementation, called by the running loop AND by the dry-run probe in
+    scratch/fire_probe.py — so proving the record is written proves the live
+    path, not a copy of it.
+
+    Reads the bracket's crown pool (top six by confidence), runs the rankings in
+    their shipped order (timing, spend, buy-low) and stamps the winner. Every
+    flag is off, so no decision changes here — the fire simply carries the
+    evidence and the comparison records. Fail-soft: a deep read that throws
+    leaves the crown exactly as it was.
+    """
+    from scanner import ScanResult as _ScanR, _entry_quality as _eq_of_df
+    cands: dict = {}
+    ranks: dict = {}
+    try:
+        # THE CROWN POOL IS THE BUY SET (Nov 15): the crown can only ever be a
+        # buy, so a bracket whose top six by confidence are all sells/holds
+        # must not crowd its own only buy candidates out of the deep read.
+        # Buys first, by confidence; on a pass with no buy at all, the top six
+        # by confidence anyway — a quiet night still has to show the read ran.
+        _all = [(s.confidence, p, s) for p, s in results.items() if s.price]
+        _buys = [t for t in _all if t[2].action == "buy"]
+        _all.sort(key=lambda t: t[0])
+        _buys.sort(key=lambda t: t[0])
+        pool = _buys[-6:] if _buys else _all[-6:]
+        for _conf, p, s in pool:             # the crown pool + margin
+            r = _ScanR(pair=p, signal=s)
+            df = all_data.get(p)
+            try:
+                r.entry_quality = _eq_of_df(df) if df is not None else None
+            except Exception:
+                r.entry_quality = None
+            r.spend = _spend_mod.deep_scan(exchange, p, cfg)
+            cands[p] = r
+        has_buy = any(r.signal.action == "buy" for r in cands.values())
+        if cands and has_buy:
+            top = max(cands.values(), key=lambda r: r.signal.confidence)
+            top, ranks["timing"] = _entry_timing_apply(top, cands, cfg)
+            top, ranks["spend"] = _spend_mod.apply(top, cands, cfg)
+            top, ranks["buylow"] = _buy_low_mod.apply(top, cands, cfg)
+            _cheap = _buy_low_mod.cheapness(top.spend, top.entry_quality) or {}
+            logger.info(
+                "  DEEP PASS: %d buy candidate(s) read deep "
+                "(best %s %.0f%%, min_conf %d, %s bars, src=%s) — "
+                "timing=%s spend=%s buylow=%s, cheap %.2f (%s) vs %s",
+                len(cands), top.pair.split("/")[0], top.signal.confidence,
+                min_conf, (top.spend or {}).get("bars"),
+                ",".join((top.spend or {}).get("src") or []),
+                ranks["timing"].get("would"), ranks["spend"].get("would"),
+                ranks["buylow"].get("would"),
+                float(_cheap.get("cheap") or 0.0), _cheap.get("src"),
+                top.pair.split("/")[0])
+            # With a ranking flag ON the crown follows the ranking; off (the
+            # shipped state) this is a no-op, and a swap can never promote a
+            # coin under min_conf.
+            if (top.pair != best_pair and top.signal.confidence >= min_conf
+                    and any((r or {}).get("applied") for r in ranks.values())):
+                best_pair, best_signal = top.pair, top.signal
+        elif cands:
+            logger.info(
+                "  DEEP PASS: %d candidate(s) read deep, no buy among "
+                "them — readings %s (min_conf %d, %s bars, src=%s)",
+                len(cands),
+                ", ".join(f"{r.pair.split('/')[0]} "
+                          f"{(_buy_low_mod.cheapness(r.spend, r.entry_quality) or {}).get('cheap')}"
+                          for r in cands.values()), min_conf,
+                max((r.spend or {}).get("bars") or 0 for r in cands.values()),
+                ",".join(next(iter(cands.values())).spend.get("src") or []))
+        else:
+            logger.info("  DEEP PASS: nothing evaluated to read")
+    except Exception as exc:
+        logger.debug("deep read / shadow rankings skipped: %s", exc)
+    # Stamp the crowned champion with what the deep read found. The rankings
+    # already ran above; with their flags off the crown is untouched, and the
+    # record says what they'd do.
+    try:
+        champ = cands.get(best_pair)
+        if champ is not None and ranks:
+            champ.signal.entry_timing = ranks["timing"]
+            champ.signal.spend_rank = ranks["spend"]
+            champ.signal.spend_capacity = (champ.spend
+                                          if isinstance(champ.spend, dict) else None)
+            champ.signal.buy_low_rank = ranks["buylow"]
+            champ.signal.buy_low = _buy_low_mod.cheapness(champ.spend,
+                                                          champ.entry_quality)
+            # THE FIRE SITES READ THE SIGNAL (getattr(signal, ...)), so the
+            # entry-quality figure has to travel on the signal too or every
+            # live row loses it while the ScanResult keeps it.
+            champ.signal.entry_quality = champ.entry_quality
+            logger.info(
+                "  DEEP CHAMPION %s: cap $%.0f, cheap %.2f (%s), dd %s%%, src=%s",
+                champ.pair.split("/")[0],
+                float((champ.spend or {}).get("cap_usd") or 0.0),
+                float((champ.signal.buy_low or {}).get("cheap") or 0.0),
+                (champ.signal.buy_low or {}).get("src"),
+                (champ.spend or {}).get("dd_pct"),
+                ",".join((champ.spend or {}).get("src") or []))
+            best_pair, best_signal = champ.pair, champ.signal
+    except Exception as exc:
+        logger.debug("champion deep stamp skipped: %s", exc)
+    return best_pair, best_signal, cands, ranks
+
+
 def bounce_tournament(exchange, cfg, loser_pairs: list[str]) -> tuple[Any, list[dict]]:
     """Run a tournament on yesterday's losers to find the best bounce candidate.
 
@@ -12080,112 +12186,11 @@ def main():
                         best_pair = pair
                         best_signal = sig
 
-                # ── THE DEEP READ AND THE SHADOW RANKINGS (Nov 15) ───────
-                # The live bracket crowned on confidence alone, so the deep
-                # per-coin data and the three rankings never reached a live fire.
-                # Read every buy candidate the bracket produced (the champion
-                # pool, not just the ones clearing min_conf — a quiet pass must
-                # still show the read ran), run the rankings in their shipped
-                # order (timing, spend, buy-low) and stamp the winner. Every
-                # flag is off, so no decision changes here — the fire simply
-                # carries the evidence and the comparison records. Fail-soft: a
-                # deep read that throws leaves the crown exactly as it was.
-                _cands: dict = {}
-                _ranks: dict = {}
-                try:
-                    from scanner import (ScanResult as _ScanR,
-                                         _entry_quality as _eq_of_df)
-                    # The crown pool plus margin — and, on a pass with NO buys
-                    # at all, the top of the bracket anyway: the read is the
-                    # market condition, and a quiet night must still show it ran
-                    # (Nov 15: two full passes logged nothing because zero buy
-                    # signals existed, which left "is the deep path live?"
-                    # unanswerable from the log).
-                    _pool = [(_s.confidence, _p, _s) for _p, _s in results.items()
-                             if _s.price]
-                    _pool.sort(key=lambda t: t[0])
-                    for _conf, _p, _s in _pool[-6:]:        # the crown pool + margin
-                        _r = _ScanR(pair=_p, signal=_s)
-                        _df_p = all_data.get(_p)
-                        try:
-                            _r.entry_quality = (_eq_of_df(_df_p)
-                                                if _df_p is not None else None)
-                        except Exception:
-                            _r.entry_quality = None
-                        _r.spend = _spend_mod.deep_scan(exchange, _p, cfg)
-                        _cands[_p] = _r
-                    _has_buy = any(r.signal.action == "buy"
-                                   for r in _cands.values())
-                    if _cands and _has_buy:
-                        _top = max(_cands.values(), key=lambda r: r.signal.confidence)
-                        _top, _ranks["timing"] = _entry_timing_apply(_top, _cands, cfg)
-                        _top, _ranks["spend"] = _spend_mod.apply(_top, _cands, cfg)
-                        _top, _ranks["buylow"] = _buy_low_mod.apply(_top, _cands, cfg)
-                        logger.info(
-                            "  DEEP PASS: %d buy candidate(s) read deep "
-                            "(best %s %.0f%%, min_conf %d, %s bars, src=%s) — "
-                            "timing=%s spend=%s buylow=%s, cheap %.2f (%s) vs %s",
-                            len(_cands), _top.pair.split("/")[0],
-                            _top.signal.confidence, min_conf,
-                            (_top.spend or {}).get("bars"),
-                            ",".join((_top.spend or {}).get("src") or []),
-                            _ranks["timing"].get("would"), _ranks["spend"].get("would"),
-                            _ranks["buylow"].get("would"),
-                            float((_buy_low_mod.cheapness(
-                                _top.spend, _top.entry_quality) or {}).get("cheap") or 0.0),
-                            (_buy_low_mod.cheapness(
-                                _top.spend, _top.entry_quality) or {}).get("src"),
-                            _top.pair.split("/")[0])
-                        # With a ranking flag ON the crown follows the ranking;
-                        # off (the shipped state) this is a no-op, and a swap can
-                        # never promote a coin under min_conf.
-                        if (_top.pair != best_pair
-                                and _top.signal.confidence >= min_conf
-                                and any((r or {}).get("applied")
-                                        for r in _ranks.values())):
-                            best_pair, best_signal = _top.pair, _top.signal
-                    elif _cands:
-                        logger.info(
-                            "  DEEP PASS: %d candidate(s) read deep, no buy among "
-                            "them — readings %s (min_conf %d, %s bars, src=%s)",
-                            len(_cands),
-                            ", ".join(f"{r.pair.split('/')[0]} "
-                                      f"{(_buy_low_mod.cheapness(r.spend, r.entry_quality) or {}).get('cheap')}"
-                                      for r in _cands.values()), min_conf,
-                            max((r.spend or {}).get("bars") or 0
-                                for r in _cands.values()),
-                            ",".join(next(iter(_cands.values())).spend.get("src") or []))
-                    else:
-                        logger.info("  DEEP PASS: nothing evaluated to read")
-                except Exception as _deep_exc:
-                    logger.debug("deep read / shadow rankings skipped: %s", _deep_exc)
+                best_pair, best_signal, _cands, _ranks = deep_crown_pool(
+                    exchange, results, all_data, cfg, best_pair, best_signal,
+                    min_conf)
 
                 if best_pair and best_signal:
-                    # Stamp the crowned champion with what the deep read found.
-                    # The rankings already ran above; with their flags off the
-                    # crown is untouched, and the record says what they'd do.
-                    try:
-                        _champ = _cands.get(best_pair)
-                        if _champ is not None and _ranks:
-                            _champ.signal.entry_timing = _ranks["timing"]
-                            _champ.signal.spend_rank = _ranks["spend"]
-                            _champ.signal.spend_capacity = (
-                                _champ.spend if isinstance(_champ.spend, dict) else None)
-                            _champ.signal.buy_low_rank = _ranks["buylow"]
-                            _champ.signal.buy_low = _buy_low_mod.cheapness(
-                                _champ.spend, _champ.entry_quality)
-                            logger.info(
-                                "  DEEP CHAMPION %s: cap $%.0f, cheap %.2f (%s), "
-                                "dd %s%%, src=%s",
-                                _champ.pair.split("/")[0],
-                                float((_champ.spend or {}).get("cap_usd") or 0.0),
-                                float((_champ.signal.buy_low or {}).get("cheap") or 0.0),
-                                (_champ.signal.buy_low or {}).get("src"),
-                                (_champ.spend or {}).get("dd_pct"),
-                                ",".join((_champ.spend or {}).get("src") or []))
-                            best_pair, best_signal = _champ.pair, _champ.signal
-                    except Exception as _stamp_exc:
-                        logger.debug("champion deep stamp skipped: %s", _stamp_exc)
                     asset = best_pair.split("/")[0]
                     logger.info("🏆 Momentum Champion: %s %s (%.0f%%)", best_signal.action, asset, best_signal.confidence)
 

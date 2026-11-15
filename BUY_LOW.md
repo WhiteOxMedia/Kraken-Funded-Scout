@@ -113,6 +113,31 @@ selection side.
   the watch row and carries them to the journal (`_family_fields`);
 - `entry_timing_rank`, `spend_rank`, `buy_low_rank` are all **False**.
 
+### The fire path, proven on live data without an order (`scratch/fire_probe.py`)
+
+The probe drives the loop's own `deep_crown_pool()` and then the loop's own
+`auto_track_popup()` — the same two functions a live fire calls — against the
+current Kraken read, with the watch file pointed at `scratch/_probe_watch.json`.
+CRV/USD, 15 Nov 05:08 MST, 720 bars:
+
+```json
+"spend_capacity": {"src": ["deep_history", "ticker"], "bars": 720, "span_days": 30.0,
+  "pos_in_day_pct": 25.5, "off_high_pct": 11.018, "off_low_pct": 3.912,
+  "dd_pct": 3.3, "dd_src": "volatility_profile", "dd_empirical_pct": 19.824,
+  "cap_usd": 2913.02, "cap_deep_usd": 484.92, "cap_frac_pct": 29.2}
+"buy_low": {"cheap": 0.6473, "pos_hour": 0.4505, "pos_day": 0.255, "src": "hour+day"}
+"buy_low_rank": {"flag": "buy_low_rank", "on": false, "applied": false,
+  "would": "hold", "pool": 1,
+  "compared": [{"pair": "CRV/USD", "cheap": 0.6473, "conf": 38.6, "src": "hour+day"}]}
+"spend_rank": {"on": false, "would": "hold", "cap_usd": 2913.02}
+```
+
+`cap_usd` is the guard's number and `cap_deep_usd` sits beside it, never in
+place of it. Balance before/after: identical ($9,982.73), live watch file
+untouched, 0 open rows before and after. The pool held one coin because the
+whole liquid book had exactly one buy that night — the multi-candidate
+comparison is covered by `test_buylow` 3.1–3.7 (two coins, EXT vs LOW).
+
 ### Two bugs the live run found (both fixed)
 
 1. **The loop never read deep at all.** `scanner.tournament_scan` — where the
