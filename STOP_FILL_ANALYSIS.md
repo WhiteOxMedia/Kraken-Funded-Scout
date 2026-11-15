@@ -89,6 +89,38 @@ This is a bound, not a point estimate — a 5m bar cannot say where inside it th
 crossing happened — but the 20s column sits at the most favourable end of the
 same bound the 18-minute column came from.
 
+## Measured live (Nov 15, `scratch/fast_stop_live_probe.py`)
+
+Order-free, against the real venue, over the 54-pair universe the scanner
+watches (the live watch file was flat that evening, so the probe used the
+scanner's own `trading_pairs`):
+
+| | value |
+|---|---|
+| venue calls per tick | **1** (`fetch_tickers`, 54 symbols) |
+| batch coverage | **54/54 rows**, no per-pair fallback |
+| tick duration | 0.86–2.18s |
+| headroom in the 20s beat | **+17.8s worst case** |
+| live beat over 65s (real watchdog) | intervals 19.96 / 19.99s, mean 19.98s |
+| whole book in one no-arg call | 1,461 markets in 1.22s — no cheaper, so unused |
+
+Two things the live run exposed and the fix now covers:
+
+1. **A short batch used to leave rows unjudged.** The old read returned as soon
+   as the batch had *any* price, so a pair the batch skipped would never be
+   tested against its stop. The gaps are now repaired one at a time, and only
+   the gaps.
+2. **A raised batch used to fall through to the whole book.** At 54 rows that is
+   a 54-call burst inside a 20s beat. And on ccxt/kraken `fetch_ticker` is
+   *itself* built on `fetch_tickers` (measured), so the fallback re-hit the same
+   failing endpoint once per row and bought nothing: the repair is now capped at
+   `FAST_STOP_FALLBACK_MAX` (8) and skipped entirely when the batch raised — the
+   next beat retries the batch.
+
+The beat is also deadline-scheduled now: a 2.18s tick under `sleep(20)` after
+the tick would drift the cadence to ~22s and compound; the live 65s run shows
+intervals of 19.96/19.99s instead.
+
 ## What it does not say
 
 - Lag resolution is 5 minutes (bar start), so "18 min" could be 13–18.

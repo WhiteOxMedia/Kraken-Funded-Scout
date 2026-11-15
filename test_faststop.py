@@ -39,12 +39,14 @@ def row(entry, size, stop, added="2026-11-15T12:00:00-07:00"):
 class Ex:
     """A market that answers from a dict and counts its calls."""
 
-    def __init__(self, prices, bulk=True, dead=False):
+    def __init__(self, prices, bulk=True, dead=False, bulk_covers=None):
         self.prices = prices
         self.bulk = bulk
         self.dead = dead
+        self.bulk_covers = bulk_covers      # None = the batch covers everything
         self.bulk_calls = 0
         self.single_calls = 0
+        self.single_pairs = []
         if not bulk:
             self.fetch_tickers = None      # the venue has no batch endpoint
 
@@ -52,10 +54,14 @@ class Ex:
         self.bulk_calls += 1
         if self.dead:
             raise RuntimeError("market unavailable")
-        return {p: {"last": px} for p, px in self.prices.items()}
+        px = self.prices
+        if self.bulk_covers is not None:
+            px = {p: v for p, v in self.prices.items() if p in self.bulk_covers}
+        return {p: {"last": v} for p, v in px.items()}
 
     def fetch_ticker(self, pair):
         self.single_calls += 1
+        self.single_pairs.append(pair)
         if self.dead:
             raise RuntimeError("market unavailable")
         if pair not in self.prices:
@@ -185,6 +191,130 @@ check("cadence: strictly faster than one light tick", bs.FAST_STOP_TICK_S < bs.L
       (bs.FAST_STOP_TICK_S, bs.LIGHT_TICK_S))
 check("safety: the fast path closes nothing itself",
       "_run_light_pass(exchange, cfg, source=\"faststop\"" in src)
+
+# ── THE LIVE-MEASURED BUDGET (Nov 15) ────────────────────
+# Kraken served the whole 54-pair universe in ONE fetch_tickers call (0.9-2.2s,
+# 54/54 rows). These hold the paths that could have broken that: a batch that
+# covers only part of the book, and a batch that fails outright.
+universe = {}
+for i in range(40):
+    universe["C%02d/USD" % i] = {"pair": "C%02d/USD" % i, "entry": 100.0,
+                                 "size": 100.0, "hard_stop_usd": 3.0}
+full = Ex({p: 100.0 for p in universe})
+bs._fast_stop_scan(full, universe)
+check("budget: a full-market batch is ONE call and no per-pair burst",
+      (full.bulk_calls, full.single_calls) == (1, 0),
+      (full.bulk_calls, full.single_calls))
+
+# a short batch is repaired ONLY where it was short
+partial = Ex({"C00/USD": 90.0, "C01/USD": 90.0, "C02/USD": 90.0},
+             bulk_covers={"C00/USD", "C01/USD"})
+bs._fast_stop_scan(partial, {p: {"pair": p, "entry": 100.0, "size": 100.0,
+                                "hard_stop_usd": 3.0}
+                            for p in ("C00/USD", "C01/USD", "C02/USD")})
+check("budget: a partial batch re-reads only the missing row",
+      (partial.bulk_calls, partial.single_pairs) == (1, ["C02/USD"]),
+      (partial.bulk_calls, partial.single_pairs))
+
+# a dead batch must not become a whole-book burst of per-pair reads
+storm = Ex({p: 90.0 for p in universe}, dead=True)
+storm_px = bs._fast_prices(storm, list(universe))
+check("budget: a RAISED batch is not repaired per pair at all"
+      " (fetch_ticker is built on fetch_tickers)",
+      storm.single_calls == 0, (storm.single_calls, bs.FAST_STOP_FALLBACK_MAX))
+check("budget: a dead venue yields no prices, never a fabricated one", storm_px == {}, storm_px)
+check("budget: the fallback cap is small enough to fit one beat",
+      0 < bs.FAST_STOP_FALLBACK_MAX <= 12, bs.FAST_STOP_FALLBACK_MAX)
+
+noBulk = Ex({p: 90.0 for p in universe}, bulk=False)
+bs._fast_prices(noBulk, list(universe))
+check("budget: no batch endpoint at all is still bounded by the cap",
+      noBulk.single_calls == bs.FAST_STOP_FALLBACK_MAX,
+      (noBulk.single_calls, bs.FAST_STOP_FALLBACK_MAX))
+
+check("wiring: the beat is deadline-scheduled, not sleep-after-tick",
+      "next_at += period" in src and "next_at = time.time() + period" in src)
+
+# ── the beat keeps its period when a tick costs time ─────────────────────
+import threading
+_orig_tick = bs._fast_stop_tick
+_orig_period = bs.FAST_STOP_TICK_S
+_stamps = []
+try:
+    def _slow_tick(ex, cfg):
+        time.sleep(0.05)                 # a tick that costs a quarter of the beat
+        _stamps.append(time.time())
+        return [], {}
+
+    bs._fast_stop_tick = _slow_tick
+    bs.FAST_STOP_TICK_S = 0.2
+    _stop = threading.Event()
+    _th = threading.Thread(target=bs._fast_stop_watchdog, args=(None, None, _stop),
+                           daemon=True)
+    _th.start()
+    time.sleep(1.1)
+    _stop.set()
+    _th.join(timeout=2.0)
+finally:
+    bs._fast_stop_tick = _orig_tick
+    bs.FAST_STOP_TICK_S = _orig_period
+
+deltas = [round(b - a, 3) for a, b in zip(_stamps, _stamps[1:])]
+check("cadence: ticks keep the beat even when a tick costs time",
+      len(_stamps) >= 4 and deltas and max(deltas) <= 0.28,
+      (len(_stamps), deltas))
+
+# ── a breach is acted on within one beat of the crossing ────────────────
+_orig_tick2 = bs._fast_stop_tick
+_orig_watch2 = bs._load_contest_watch
+_orig_floor2 = bs.death_floor_gate
+_orig_run2 = bs._run_light_pass
+try:
+    _flip = {"at": None}
+    _sent = []
+
+    class FlipEx:
+        """Calm until 0.25s into the run, then past the stop."""
+
+        def __init__(self):
+            self.t0 = time.time()
+
+        def fetch_tickers(self, pairs=None):
+            if time.time() - self.t0 > 0.25:
+                if _flip["at"] is None:
+                    _flip["at"] = time.time()
+                return {p: {"last": 96.90} for p in (pairs or [])}
+            return {p: {"last": 99.90} for p in (pairs or [])}
+
+        def fetch_ticker(self, pair):
+            return self.fetch_tickers([pair])[pair]
+
+    bs._load_contest_watch = lambda: {"AAA/USD": row(100.0, 1000.0, 30.0)}
+    bs.death_floor_gate = lambda *a, **k: {}
+    bs._run_light_pass = lambda *a, **k: _sent.append((time.time(), k))
+    bs.FAST_STOP_TICK_S = 0.2
+    _stop2 = threading.Event()
+    _th2 = threading.Thread(target=bs._fast_stop_watchdog,
+                            args=(FlipEx(), None, _stop2), daemon=True)
+    _th2.start()
+    time.sleep(1.0)
+    _stop2.set()
+    _th2.join(timeout=2.0)
+
+    latency = (min(t for t, _k in _sent) - _flip["at"]) if (_sent and _flip["at"]) else None
+    check("latency: a breach is acted on within one beat of the crossing",
+          latency is not None and latency <= 0.2 + 0.15, latency)
+    check("latency: the action is the narrow delegation, unchanged",
+          bool(_sent) and _sent[0][1].get("only_pairs") == ["AAA/USD"], _sent[:1])
+    check("clock: the tick records its own duration for the cadence proof",
+          isinstance(bs._FAST_STOP_CLOCK.get("secs"), float)
+          and bs._FAST_STOP_CLOCK["secs"] > 0.0, bs._FAST_STOP_CLOCK.get("secs"))
+finally:
+    bs._fast_stop_tick = _orig_tick2
+    bs._load_contest_watch = _orig_watch2
+    bs.death_floor_gate = _orig_floor2
+    bs._run_light_pass = _orig_run2
+    bs.FAST_STOP_TICK_S = _orig_period
 
 print("\n".join(lines))
 print(f"\nRESULT: {PASS} passed, {FAIL} failed")

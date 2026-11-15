@@ -6139,9 +6139,19 @@ def _light_watchdog(exchange, cfg, stop: threading.Event, episode=None):
 # FAST_STOP_TICK_S.
 FAST_STOP_TICK_S = float(os.environ.get("FAST_STOP_TICK_S") or 20.0)
 FAST_STOP_ENABLED = (os.environ.get("FAST_STOP_ENABLED", "1") not in ("0", "false", "False"))
+# THE FALLBACK BUDGET (Nov 15, live probe): one batched read of the 54-pair
+# universe measured 0.9-2.2s at Kraken and covered 54/54 rows, so the happy path
+# is one call per tick. The danger is the FAILURE path: an exception or a short
+# batch used to re-read EVERY row one at a time, and at ~1s of ccxt rate-limit
+# spacing 54 rows is 54s inside a 20s beat -- the tick would outlive its own
+# period and starve the next one. So the per-pair route is a bounded REPAIR of
+# the gaps the batch left, never a whole-book sweep; whatever it cannot price
+# this tick stays unpriced (the sweep leaves it alone rather than guessing) and
+# the next batched read tries again.
+FAST_STOP_FALLBACK_MAX = int(os.environ.get("FAST_STOP_FALLBACK_MAX") or 8)
 _FAST_STOP_LOCK = threading.Lock()
 _FAST_STOP_CLOCK = {"at": 0.0, "ticks": 0, "breaches": 0, "priced": 0,
-                    "errors": 0, "last": None}
+                    "errors": 0, "secs": 0.0, "last": None}
 
 
 def _fast_prices(exchange, pairs) -> dict:
@@ -6156,7 +6166,9 @@ def _fast_prices(exchange, pairs) -> dict:
     if not pairs:
         return out
     bulk = getattr(exchange, "fetch_tickers", None)
-    if callable(bulk):
+    bulk_tried = callable(bulk)
+    bulk_ok = False
+    if bulk_tried:
         try:
             book = bulk(pairs) or {}
             for p in pairs:
@@ -6164,11 +6176,19 @@ def _fast_prices(exchange, pairs) -> dict:
                 px = row.get("last") or row.get("close")
                 if px:
                     out[p] = float(px)
-            if out:
-                return out
+            bulk_ok = True
         except Exception:
-            pass          # fall through to the per-pair read
-    for p in pairs:
+            bulk_ok = False   # a raised batch is a gap in every row, not a crash
+    # ONLY the gaps, and only a bounded number of them: a venue that stops
+    # serving the batch must never turn one tick into a whole-book burst of
+    # per-pair reads that outlives FAST_STOP_TICK_S.
+    #
+    # A batch that RAISED is not repaired at all: on ccxt/kraken fetch_ticker is
+    # itself built on fetch_tickers (measured Nov 15), so the "fallback" would
+    # re-hit the same failing endpoint once per row and buy nothing. The next
+    # beat retries the batch, and the sweep still prices the rows it reaches.
+    gap = [p for p in pairs if p not in out] if (bulk_ok or not bulk_tried) else []
+    for p in gap[:max(0, FAST_STOP_FALLBACK_MAX)]:
         try:
             row = exchange.fetch_ticker(p) or {}
             px = row.get("last") or row.get("close")
@@ -6216,8 +6236,10 @@ def _fast_stop_tick(exchange, cfg) -> tuple[list, dict]:
             return [], {}
         if not watch:
             return [], {}
+        _t0_fs = time.perf_counter()
         try:
             breached, px = _fast_stop_scan(exchange, watch)
+            _FAST_STOP_CLOCK["secs"] = round(time.perf_counter() - _t0_fs, 3)
         except Exception as exc:
             _FAST_STOP_CLOCK["errors"] += 1
             logger.debug("fast stop scan failed (%s) — no action this tick", exc)
@@ -6251,16 +6273,31 @@ def _fast_stop_tick(exchange, cfg) -> tuple[list, dict]:
 
 
 def _fast_stop_watchdog(exchange, cfg, stop: threading.Event):
-    """The fast beat. One price batch per tick; a dead market is a skipped tick."""
+    """The fast beat. One price batch per tick; a dead market is a skipped tick.
+
+    DEADLINE-SCHEDULED (Nov 15, live probe): a 54-pair batch measures 0.9-2.2s,
+    so sleeping a full period AFTER the tick would turn a 20s beat into ~22s and
+    let the drift compound over a session. The next deadline is advanced by the
+    PERIOD, not by "period + however long that took". A tick that overruns its
+    own period (a breach handing rows to the light pass) resyncs to a short beat
+    instead of firing a catch-up burst.
+    """
+    period = float(FAST_STOP_TICK_S) if FAST_STOP_TICK_S > 0 else 20.0
+    next_at = time.time() + period
     while not stop.is_set():
+        delay = next_at - time.time()
+        if delay > 0 and stop.wait(delay):
+            break
+        if stop.is_set():
+            break
         try:
-            stop.wait(FAST_STOP_TICK_S)
-            if stop.is_set():
-                break
             _fast_stop_tick(exchange, cfg)
         except Exception as exc:
             _FAST_STOP_CLOCK["errors"] = int(_FAST_STOP_CLOCK.get("errors") or 0) + 1
             logger.debug("fast stop watchdog skipped a beat: %s", exc)
+        next_at += period
+        if next_at <= time.time():          # the tick overran its own period
+            next_at = time.time() + period * 0.1
 
 
 def _day_review_spoken(now) -> bool:
