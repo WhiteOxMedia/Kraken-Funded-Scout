@@ -166,9 +166,15 @@ def main() -> int:
             and c.get("conf") is not None and c.get("src") for c in _cmp),
         _cmp)
     chk("it states its preference, the margin and the threshold",
-        (blr.get("cheapest") or {}).get("pair") and blr.get("gain_cheap") is not None
+        (blr.get("preferred") or {}).get("pair") and blr.get("gain_score") is not None
         and blr.get("min_gain") is not None,
-        {k: blr.get(k) for k in ("cheapest", "gain_cheap", "min_gain")})
+        {k: blr.get(k) for k in ("preferred", "gain_score", "min_gain")})
+    _st = blr.get("study") or {}
+    chk("it names the signal that was measured, with its out-of-sample numbers",
+        blr.get("signal") == "pos_hour" and (_st.get("oos") or {}).get("ci")
+        and _st["oos"]["ci"][0] > 0 and _st.get("verdict") == "accepted",
+        (blr.get("signal"), (_st.get("oos") or {}).get("diff_pct"),
+         (_st.get("oos") or {}).get("ci"), (_st.get("baseline") or {}).get("clears")))
     chk("it states explicitly whether the bracket would change",
         isinstance(blr.get("would_change"), bool)
         and blr.get("would") in ("prefer" if blr["would_change"] else "hold", "hold"),

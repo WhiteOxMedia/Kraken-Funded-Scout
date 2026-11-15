@@ -46,7 +46,46 @@ travels `Signal.buy_low` + `Signal.buy_low_rank` → `auto_track_popup` → watc
 It runs **after** the entry-timing and spend rankings, so it sees the champion
 they produced; with every flag off none of them changes an order.
 
-## 3. The grade — `scratch/buy_low_study.py`
+## 3. Which signal survives an out-of-sample holdout — `scratch/entry_edge_study.py`
+
+Day-cheapness was graded and lost. So the selection question was asked properly:
+157 chronological decision points (45 days, every 6h, no lookahead — the scanner's
+own `evaluate_strategy` sees only bars up to that hour), every buy candidate
+marked to the **same** 60-minute forward window from the same 5m tape, net of the
+journal's median 0.080% round trip, paired against the coin the bracket fires
+(highest confidence). Earlier 60% = fit (signal *and* direction chosen there);
+later 40% = untouched holdout. Windows are the existing 10-point confidence
+window — nothing was widened.
+
+| signal | dir | fit n | fit Δ | fit 95% CI | hold n | **hold Δ** | hold 95% CI | clears |
+|---|---|---|---|---|---|---|---|---|
+`pos_hour` (entry_quality) | + | 94 | +0.133 | +0.041..+0.225 | 63 | **+0.111** | **+0.017..+0.204** | **yes** |
+`mom_2h` | + | 94 | +0.173 | +0.072..+0.273 | 63 | +0.094 | +0.002..+0.186 | yes |
+`cheap` (what shipped) | − | 94 | +0.133 | +0.041..+0.225 | 63 | +0.087 | −0.014..+0.187 | no |
+`mom_6h` | + | 94 | +0.108 | −0.018..+0.235 | 63 | +0.098 | −0.001..+0.197 | no |
+`off_high_24h` | − | 94 | +0.095 | −0.029..+0.220 | 63 | +0.024 | −0.088..+0.136 | no |
+`off_low_24h` | + | 94 | +0.037 | −0.031..+0.104 | 63 | +0.011 | −0.088..+0.110 | no |
+`vol_24h` | − | 94 | +0.072 | −0.053..+0.197 | 63 | −0.029 | −0.148..+0.090 | no |
+`pos_day` | + | 68 | +0.063 | −0.023..+0.149 | 46 | −0.090 | −0.222..+0.041 | no |
+
+Absolute arms on the holdout (per trade, net of cost): fired 31.7% win / −0.277%
+mean; `pos_hour`-preferred **38.1% win / −0.166% mean** (changed the coin on
+31/63 points); `mom_2h`-preferred 34.9% / −0.183%; `cheap`-preferred 34.9% /
+−0.190%.
+
+**What the data says.** Prefer the coin that has already moved **up inside its
+hour** — the live `entry_quality` — not the coin that is cheap in its day range.
+Cheapness in the day is a description of a coin still falling: it does not clear
+the holdout, and its bands lose money on the closes. `mom_2h` clears too but by a
+thinner margin and it is not a signal the scanner computes; `pos_hour` is.
+
+Two limits worth stating plainly: every arm is still **negative net** on this
+window (the ranking improves which loser you own, it does not make the exit
+profitable), and +0.11% per trade with a CI whose lower bound is +0.017 is a real
+but small edge — it is the selection half of the +80% question, not the answer to
+it. The ranking now prefers `pos_hour`; `buy_low_rank` stays **off**.
+
+## 4. The grade of the old preference — `scratch/buy_low_study.py`
 
 ### A. The signal, on the stored closes (n = 2,536)
 

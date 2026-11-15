@@ -1,0 +1,98 @@
+{
+ "cheap": {
+  "dir": "-",
+  "fit_n": 94,
+  "fit_diff": 0.1331,
+  "hold_n": 63,
+  "hold_diff": 0.0866,
+  "hold_ci": [
+   -0.014,
+   0.1871
+  ],
+  "clears": false
+ },
+ "pos_hour": {
+  "dir": "+",
+  "fit_n": 94,
+  "fit_diff": 0.1327,
+  "hold_n": 63,
+  "hold_diff": 0.1108,
+  "hold_ci": [
+   0.0174,
+   0.2042
+  ],
+  "clears": true
+ },
+ "pos_day": {
+  "dir": "+",
+  "fit_n": 68,
+  "fit_diff": 0.0626,
+  "hold_n": 46,
+  "hold_diff": -0.0904,
+  "hold_ci": [
+   -0.222,
+   0.0413
+  ],
+  "clears": false
+ },
+ "off_high_24h": {
+  "dir": "-",
+  "fit_n": 94,
+  "fit_diff": 0.0953,
+  "hold_n": 63,
+  "hold_diff": 0.0239,
+  "hold_ci": [
+   -0.088,
+   0.1357
+  ],
+  "clears": false
+ },
+ "off_low_24h": {
+  "dir": "+",
+  "fit_n": 94,
+  "fit_diff": 0.0368,
+  "hold_n": 63,
+  "hold_diff": 0.011,
+  "hold_ci": [
+   -0.0877,
+   0.1097
+  ],
+  "clears": false
+ },
+ "mom_2h": {
+  "dir": "+",
+  "fit_n": 94,
+  "fit_diff": 0.1725,
+  "hold_n": 63,
+  "hold_diff": 0.0938,
+  "hold_ci": [
+   0.0019,
+   0.1858
+  ],
+  "clears": true
+ },
+ "mom_6h": {
+  "dir": "+",
+  "fit_n": 94,
+  "fit_diff": 0.1082,
+  "hold_n": 63,
+  "hold_diff": 0.0979,
+  "hold_ci": [
+   -0.0008,
+   0.1966
+  ],
+  "clears": false
+ },
+ "vol_24h": {
+  "dir": "-",
+  "fit_n": 94,
+  "fit_diff": 0.0722,
+  "hold_n": 63,
+  "hold_diff": -0.0288,
+  "hold_ci": [
+   -0.1478,
+   0.0901
+  ],
+  "clears": false
+ }
+}

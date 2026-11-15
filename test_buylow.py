@@ -68,20 +68,28 @@ def result(pair, conf=60.0, eq=None, spend=None, action="buy"):
     return r
 
 
-print("== 3. the verdict")
-ext = result("EXT/USD", 60.0, 0.9, {"pos_in_day_pct": 92.0})
-low = result("LOW/USD", 55.0, 0.15, {"pos_in_day_pct": 8.0})
-mid = result("MID/USD", 61.0, 0.5, {"pos_in_day_pct": 50.0})
+print("== 3. the verdict (measured signal, not cheapness)")
+ext = result("EXT/USD", 60.0, 0.9, {"pos_in_day_pct": 92.0})   # pos_hour 0.90
+low = result("LOW/USD", 55.0, 0.15, {"pos_in_day_pct": 8.0})   # pos_hour 0.15
+mid = result("MID/USD", 61.0, 0.5, {"pos_in_day_pct": 50.0})   # pos_hour 0.50
 pool = {r.pair: r for r in (ext, low, mid)}
-v = bl.verdict(ext, pool, False)
-check("3.1 a cheaper near-equal says 'prefer', unapplied while off",
-      v["would"] == "prefer" and v["to"] == "LOW/USD" and v["applied"] is False, v)
-check("3.2 it lists what it compared, with scores and sources",
-      len(v["compared"]) == 3 and v["compared"][0]["pair"] == "LOW/USD"
+v = bl.verdict(low, pool, False)
+check("3.0 the record names the signal that was measured and its study",
+      v["signal"] == "pos_hour" and v["signal_dir"] == "+"
+      and (v.get("study") or {}).get("verdict") == "accepted"
+      and v["study"]["oos"]["ci"][0] > 0
+      and v["study"]["baseline"]["clears"] is False,
+      (v["signal"], v["study"]["oos"]))
+check("3.1 the coin already moving up in its hour is preferred, unapplied while off",
+      v["would"] == "prefer" and v["to"] == "EXT/USD" and v["applied"] is False,
+      {k: v.get(k) for k in ("would", "to", "gain")})
+check("3.2 it lists what it compared, best measured score first",
+      len(v["compared"]) == 3 and v["compared"][0]["pair"] == "EXT/USD"
+      and v["compared"][0]["score"] == 0.9
       and v["compared"][0]["src"] == "hour+day", v["compared"][:1])
 check("3.3 the flag alone flips 'applied'",
-      bl.verdict(ext, pool, True)["applied"] is True)
-check("3.4 already the cheapest = 'hold'", bl.verdict(low, pool, True)["would"] == "hold")
+      bl.verdict(low, pool, True)["applied"] is True)
+check("3.4 already the best score = 'hold'", bl.verdict(ext, pool, True)["would"] == "hold")
 check("3.5 a materially weaker signal is never promoted",
       bl.verdict(result("A/USD", 60.0, 0.9, {"pos_in_day_pct": 90.0}),
                  {"A/USD": result("A/USD", 60.0, 0.9, {"pos_in_day_pct": 90.0}),
@@ -95,30 +103,40 @@ check("3.6 no measurement on either side -> 'insufficient'/'no_read'",
 check("3.7 a 0.05 edge is not a different entry",
       bl.verdict(result("S/USD", 60.0, 0.50),
                  {"S/USD": result("S/USD", 60.0, 0.50),
-                  "T/USD": result("T/USD", 60.0, 0.45)}, True)["would"] == "hold")
+                  "T/USD": result("T/USD", 60.0, 0.55)}, True)["would"] == "hold")
 _hold = bl.verdict(result("S/USD", 60.0, 0.50),
                    {"S/USD": result("S/USD", 60.0, 0.50),
-                    "T/USD": result("T/USD", 60.0, 0.45)}, True)
+                    "T/USD": result("T/USD", 60.0, 0.55)}, True)
 check("3.8 even a hold names the coin it would rather own, the margin and the bar",
-      (_hold.get("cheapest") or {}).get("pair") == "T/USD"
-      and abs((_hold.get("gain_cheap") or 0) - 0.05) < 1e-6
+      (_hold.get("preferred") or {}).get("pair") == "T/USD"
+      and abs((_hold.get("gain_score") or 0) - 0.05) < 1e-6
       and _hold.get("min_gain") == bl.BUY_LOW_MIN_GAIN
       and _hold.get("would_change") is False, _hold)
-_pref = bl.verdict(ext, pool, True)
-check("3.9 a real preference says would_change, with from/to and the gain",
-      _pref.get("would_change") is True and _pref.get("to") == "LOW/USD"
-      and _pref.get("gain_cheap") == round(_pref["to_cheap"] - _pref["from_cheap"], 4)
-      and (_pref.get("cheapest") or {}).get("pair") == _pref.get("to"), _pref)
+_pref = bl.verdict(low, pool, True)
+check("3.9 a real preference says would_change, with from/to, scores and the gain",
+      _pref.get("would_change") is True and _pref.get("to") == "EXT/USD"
+      and _pref.get("from") == "LOW/USD"
+      and _pref.get("gain") == round(_pref["to_score"] - _pref["from_score"], 4)
+      and _pref.get("gain_score") == _pref.get("gain"), _pref)
+_check_low = bl.verdict(low, pool, False)
+check("3.10 the champion that loses on the measured signal is named as such",
+      _check_low["champion"]["pair"] == "LOW/USD"
+      and _check_low["preferred"]["pair"] == "EXT/USD"
+      and _check_low["champion"]["score"] == 0.15
+      and _check_low["preferred"]["score"] == 0.9, _check_low)
 
 print("== 4. apply()")
 check("4.1 flag off returns the same champion",
-      bl.apply(ext, pool, config.TradingConfig())[0] is ext)
+      bl.apply(low, pool, config.TradingConfig())[0] is low)
 _on = config.TradingConfig()
 _on.buy_low_rank = True
-_sw, _rec = bl.apply(ext, pool, _on)
-check("4.2 flag on swaps to the cheaper coin and records the swing",
-      _sw is low and _rec["applied"] is True and _rec["to"] == "LOW/USD"
-      and _rec["cheap_before"] == _rec.get("from_cheap"), _rec)
+_sw, _rec = bl.apply(low, pool, _on)
+check("4.2 flag on swaps to the measured winner and records the swing",
+      _sw is ext and _rec["applied"] is True and _rec["to"] == "EXT/USD"
+      and _rec["score_before"] == 0.15, _rec)
+_sw2, _rec2 = bl.apply(ext, pool, _on)
+check("4.3 ... and not when the champion already holds the best score",
+      _sw2 is ext and _rec2["applied"] is False, _rec2.get("would"))
 
 print("== 5. the tournament")
 _a = result("AAA/USD", 60.0, 0.9, {"pos_in_day_pct": 92.0})
