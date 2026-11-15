@@ -85,9 +85,11 @@ def clean_ledger(rows):
 
 # ── entry_quality, exactly as the shipped scanner computes it ─────────────────
 def hourly_rows(bars, up_to_s):
+    """Hourly buckets up to the fill. No study-side floor: the scanner needs
+    TIMING_RANGE_CANDLES + 1 rows and `_entry_quality` enforces exactly that."""
     idx = bisect.bisect_right([b[0] for b in bars], up_to_s)
     seg = bars[:idx]
-    if len(seg) < 60:
+    if len(seg) < 2:
         return None
     buckets = {}
     order = []
@@ -101,7 +103,7 @@ def hourly_rows(bars, up_to_s):
             v[1] = max(v[1], float(b[2]))
             v[2] = min(v[2], float(b[3]))
             v[3] = float(b[4])
-    if len(order) < 60:
+    if len(order) < sc.TIMING_RANGE_CANDLES + 1:
         return None
     return order, buckets
 
@@ -194,11 +196,23 @@ def main():
         r = dict(r)
         r["_t"] = opened
         r["_eq"] = None if eq is None else round(float(eq), 4)
-        r["_gate_ok"] = bg.passes(r["_eq"], bg.BREAKOUT_MIN)      # the shipped choke
+        if eq is None:
+            # THE HOLE IS CLOSED. The repo tape genuinely has no prior hour for
+            # these (their history begins within two hours of the fill), so the
+            # scanner's real _entry_quality cannot be evaluated. An unexamined
+            # fire is not evidence: veto it and say why, instead of letting it
+            # earn money the gate never inspected.
+            r["_gate_ok"] = False
+            r["_veto_reason"] = "no prior-hour history on the repo tape"
+        else:
+            r["_gate_ok"] = bg.passes(r["_eq"], bg.BREAKOUT_MIN)  # the shipped choke
+            r["_veto_reason"] = None
         priced.append(r)
     priced.sort(key=lambda r: r["_t"])
     print(f"replayed {len(priced)} fires on the tape ({skipped} unpriceable, "
-          f"{unmeasured} unmeasured -> old behaviour); gate {bg.BREAKOUT_MIN}")
+          f"{unmeasured} unmeasurable); gate {bg.BREAKOUT_MIN}")
+    print(f"unmeasured pass-through: {sum(1 for r in priced if r['_eq'] is None and r['_gate_ok'])}"
+          f"  ({unmeasured} vetoed: no prior-hour history on the repo tape)")
 
     keep_old = lambda r: True                                  # noqa: E731
     keep_new = lambda r: bool(r["_gate_ok"])                   # noqa: E731
@@ -266,16 +280,16 @@ def main():
         pnl = [float(r["pnl_net"]) for r in unmeas]
         print(f"    unmeasured n {len(unmeas):>4}  win "
               f"{100.0*sum(1 for p in pnl if p>0)/len(pnl):>5.1f}%  "
-              f"net ${sum(pnl):>+9.2f}  ${sum(pnl)/len(pnl):>+7.3f}/fire  <- kept")
+              f"net ${sum(pnl):>+9.2f}  ${sum(pnl)/len(pnl):>+7.3f}/fire  <- VETOED")
 
     # sensitivity, not tuning: the shipped threshold came from its own fit/holdout
     print(f"\n  the gate at other thresholds (this window is in-sample for all of them)")
     print(f"    {'min':>5} {'fires':>6} {'net $':>10} {'win%':>6} {'max DD':>9}   note")
     sweep = []
     for th in (0.60, 0.70, 0.75, 0.80, 0.85, 0.90, 0.95):
-        sel = [r for r in priced if r["_eq"] is None or r["_eq"] >= th]
+        sel = [r for r in priced if r["_eq"] is not None and r["_eq"] >= th]
         pnl = [float(r["pnl_net"]) for r in sel]
-        c = curve(priced, lambda r, th=th: r["_eq"] is None or r["_eq"] >= th)
+        c = curve(priced, lambda r, th=th: r["_eq"] is not None and r["_eq"] >= th)
         sweep.append({"min": th, "n": len(sel), "net": round(sum(pnl), 2),
                       "win_pct": round(100.0 * sum(1 for p in pnl if p > 0) / len(pnl), 1),
                       "max_dd": c["max_dd"]})
@@ -285,8 +299,54 @@ def main():
     strict = curve(priced, lambda r: r["_eq"] is not None and r["_eq"] >= bg.BREAKOUT_MIN)
     strict_pnl = [float(r["pnl_net"]) for r in priced
                   if r["_eq"] is not None and r["_eq"] >= bg.BREAKOUT_MIN]
-    print(f"    without the unmeasured pass-through: {len(strict_pnl)} fires, "
+    print(f"    measured-only at the shipped minimum: {len(strict_pnl)} fires, "
           f"${sum(strict_pnl):+.2f}, DD ${strict['max_dd']:.2f}")
+
+    # ── the split that decides whether any of this is a rule or a fit artifact
+    # threshold chosen on Sep–Oct and scored on November, the one month it never saw
+    split = datetime.fromtimestamp(priced[0]["_t"]).replace(month=11, day=1, hour=0,
+                                                           minute=0, second=0, microsecond=0).timestamp()
+    train = [r for r in priced if r["_t"] < split]
+    test = [r for r in priced if r["_t"] >= split]
+    print(f"\n  out-of-sample split: train {datetime.fromtimestamp(train[0]['_t']).date()}"
+          f"-{datetime.fromtimestamp(train[-1]['_t']).date()} ({len(train)} fires) "
+          f"-> test November ({len(test)} fires)")
+
+    def arm_on(rows, th):
+        sel = [r for r in rows if r["_eq"] is not None and r["_eq"] >= th]
+        if not sel:
+            return {"n": 0, "net": 0.0, "win_pct": 0.0}
+        pnl = [float(r["pnl_net"]) for r in sel]
+        return {"n": len(sel), "net": round(sum(pnl), 2),
+                "win_pct": round(100.0 * sum(1 for p in pnl if p > 0) / len(pnl), 1)}
+
+    def dd_on(rows, th):
+        bal = peak = low = 0.0
+        for r in rows:
+            if r["_eq"] is None or r["_eq"] < th:
+                continue
+            bal += float(r["pnl_net"])
+            peak = max(peak, bal)
+            low = min(low, bal)
+        return round(peak - low, 2)
+
+    print(f"    {'min':>5} | {'train n':>7} {'train $':>9} {'win':>5} | "
+          f"{'Nov n':>6} {'Nov $':>9} {'win':>5} {'Nov DD':>7}")
+    oos = []
+    for th in (0.60, 0.70, 0.75, 0.80, 0.85, 0.90, 0.95):
+        a, b = arm_on(train, th), arm_on(test, th)
+        row = {"min": th, "train": a, "nov": b, "nov_dd": dd_on(test, th)}
+        oos.append(row)
+        mark = " <- shipped" if th == bg.BREAKOUT_MIN else ""
+        print(f"    {th:>5.2f} | {a['n']:>7} {a['net']:>+9.2f} {a['win_pct']:>5.1f} | "
+              f"{b['n']:>6} {b['net']:>+9.2f} {b['win_pct']:>5.1f} {row['nov_dd']:>7.2f}{mark}")
+    no_gate_nov = arm_on([dict(r, _eq=1.0) for r in test], 0.0)
+    print(f"    {'off':>5} | {'':>7} {'':>9} {'':>5} | {no_gate_nov['n']:>6} "
+          f"{no_gate_nov['net']:>+9.2f} {no_gate_nov['win_pct']:>5.1f} {'':>7}")
+    best_train = max(oos, key=lambda x: x["train"]["net"])
+    print(f"    best on train: {best_train['min']:.2f} (${best_train['train']['net']:+.2f}); "
+          f"its November: {best_train['nov']['n']} fires, ${best_train['nov']['net']:+.2f}, "
+          f"{best_train['nov']['win_pct']:.1f}% wins")
 
     OUT.write_text(json.dumps({
         "window": [datetime.fromtimestamp(priced[0]["_t"]).isoformat(),
@@ -299,6 +359,9 @@ def main():
                    "losses_kept": round(veto_losses, 2)},
         "curve": {"yesterday": pa, "today": pb, "death_margin": DEATH_MARGIN},
         "months": per_month, "bands": band_rows, "sweep": sweep,
+        "oos": {"train": len(train), "test": len(test), "rows": oos,
+                "best_on_train": best_train["min"],
+                "no_gate_nov": no_gate_nov},
         "strict_measured_only": {"n": len(strict_pnl), "net": round(sum(strict_pnl), 2),
                                  "max_dd": strict["max_dd"]},
     }, indent=1), encoding="utf-8")
