@@ -1,117 +1,132 @@
-# Simulating today's code over the last ten weeks — corrected (Nov 15)
+# Simulating today's code over ten weeks — and why the kept fires lose (Nov 15)
 
-**Corrected result: with the unmeasured leak closed, today's gate books −$197.27
-over Sep 3 – Nov 15 at 45.1% wins, against −$1,972.24 at 40.8% without it. The
-gate is a large loss-reducer and death-line avoider; it is not an edge, and the
-earlier +$96.66 was the unexamined bucket, not the rule.**
+**Headline, corrected and out of sample.** With the unmeasured leak closed, today's
+gate books **−$197.27** over Sep 3 – Nov 15 at **45.1%** wins, against **−$1,972.24**
+at 40.8% without it — it avoids the death-line and cuts the worst fire from −$431
+to −$58, but it is **not profitable**. The kept fires lose for one measurable
+reason: **the exit gives back a gain that was there** (winners capture only 42% of
+their peak), not the entry timing — and a +2% take-profit on those fires turns the
+window to ≈break-even, but **November is still −$1.13, so live stays unchanged.**
 
-Only one thing shipped today changes behaviour: the **breakout gate** (a champion
-fires only when its `entry_quality` ≥ 0.85). The near-miss recorder is shadow-only,
-and the entry and exit studies changed nothing.
+Only one thing shipped today changes behaviour: the **breakout gate** (`entry_quality`
+≥ 0.85). The near-miss recorder is shadow-only; the entry and exit studies changed
+nothing.
 
-## The hole, and how it was closed
+## The gate, all fires measured (no unmeasured pass-through)
 
-The previous run passed 89 fires the gate could not measure (the live rule does
-this by design: an unmeasurable buy keeps the old behaviour). Those 89 booked
-**+$303** and were the entire positive result.
-
-- The study had required 60 hourly bars before computing `entry_quality`; the
-  scanner's real requirement is `TIMING_RANGE_CANDLES + 1` = **13**. Using the
-  scanner's own rule made **28** of those fires measurable (4 of them pass 0.85).
-- The remaining **61** genuinely cannot be scored from data in this repo: their
-  tape begins within two hours of the fill, so no prior hour exists to read.
-  They are now **vetoed with a stated reason** — "no prior-hour history on the
-  repo tape" — not passed through.
-- The script prints **`unmeasured pass-through: 0`**.
-
-Those 61 vetoed fires booked **+$310.69 at 49.2% wins ($5.09/fire)**. That money
-was real, and it was unexamined — which is exactly why it cannot be counted as
-evidence for the gate.
-
-## The two arms, measured only
-
-Ledger: 2,709 journal rows → 2,698 contest fires (4 test fixtures, 7 rows from a
-spliced $5,000 account; 91 competing balance stamps ignored). 2,495 replay on the
-5m tape; 61 of those are vetoed as unmeasurable.
+61 fires can't be scored from repo tape (history begins within two hours of the
+fill) and are vetoed with that reason; the script prints `unmeasured pass-through: 0`.
 
 | | fires | win% | net | $/fire | worst fire | max DD | through −$300? |
 |---|---|---|---|---|---|---|---|
-| **yesterday's code** | 2,495 | 40.8 | **−$1,972.24** | −0.790 | −$431.45 | $2,416.74 | **yes, Oct 18 13:48** |
-| **today's code** | 350 | **45.1** | **−$197.27** | −0.564 | **−$58.00** | **$405.55** | **never** |
+| yesterday's code | 2,495 | 40.8 | −$1,972.24 | −0.790 | −$431.45 | $2,416.74 | **yes, Oct 18** |
+| today's gate | 350 | 45.1 | −$197.27 | −0.564 | −$58.00 | $405.55 | never |
 | difference | −2,145 | +4.3 pts | **+$1,774.97** | +0.226 | +$373 | — | — |
 
-The gate refused 86.0% of fires, which booked **−$1,774.97** (−$0.827 each): it
-kept **−$4,688.66** of their losses and gave back **+$2,913.69** of their wins.
+Monthly: Sep +$251 → +$88, Oct −$1,299 → −$125, Nov −$925 → −$160. No threshold
+recovers the edge (0.60 → −$496, 0.95 → −$23); that is settled and not revisited here.
 
-| month | fires | win% | net | delta |
-|---|---|---|---|---|
-| Sep | 112 → 64 | 57.1 → 57.8 | +$251.15 → +$87.70 | −$163.45 |
-| Oct | 1,779 → 200 | 40.2 → 43.0 | −$1,298.55 → **−$125.21** | **+$1,173.34** |
-| Nov | 604 → 86 | 39.2 → 40.7 | −$924.84 → −$159.76 | +$765.08 |
+## Why the kept fires lose: extended entry, or exit giveback?
 
-September loses money to the gate (−$163): it was the one month where the
-low-quality fires were still profitable. October carries the whole benefit.
+350 kept fires (158 winners / 192 losers), features from the tape only.
 
-## Where the money is (every fire measured)
+**What was knowable at the fill does not separate them.**
 
-| band | n | win% | net | $/fire |
-|---|---|---|---|---|
-| 0.00–0.20 | 1,260 | 38.7 | −$1,761.36 | **−1.398** |
-| 0.20–0.40 | 184 | 35.3 | −$40.27 | −0.219 |
-| 0.40–0.60 | 149 | 43.6 | **+$14.36** | +0.096 |
-| 0.60–0.75 | 255 | 47.1 | −$144.87 | −0.568 |
-| 0.75–0.85 | 236 | 38.6 | −$153.52 | −0.651 |
-| 0.85–0.95 | 143 | 44.8 | −$173.87 | **−1.216** |
-| 0.95–1.01 | 207 | 45.4 | −$23.40 | −0.113 |
+| pre-entry feature | winners | losers | diff | 95% CI | d |
+|---|---|---|---|---|---|
+| fill over 12h low | +1.49% | +1.32% | +0.16 | −0.04…+0.36 | +0.17 |
+| fill vs 12h high | −0.51% | −0.46% | −0.04 | −0.15…+0.06 | −0.09 |
+| **bar-to-bar extension** | −0.12% | −0.00% | **−0.12** | **−0.19…−0.05** | **−0.38** |
+| share of the hour move done | 0.74 | 0.72 | +0.02 | −0.03…+0.06 | +0.09 |
+| run-up 3h | +1.46% | +1.52% | −0.06 | −0.28…+0.17 | −0.05 |
+| run-up 6h | +2.04% | +1.96% | +0.07 | −0.21…+0.35 | +0.05 |
+| run-up 12h | +3.20% | +3.12% | +0.09 | −0.33…+0.51 | +0.04 |
+| position in 12h range | 0.89 | 0.89 | −0.00 | −0.02…+0.01 | −0.04 |
 
-The gate removes the band that holds 89% of the total loss, but **every kept band
-is still negative**. The 0.85–0.95 band is the worst of the kept ones.
+The only real signal is a 0.12-point one: winners entered on a slightly **negative**
+bar (−0.12%) and losers on a flat one (0.00%). Run-up, distance from the low,
+distance from the high and "how much of the move is spent" are **all d < 0.2**.
+**Buying extended is not what separates the outcomes** — the gate has already
+selected for extension, so that axis is used up.
 
-## Out-of-sample: Sep–Oct → November
+**What happens after the fill separates them strongly.**
 
-Threshold picked on Sep–Oct, scored on the November it never saw (604 fires):
+| post-entry | winners | losers | diff | 95% CI | d |
+|---|---|---|---|---|---|
+| peak gain (MFE) | **+2.13%** | **+0.89%** | +1.24 | +0.94…+1.53 | **+0.89** |
+| peak-to-exit giveback | +1.31% | +1.43% | −0.13 | −0.38…+0.12 | −0.11 |
+| share of peak captured | 0.42 | −1.40 | +1.82 | +1.47…+2.17 | **+1.07** |
 
-| min | train n | train $ | train win% | Nov n | Nov $ | Nov win% | Nov DD |
-|---|---|---|---|---|---|---|---|
-| 0.60 | 624 | −$258.35 | 43.8 | 217 | −$237.31 | 44.2 | $254 |
-| 0.75 | 424 | −$145.26 | 43.4 | 162 | −$205.53 | 40.1 | $217 |
-| **0.85** | 264 | −$37.51 | 46.6 | **86** | **−$159.76** | 40.7 | $173 |
-| 0.90 | 209 | −$11.63 | 45.9 | 76 | −$161.80 | 40.8 | $173 |
-| 0.95 | 150 | **+$33.39** | 46.7 | 57 | −$56.79 | **42.1** | **$92** |
-| off | — | — | — | 604 | −$924.84 | 39.2 | — |
+The loss splits exactly in half: **96 losers never got 0.5% up (−$396.33)** and
+**96 losers were up (peak +1.60% on average) and gave it back (−$397.81)**. Winners
+keep only **42%** of a +2.13% peak. The gate picks coins that are moving; the exit
+does not collect the move.
 
-**The edge does not survive, plainly.** The best threshold on the training months
-(0.95, the only positive one) loses **−$56.79 on 57 November fires** at 42.1% wins.
-No threshold is profitable in November. What does survive, at every threshold, is
-the loss reduction: −$925 ungated → −$57 to −$238 gated, with the drawdown falling
-from $2,417 to $92–$254.
+## The one candidate change: take the gain at +2%
 
-**The win-rate ceiling is 45–46% in-sample and 40–42% out of sample** across the
-whole threshold range. Nothing here approaches 80%, and the numbers say the +80%
-target cannot come from this gate at any setting.
+Same engine for every column (shipped stop −3%, trail, 180m), so the comparison is
+exit-vs-exit; "baseline booked" is what the journal actually paid.
 
-## Live is unchanged, deliberately
+| variant | fires | win% | net | $/fire | worst | max DD |
+|---|---|---|---|---|---|---|
+| baseline booked | 350 | 45.1 | −$197.27 | −0.564 | −$58.00 | $405.55 |
+| sim, no target | 350 | 44.9 | −$26.30 | −0.075 | −$3.09 | $46.58 |
+| **take-profit +2%** | 350 | **46.3** | **+$2.19** | +0.006 | −$3.09 | $46.61 |
+| take-profit +3% | 350 | 45.1 | −$3.02 | −0.009 | −$3.09 | $46.24 |
+| take-profit +5% | 350 | 44.9 | −$17.48 | −0.050 | −$3.09 | $38.82 |
 
-No threshold change, no veto-the-unmeasured change in the running scanner. The
-out-of-sample result gives no support for one: 0.95 is better on both dollars and
-drawdown in November, but on 57 fires, and it still loses. Moving the threshold
-to it would be tuning on a sample that thin. The gate's live job — refuse provably
-mislocated fires, never invent one — stays exactly as shipped.
+The extended-entry **veto** candidates the evidence does not support all stay
+negative on the same window: bar_ext > 0.5% → −$181, run-up 3h > 3% → −$116 (best
+veto), run-up 3h > 5% → −$194, fill > 2% over the low → −$131, "move done" > 0.95
+→ −$167. Consistent with the effect sizes above: there is nothing at the entry to
+refuse that separates winners from losers.
 
-Deciding the unmeasured question: in the **measurement** they are vetoed (an
-unexamined fire cannot count as evidence); in **live** they still pass, because the
-only evidence available is a study artefact of where the tape starts. The
-near-miss recorder is the instrument that will replace that judgement with rows.
+## Out of sample: chosen on Sep–Oct, scored on November
+
+| variant | train n | train $ | Nov n | **Nov $** | Nov win% | Nov DD |
+|---|---|---|---|---|---|---|
+| baseline booked | 264 | −$37.51 | 86 | **−$159.76** | 40.7 | $173.09 |
+| sim, no target | 264 | −$13.82 | 86 | **−$12.48** | 41.9 | $31.86 |
+| **take-profit +2%** | 264 | **+$3.32** | 86 | **−$1.13** | **43.0** | $40.02 |
+
+**It does not clear the bar.** November is **−$1.13 on 86 fires (−$0.013/fire)** —
+statistically zero, not positive. What the split does show is that the improvement
+is real and large relative to the shipped exit: **−$12.48 → −$1.13 on the same
+engine, and −$159.76 → −$1.13 against what was actually booked**, with the drawdown
+falling from $173 (booked) and $32 (sim) to $40. But zero is zero: no live change.
+
+## The binding constraint, named
+
+**After a 0.85+ breakout entry, the remaining move is small.** Losers peak at
++0.89% on average — under the round trip plus any worthwhile target — and the
+winners' +2.13% peak is kept at 42%. So the entry is paying for a move that is
+mostly already spent, and no entry-time feature available distinguishes the coins
+that continue from the ones that stall (all d ≤ 0.38, most ≈ 0.05). The achievable
+ceiling with this entry is **expectancy ≈ 0** (November −$0.013/fire) at a **43–46%
+win rate**; the +2% target is what removes the giveback, and it can only get to
+break-even because half the fires never offer the target at all.
+
+For +80%, the entry has to find coins *before* the move, or hold for a move larger
+than the typical remaining +1% — that is a different generator, not a threshold,
+and the near-miss recorder is the instrument with which to look for it.
+
+## Live is unchanged
+
+No gate, threshold, veto or exit change in the running scanner. The take-profit is
+the best candidate measured so far and it is still **−$1.13 in November**, so
+shipping it would be shipping a zero. It is recorded here as the leading candidate
+for the next test, with the recorder accumulating exactly the rows needed to judge
+it (fires that reach +2% and what they would have done next).
 
 ## Caveats
 
-1. Counterfactual on realized fires: a veto fires nothing, so replacement trades
-   are invisible in both directions.
-2. Sizes are as booked, so dollars do not compound through the smaller arm.
-3. The window is in-sample for the gate study; the Sep–Oct → Nov split is the only
-   out-of-sample check here.
-4. The journal's balance stamps are unreliable (91 competing writes, a spliced $5k
-   account), so the death-line is read from the booked-P&L curve.
+1. Counterfactual on realized fires; a veto fires nothing, replacements invisible.
+2. Sizes as booked; dollars do not compound through a smaller arm.
+3. The tape-simulated exit is more favourable than the booked one (−$26 vs −$197),
+   so every variant is compared against `sim, no target` as well as the journal.
+4. The journal's balance stamps are unreliable; drawdown is read from the
+   booked-P&L curve.
 
-*Script: `scratch/gate_counterfactual.py`; artifact: `scratch/_gate_counterfactual.json`.
+*Scripts: `scratch/gate_counterfactual.py`, `scratch/kept_diagnosis.py`.
+Artifacts: `scratch/_gate_counterfactual.json`, `scratch/_kept_diagnosis.json`.
 Gate study: `BREAKOUT_GATE.md`. Entry/exit: `ENTRY_TIMING_GRADE.md`, `EXIT_VARIANTS.md`.*
