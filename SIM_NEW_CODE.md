@@ -221,6 +221,54 @@ with `should_arm()` now reporting both rejections in one line. An edge here woul
 have to come from data the repo does not collect (funding, open interest, live
 book/depth), which cannot be backtested on history that was never written down.
 
+## The trend-ride shape: 82.3% wins, and the drawdown that still says no
+
+The fixed-target grid could not express "cut the loser fast, let the winner run".
+`scratch/trendride_study.py` implements the rule as stated instead: enter the
+pullback in an uptrend, a losing trade leaves at a small stop, a winning trade is
+never capped (the stop ratchets behind the peak, at most `GIVE_PCT` off it), and the
+trend breaking ends the trade.
+
+Two implementation facts mattered and both are in the code:
+
+* a trail measured from the entry bar's high is *tighter than the hard stop*, so the
+  first version exited on the first wobble — 30% wins, median hold 12 minutes. The
+  trail now arms only after +0.4% and only ever ratchets up.
+* a trend-break exit measured on EMA20 fires the bar after a pullback entry, because
+  a pullback entry is *by definition* below the fast mean. It is off; the ratchet is
+  what protects the profit.
+
+`scratch/trendride_verdict.py` then took the surviving shape and asked the questions a
+two-way split cannot:
+
+| | value |
+|---|---|
+| win rate | **82.3%** of 8,304 trades |
+| expectancy | **+0.0178%** per trade |
+| November (holdout) | **+0.0379%** per trade, 80.8% wins, n=442, **t = 0.79** |
+| monthly positive | 5 of 7 — June −0.064%, October −0.051% |
+| worst loss streak | 13 in a row |
+| **max drawdown** | **$2,676.66** on $2,000 tickets |
+| cushion it must never touch | **$300** |
+
+**The 80% shape exists and does not pay.** The win rate is real and the expectancy is
+positive on average, but it is a rounding error (t = 0.79 out of sample), it is
+negative in 2 of 7 months, and its drawdown is **8.9× the cushion**. A 90.7%-win
+variant exists too (`S3.0/A0.25/G0.15`) and it is *negative* in November (−0.073%),
+which is the clearest possible sign that pushing the win rate up is pushing the tail
+risk up with it.
+
+So the engine is **live as a shadow, never as an order**: `overwatch_timing.py` holds
+the entry (`e3_band`), the stop/ratchet/exit rules, `ARMED = False`, the measured
+record, and `should_arm()` gated on `ARM_CRITERIA` (200 shadow trades, ≥80% wins,
+≥+0.05%/trade, DD ≤ $150). `timing_shadow.py` runs that engine every cycle on real
+5m Kraken bars, writes entries and exits to `contest_timing_shadow.jsonl`, and
+self-polices: a rolling win rate under 70% or 8 losers in a row suspends entries for
+24h and logs why — bad trades punished, good trades what the record rewards.
+
+`test_overwatch_timing.py`: 22/22. Shadow process: **pid 26524**, no orders, no
+balance arithmetic.
+
 ## The binding constraint, named
 
 **After a 0.85+ breakout entry, the remaining move is small.** Losers peak at
