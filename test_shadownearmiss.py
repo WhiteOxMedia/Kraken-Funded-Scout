@@ -116,10 +116,30 @@ check("3.2 a resolved row carries forward return, MAE and the hard-stop flag",
           for r in res), res[0] if res else None)
 check("3.3 the resolution horizon is the shipped hold window",
       all(r["hold_min"] == nm.HORIZON_MIN for r in res))
+check("3.5 a resolved row carries the peak path, which is what a take-profit needs",
+      all(r.get("peak_pct") is not None and isinstance(r.get("reached_2pct"), bool)
+          for r in res), res[0] if res else None)
+check("3.6 the peak is at least the entry and never below the worst excursion",
+      all(r["peak_pct"] >= 0 and r["peak_pct"] >= r["mae_pct"] for r in res))
 nm.resolve(_Bars(), _cfg, path=_tmp, now_s=_now + 100)
 again = [json.loads(l) for l in _tmp.read_text(encoding="utf-8").splitlines()]
 check("3.4 resolving again changes nothing (idempotent, append-free)",
       len(again) == len(rows))
+
+print("== 3b. peaks backfilled for rows resolved before the field existed")
+_old = pathlib.Path(tempfile.mkdtemp()) / "nm3.jsonl"
+row = {"ts": "2026-11-15T07:40:00-07:00", "ts_epoch": 1_700_000_000.0 - 7200,
+       "pair": "X/USD", "route": "crown", "source": "test", "reason": "r",
+       "entry_quality": 0.9, "gate_min": 0.85, "resolved": True,
+       "fwd_pct": -0.5, "mae_pct": -0.6, "hit_hard_stop": False}
+_old.write_text(json.dumps(row) + "\n", encoding="utf-8")
+n = nm.backfill_peaks(_Bars(), path=_old)
+back = json.loads(_old.read_text(encoding="utf-8").splitlines()[0])
+check("3b.1 the backfill adds peak_pct and reached_2pct to an old row",
+      n == 1 and back.get("peak_pct") is not None
+      and isinstance(back.get("reached_2pct"), bool), back)
+n2 = nm.backfill_peaks(_Bars(), path=_old)
+check("3b.2 and is idempotent (a row with a peak is left alone)", n2 == 0)
 
 print("== 4. it cannot move the book")
 fresh = pathlib.Path(tempfile.mkdtemp()) / "nm2.jsonl"

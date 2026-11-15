@@ -1,15 +1,20 @@
 # Simulating today's code over ten weeks — and why the kept fires lose (Nov 15)
 
-**Headline, corrected and out of sample.** With the unmeasured leak closed, today's
-gate books **−$197.27** over Sep 3 – Nov 15 at **45.1%** wins, against **−$1,972.24**
-at 40.8% without it — it avoids the death-line and cuts the worst fire from −$431
-to −$58, but it is **not profitable**. The kept fires lose because **the exit gives
-back a gain that was there** (winners capture only 42% of their peak); a +2%
-take-profit turns the window to ≈break-even, but **November is still −$1.13**, so
-live stays unchanged. **The entry side is now closed too:** participation, range
-compression and pullback structure — the axes never tested — separate winners from
-losers no better than price extension did (no feature reaches |d| ≥ 0.5; the
-largest, volume expansion at the fire, is d = −0.21 and points the wrong way).
+**Headline — the mission's state, decided.** Today's gate books **−$197.27** over
+Sep 3 – Nov 15 at **45.1%** wins (vs −$1,972.24 at 40.8% ungated): it avoids the
+death-line and cuts the worst fire from −$431 to −$58, but it is **not profitable**.
+**The entry side is closed** — extension, participation, compression and structure
+all fail to separate winners from losers (no feature reaches |d| ≥ 0.5). **The exit
+side is decided: the +2% take-profit is REJECTED.** It is the best change measured
+(booked −$197.27 → +$2.19, drawdown $406 → $47) and it *is* the reason the kept
+fires lose — winners capture only 42% of a +2.13% peak — but November is **−$1.13**
+over 86 fires, not positive, so the agreed bar is not met, and the live recorder
+holds **1** fire that reached +2% against the **65** the effect would need.
+
+**The ceiling.** With this generator and this tape the reachable win rate is
+**43–46%** (46.3% in-sample with the best exit, 43.0% in November) at expectancy
+≈0. +80% is not reachable by any entry rule or exit tweak on these fires; it needs
+a different generator or a new signal source.
 
 Only one thing shipped today changes behaviour: the **breakout gate** (`entry_quality`
 ≥ 0.85). The near-miss recorder is shadow-only; the entry and exit studies changed
@@ -145,13 +150,45 @@ For +80%, the entry has to find coins *before* the move, or hold for a move larg
 than the typical remaining +1% — that is a different generator, not a threshold,
 and the near-miss recorder is the instrument with which to look for it.
 
-## Live is unchanged
+## The +2% take-profit: rejected on the agreed bar
 
-No gate, threshold, veto or exit change in the running scanner. The take-profit is
-the best candidate measured so far and it is still **−$1.13 in November**, so
-shipping it would be shipping a zero. It is recorded here as the leading candidate
-for the next test, with the recorder accumulating exactly the rows needed to judge
-it (fires that reach +2% and what they would have done next).
+All three arms over the same 350 kept fires; `no_target` is the identical exit
+engine without the target, `baseline` is what the journal actually paid.
+
+| whole window | fires | win% | net | $/fire | worst | max DD |
+|---|---|---|---|---|---|---|
+| baseline booked | 350 | 45.1 | −$197.27 | −0.564 | −$58.00 | $405.55 |
+| no-target sim | 350 | 44.9 | −$26.30 | −0.075 | −$3.09 | $46.58 |
+| **take-profit +2%** | 350 | **46.3** | **+$2.19** | +0.006 | −$3.09 | $46.61 |
+
+| **November (out of sample)** | fires | win% | net | $/fire | worst | max DD |
+|---|---|---|---|---|---|---|
+| baseline booked | 86 | 40.7 | −$159.76 | −1.858 | −$58.00 | $173.09 |
+| no-target sim | 86 | 41.9 | −$12.48 | −0.145 | −$3.09 | $31.86 |
+| **take-profit +2%** | 86 | **43.0** | **−$1.13** | −0.013 | −$3.09 | $40.02 |
+
+Train Sep–Oct: baseline −$37.51, no-target −$13.82, candidate **+$3.32** (47.3%).
+The take-profit is worth **+$11.35 in November** over the same engine and has not
+lost money in a single month, but it has not *made* money in the one that counts:
+November is −$1.13, which is zero, not positive.
+
+**Sample.** Per-fire November effect: mean **+$0.132**, sd **$0.539**, so **65
+fires** are needed for that effect to clear a 95% CI. The live near-miss recorder
+holds **52 rows (11 written by live cycles), 9 resolved, 9 with a peak path, and
+1 that reached +2%** — one against sixty-five. The recorder now stores `peak_pct`
+and `reached_2pct` on every resolved row (and backfilled the nine older ones),
+which is the measurement the decision needs; it did not have it before today.
+
+**Decision: REJECTED — not shipped.** November is not positive and the live sample
+is too small to overturn that. Required before it can be reconsidered: **65 fires
+that reached +2% inside the hold window** (currently 1). At the current near-miss
+rate that is roughly 300+ resolved rows.
+
+## Live is unchanged, and why
+
+No gate, threshold, veto or exit change in the running scanner; the only live-path
+touch is the recorder storing the peak (shadow, no order, no balance). Shipping the
+take-profit would be shipping a measured zero on a 1-fire live sample.
 
 ## Caveats
 

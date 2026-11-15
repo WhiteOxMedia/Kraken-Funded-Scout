@@ -1,0 +1,96 @@
+{
+ "target_pct": 2.0,
+ "kept_fires": 350,
+ "whole_window": {
+  "baseline": {
+   "n": 350,
+   "net": -197.27,
+   "win_pct": 45.1,
+   "avg": -0.564,
+   "worst": -58.0,
+   "max_dd": 405.55
+  },
+  "no_target": {
+   "n": 350,
+   "net": -26.3,
+   "win_pct": 44.9,
+   "avg": -0.075,
+   "worst": -3.09,
+   "max_dd": 46.58
+  },
+  "candidate": {
+   "n": 350,
+   "net": 2.19,
+   "win_pct": 46.3,
+   "avg": 0.006,
+   "worst": -3.09,
+   "max_dd": 46.61
+  }
+ },
+ "train": {
+  "baseline": {
+   "n": 264,
+   "net": -37.51,
+   "win_pct": 46.6,
+   "avg": -0.142,
+   "worst": -38.4,
+   "max_dd": 252.92
+  },
+  "no_target": {
+   "n": 264,
+   "net": -13.82,
+   "win_pct": 45.8,
+   "avg": -0.052,
+   "worst": -3.09,
+   "max_dd": 41.42
+  },
+  "candidate": {
+   "n": 264,
+   "net": 3.32,
+   "win_pct": 47.3,
+   "avg": 0.013,
+   "worst": -3.09,
+   "max_dd": 35.71
+  }
+ },
+ "nov": {
+  "baseline": {
+   "n": 86,
+   "net": -159.76,
+   "win_pct": 40.7,
+   "avg": -1.858,
+   "worst": -58.0,
+   "max_dd": 173.09
+  },
+  "no_target": {
+   "n": 86,
+   "net": -12.48,
+   "win_pct": 41.9,
+   "avg": -0.145,
+   "worst": -3.09,
+   "max_dd": 31.86
+  },
+  "candidate": {
+   "n": 86,
+   "net": -1.13,
+   "win_pct": 43.0,
+   "avg": -0.013,
+   "worst": -3.09,
+   "max_dd": 40.02
+  }
+ },
+ "nov_delta_mean": 0.132,
+ "nov_delta_sd": 0.5394,
+ "fires_needed_for_ci": 65,
+ "min_sample": 30,
+ "live": {
+  "rows": 52,
+  "live_written": 11,
+  "resolved": 9,
+  "with_peak": 9,
+  "reached_target": 1,
+  "backfilled": 0
+ },
+ "verdict": "REJECT",
+ "reason": "November is $-1.13 over 86 fires \u2014 not positive, so the agreed bar is not met; the live recorder holds 9 resolved rows and 1 that reached +2%, far under the 65 fires the effect would need"
+}

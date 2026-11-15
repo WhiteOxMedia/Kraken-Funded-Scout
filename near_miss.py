@@ -158,11 +158,17 @@ def resolve(exchange, cfg=None, *, path=None, now_s=None, limit=8) -> int:
             continue
         last = bars[-1][4]
         worst = min(b[3] for b in bars)
+        peak = max(b[2] for b in bars)
+        peak_pct = round((peak / entry - 1.0) * 100.0, 4)
         row.update({"resolved": True,
                     "resolved_ts": datetime.now(timezone.utc).astimezone().isoformat(),
                     "bars": len(bars),
                     "fwd_pct": round((last / entry - 1.0) * 100.0 - cost_pct, 4),
                     "mae_pct": round((worst / entry - 1.0) * 100.0, 4),
+                    # THE PATH, not just the endpoint: a take-profit can only be
+                    # judged by whether the peak offered it.
+                    "peak_pct": peak_pct,
+                    "reached_2pct": bool(peak_pct >= 2.0),
                     "hit_hard_stop": bool((worst / entry - 1.0) * 100.0 <= -STOP_PCT),
                     "hold_min": HORIZON_MIN})
         done += 1
@@ -170,6 +176,44 @@ def resolve(exchange, cfg=None, *, path=None, now_s=None, limit=8) -> int:
         target.write_text("".join(json.dumps(r) + "\n" for r in rows), encoding="utf-8")
     except Exception as exc:                      # noqa: BLE001
         log.debug("near-miss journal rewrite failed: %s", exc)
+    return done
+
+
+def backfill_peaks(exchange, *, path=None, limit=200) -> int:
+    """Fill `peak_pct` / `reached_2pct` on rows resolved before they were recorded.
+
+    Same read-only fetch, same journal. Needed because the take-profit question is
+    "did the trade offer +2%?", which the first resolved rows never stored.
+    """
+    target = Path(path or PATH)
+    if not target.exists():
+        return 0
+    rows = [json.loads(l) for l in target.read_text(encoding="utf-8").splitlines()
+            if l.strip()]
+    done = 0
+    for row in rows:
+        if done >= limit:
+            break
+        if not row.get("resolved") or row.get("peak_pct") is not None:
+            continue
+        pair = row.get("pair") or ""
+        ts = float(row.get("ts_epoch") or 0.0)
+        if "/" not in pair or not ts:
+            continue
+        bars = _bars_between(exchange, pair, ts, ts + HORIZON_MIN * 60.0)
+        if len(bars) < 3:
+            continue
+        entry = bars[0][4] or bars[0][1]
+        if entry <= 0:
+            continue
+        peak_pct = round((max(b[2] for b in bars) / entry - 1.0) * 100.0, 4)
+        row["peak_pct"] = peak_pct
+        row["reached_2pct"] = bool(peak_pct >= 2.0)
+        done += 1
+    try:
+        target.write_text("".join(json.dumps(r) + "\n" for r in rows), encoding="utf-8")
+    except Exception as exc:                     # noqa: BLE001
+        log.debug("near-miss peak backfill failed: %s", exc)
     return done
 
 
