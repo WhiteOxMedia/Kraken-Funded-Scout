@@ -5505,6 +5505,79 @@ def _popup_already_watched(pair: str) -> bool:
     return False
 
 
+# ── THE ENTRY-TIMING STAMP (Nov 15) ────────────────────────────────
+# The diagnosis of 1,082 walkable closes (scratch/entry_timing_diagnosis.py)
+# refused every gate that could be fitted to the recorded entry position:
+#   * not "bought high" — the most stretched quintile has the BEST payoff
+#     (eq 0.8-1.0: payoff 1.37, exp -0.25) and the cheapest has 1.00;
+#   * not "gave it back" alone — the 201 rows that ran >= +1% banked +$1,008
+#     between them (55% booked >1pp under their peak, 1.13pp average);
+#   * it is the 508 rows that never moved at all: the 628 that never reached
+#     +0.5% lost -$1,981.
+# A gate at eq<=0.2 chose itself on the tuning half (exp +0.59) and then lost
+# on the held-out half (exp -1.54), i.e. it was fitted, not found. So nothing
+# ships as a gate on this history. What ships is the measurement: the features
+# a future rule needs are frozen AT THE FIRE, so the next study reads fresh
+# rows instead of reconstructing them from bars.
+TIMING_STAMP_CANDLES = 12      # mirrors scanner.TIMING_RANGE_CANDLES (1h of 5m)
+TIMING_STAMP_BARS = 288        # one day of 5m bars, for the day-low context
+
+
+def _entry_timing_stamp(pair, entry, exchange=None) -> dict:
+    """The fire's position inside the prior hour's range, at decision time.
+
+    0.0 = the fire paid the prior hour's low, 1.0 = the prior hour's high;
+    the day-low pair says how much of the day's move was already gone. One
+    OHLCV read per fire (15 fires/day measured). Fail-soft: no exchange, no
+    candles or a broken read leaves the row unstamped and still tracking.
+    """
+    out: dict = {}
+    try:
+        if exchange is None or not entry or float(entry) <= 0:
+            return out
+        candles = exchange.fetch_ohlcv(pair, timeframe="5m",
+                                       limit=TIMING_STAMP_BARS + 1) or []
+        prior = candles[:-1]          # drop the still-forming bar
+        if len(prior) < 2:
+            return out
+        e = float(entry)
+        rng = prior[-TIMING_STAMP_CANDLES:]
+        lo = min(float(c[3]) for c in rng)
+        hi = max(float(c[2]) for c in rng)
+        if lo <= 0 or hi <= lo:
+            return out
+        out["timing_eq"] = round(min(1.0, max(0.0, (e - lo) / (hi - lo))), 4)
+        out["timing_above_low_pct"] = round((e / lo - 1.0) * 100.0, 3)
+        dlo = min(float(c[3]) for c in prior[-TIMING_STAMP_BARS:])
+        if dlo > 0:
+            out["timing_above_day_low_pct"] = round((e / dlo - 1.0) * 100.0, 3)
+        out["timing_bars"] = len(prior)
+    except Exception:
+        return {}
+    return out
+
+
+def _timing_fields(w, entry) -> dict:
+    """Carry the fire's timing stamp (and its peak) onto the closed row.
+
+    mfe_pct is what the row actually reached before it was booked, so the
+    giveback question stops needing bars to answer.
+    """
+    out: dict = {}
+    try:
+        for k in ("timing_eq", "timing_above_low_pct",
+                  "timing_above_day_low_pct", "timing_bars"):
+            if w.get(k) is not None:
+                out[k] = w.get(k)
+        peak = float(w.get("high") or 0.0)
+        e = float(entry or 0.0)
+        if peak > 0 and e > 0:
+            out["mfe_pct"] = round((peak / e - 1.0) * 100.0, 3)
+    except Exception:
+        return out
+    return out
+
+
 def auto_track_popup(pair: str, entry: float, size: float, goal_pct: float,
                      window_min: float, why: str, source: str,
                      hm_mode: str | None = None,
@@ -5636,6 +5709,9 @@ def auto_track_popup(pair: str, entry: float, size: float, goal_pct: float,
                    "why": [why],
                    "source": source,
                    "entry_exit_mod": _entry_em,
+                   # THE ENTRY-TIMING STAMP (Nov 15): frozen at the fire, so a
+                   # later study measures the decision instead of rebuilding it.
+                   **_entry_timing_stamp(pair, entry, exchange),
                    # THE SETUP STAMP (Nov 6): the fire's own family, carried
                    # to the close so expectancy is a group-by. A route that
                    # passes nothing lands "untagged", never unmeasurable.
@@ -7664,6 +7740,9 @@ def contest_light(exchange, cfg):
                             # stamp itself is one helper (Nov 15) so this
                             # writer and the console's SOLD cannot drift.
                             **_family_fields(w),
+                            # the fire's timing features + what it peaked at,
+                            # so the entry/exit split is readable per row
+                            **_timing_fields(w, _entry_x),
                         }) + "\n")
                     _journaled = True   # the receipt is on disk — the row may go
                     # THE PACE GOVERNOR RECOMPUTES ON THE CLOSE ANNOTATION:

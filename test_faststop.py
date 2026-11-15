@@ -103,7 +103,13 @@ _calls = []
 _orig_run = bs._run_light_pass
 _orig_watch = bs._load_contest_watch
 _orig_floor = bs.death_floor_gate
+# THE LIVE-ARTIFACT GUARD: _run_light_pass ends with _pulse_beat("light"), which
+# writes scanner_pulse.json — a drive that ran it stamped the LIVE pulse with the
+# drive's pid (the 22:32 pid on the console plate was this test, not a scanner).
+# Stub it, so no drive can touch the live heartbeat file.
+_orig_pulse = bs._pulse_beat
 try:
+    bs._pulse_beat = lambda *a, **k: None
     bs._load_contest_watch = lambda: {"AAA/USD": row(100.0, 1000.0, 30.0)}
     bs.death_floor_gate = lambda *a, **k: {}
     bs._run_light_pass = lambda *a, **k: _calls.append(k)
@@ -177,6 +183,7 @@ finally:
     bs._run_light_pass = _orig_run
     bs._load_contest_watch = _orig_watch
     bs.death_floor_gate = _orig_floor
+    bs._pulse_beat = _orig_pulse
 
 # ── the sweep honours the scope and the cadence is fast ───────────────────
 src = open("background_scanner.py", encoding="utf-8").read()
