@@ -190,12 +190,22 @@ def _take_lock():
     for _ in range(40):
         try:
             fd = os.open(lock, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
-            os.write(fd, ("pid=%d at=%s\n" % (os.getpid(),
-                        dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds"))).encode())
-            os.close(fd)
-            return lock
         except FileExistsError:
             time.sleep(0.05)
+            continue
+        try:
+            os.write(fd, ("pid=%d at=%s\n" % (os.getpid(),
+                        dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds"))).encode())
+        except OSError:
+            # A lock we cannot annotate must not outlive this attempt.
+            os.close(fd)
+            try:
+                lock.unlink()
+            except OSError:
+                pass
+            raise
+        os.close(fd)
+        return lock
     # Never steal the lock: a paused writer is indistinguishable from a dead one,
     # and taking its lock could let two runs record different looks. Say who holds
     # it instead, so a genuinely abandoned lock is one deliberate delete away.
