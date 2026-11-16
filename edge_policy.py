@@ -55,6 +55,12 @@ MIN_CHAIN_TRADES = 10
 # saws through either is not safe enough for live size.
 PROMOTION_MAX_DD_PCT = 3.0
 MIN_DEATH_HEADROOM_FRAC = 0.01
+# A window must close at least this far above its start, not merely above zero.
+# Measured noise band (Nov 16): moving the entry from the signal bar's close to
+# the next bar's open - 0.007-0.019% per trade - flipped the sign of one window
+# for all six promotions.  A window that clears by less than this float is the
+# assumption talking, not the edge.
+PROMOTION_MIN_WINDOW_PCT = 0.5
 
 
 @dataclass(frozen=True)
@@ -470,6 +476,17 @@ def evaluate_policies(rows: list[dict], resolver: Resolver,
     return out
 
 
+def stress_passes(policy: Policy, rows: list[dict],
+                  resolver: "Resolver") -> dict:
+    """Chain the same policy under a perturbed fill, for the promotion rule.
+
+    The resolver carries the arm (e.g. `fill="next_open"`); the policy's own
+    exit mode is untouched.  A promotion has to survive this, not just the
+    signal bar's close.
+    """
+    return chain_result(policy, selected_for(policy, rows, resolver))
+
+
 def selected_for(policy: Policy, rows: list[dict],
                  resolver: Resolver) -> list[tuple[dict, dict]]:
     """Rebuild the exact selected rows for the chain shortlist."""
@@ -602,8 +619,12 @@ def chain_result(policy: Policy, selected: list[tuple[dict, dict]]) -> dict:
         profitable = close > w["start"]
         contest_passed = bool(w["passed"])
         headroom = w["min"] - w["start"] * 0.97
+        clears_margin = bool(
+            w["start"] and (close - w["start"]) >=
+            w["start"] * PROMOTION_MIN_WINDOW_PCT / 100.0)
         qualified = bool(
-            profitable and not w["died"] and trades >= MIN_CHAIN_TRADES
+            profitable and clears_margin and not w["died"]
+            and trades >= MIN_CHAIN_TRADES
             and w["max_dd_pct"] < PROMOTION_MAX_DD_PCT
             and headroom >= w["start"] * MIN_DEATH_HEADROOM_FRAC)
         for day, pnl in w["day_pnl"].items():
@@ -633,6 +654,8 @@ def chain_result(policy: Policy, selected: list[tuple[dict, dict]]) -> dict:
             "headroom_pct_of_start": round(
                 headroom / w["start"] * 100.0, 3) if w["start"] else None,
             "profitable": profitable,
+            "clears_margin": clears_margin,
+            "min_window_pct": PROMOTION_MIN_WINDOW_PCT,
             "qualified": qualified,
             "passed": contest_passed,
             "contest_passed": contest_passed,

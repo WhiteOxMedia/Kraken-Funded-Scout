@@ -226,3 +226,34 @@ def test_the_fill_modes_do_not_share_a_cached_exit():
 def test_an_unknown_fill_mode_is_refused():
     with pytest.raises(ValueError):
         ep.Resolver({"A": _fill_frame()}, _fill_cfg(), fill="midpoint")
+
+
+# ── the promotion margin (Nov 16): clear a stated float, not just zero ───
+
+def test_a_window_must_clear_the_stated_margin_not_just_zero():
+    assert ep.PROMOTION_MIN_WINDOW_PCT == 0.5
+    # 12 trades at 100% size, 0.03% each: ~+0.36%, inside the fill noise band
+    thin = ep.chain_result(_policy(), _one_per_window(0.03))
+    assert all(not w["clears_margin"] for w in thin["windows"])
+    assert thin["passes"] == 0
+    assert thin["windows"][0]["min_window_pct"] == 0.5
+    # 0.06% each: ~+0.72%, clears the float
+    fat = ep.chain_result(_policy(), _one_per_window(0.06))
+    assert all(w["clears_margin"] for w in fat["windows"])
+    assert fat["passes"] == 3
+
+
+def test_the_stress_arm_chains_the_same_rows_through_its_resolver():
+    class _Stub:
+        fill = "next_open"
+
+        def resolve(self, pair, i, side, mode):
+            return {"exit_ts": pd.Timestamp("2026-09-01T02:00Z"),
+                    "net": 0.6, "why": "target"}
+
+    rows = [{"ts": pd.Timestamp("2026-09-01T00:00Z") + pd.Timedelta(hours=2 * k),
+             "pair": "A", "i": 0, "f": {}, "entries": ["trend"]}
+            for k in range(12)]
+    out = ep.stress_passes(_policy(), rows, _Stub())
+    assert out["passes"] == 1      # one window's worth of rows, qualified
+    assert out["trades"] == 12

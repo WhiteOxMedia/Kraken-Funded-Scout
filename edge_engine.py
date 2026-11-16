@@ -593,6 +593,7 @@ def update_registry(report: dict, path: Path = REGISTRY) -> dict:
                        "expectancy_pct", "max_drawdown_usd",
                        "max_drawdown_pct", "min_headroom_pct", "worst_day_usd",
                        "worst_day_pct_of_start", "min_chain_trades")},
+            "stress": c.get("stress"),
             "first_seen": prev.get("first_seen", now),
             "last_seen": now,
         }
@@ -753,6 +754,9 @@ def search(db: Path = DB, top: int = 20, chain_top: int = 8,
     if not rows:
         raise RuntimeError("no entry-selector bars in the cache")
     resolver = ep.Resolver(pairs, TradingConfig())
+    # The same rows, filled at the next bar's open: the arm that measured the
+    # promotion rule's noise band (Nov 16).  A promotion must survive it.
+    resolver_open = ep.Resolver(pairs, TradingConfig(), fill="next_open")
     policies = ep.all_policies()
     print(f"policy rows={len(rows)} pairs={len(pairs)} "
           f"surface={len(policies)}", flush=True)
@@ -788,6 +792,20 @@ def search(db: Path = DB, top: int = 20, chain_top: int = 8,
             e["status_reason"] = (
                 "chain windows were profitable, but the windows 1-2 signal "
                 "screen was not both positive; forward paper only")
+        if e["status"] == "promoted":
+            stress = ep.stress_passes(pol, rows, resolver_open)
+            e["stress"] = {"fill": "next_open", "passes": stress.get("passes"),
+                           "final": stress.get("final"),
+                           "windows": [w.get("return_pct")
+                                       for w in stress.get("windows") or []]}
+            if int(stress.get("passes") or 0) < 3:
+                e["status"] = "watch"
+                e["status_reason"] = (
+                    "cleared the window margin at the signal-bar close but not "
+                    "under next-open fills - the promotion is inside the "
+                    "fill-timing noise band")
+                e["fail_window"] = (e.get("fail_window") or
+                                    "next-open fill stress")
         e["fail_window"] = next((w["window"] for w in ch["windows"]
                                  if not w.get("qualified")), None)
         e["worst_headroom"] = ch.get("worst_headroom")

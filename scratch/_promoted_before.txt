@@ -1,0 +1,7 @@
+6 promoted before
+  ('L.dip.risk_off.fixed.9.any.us', 10735.18, 3)
+  ('L.dip.risk_off.fixed.6.any.us', 10489.59, 3)
+  ('L.dip.risk_off.breakeven.9.any.us', 10874.39, 3)
+  ('L.dip.risk_off.breakeven.6.any.us', 10581.63, 3)
+  ('L.range_reclaim.trend.fixed.9.any.us', 10858.99, 3)
+  ('L.range_reclaim.trend.fixed.6.any.us', 10568.47, 3)
