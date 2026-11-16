@@ -1,0 +1,750 @@
+{
+ "k": 3,
+ "paths": 900,
+ "horizon_days": 365,
+ "label_loss_tolerance": 0.25,
+ "arms": {
+  "tight": {
+   "base_p_pass": 0.6089,
+   "arms": {
+    "same_day": {
+     "holdout": {
+      "holdouts": [
+       {
+        "regime": 0,
+        "trades": 4067,
+        "p_pass": 0.0,
+        "p_death": 0.0,
+        "loss": 0.6089
+       },
+       {
+        "regime": 1,
+        "trades": 7021,
+        "p_pass": 0.0,
+        "p_death": 0.0,
+        "loss": 0.6089
+       },
+       {
+        "regime": 2,
+        "trades": 6277,
+        "p_pass": 1.0,
+        "p_death": 0.0,
+        "loss": -0.3911
+       }
+      ],
+      "worst": {
+       "regime": 0,
+       "trades": 4067,
+       "p_pass": 0.0,
+       "p_death": 0.0,
+       "loss": 0.6089
+      },
+      "loss": 0.6089
+     },
+     "profile": [
+      {
+       "regime": 0,
+       "trades": 4615,
+       "mu": 0.1049,
+       "share_of_drift": 0.84
+      },
+      {
+       "regime": 1,
+       "trades": 1661,
+       "mu": 0.1767,
+       "share_of_drift": 0.51
+      },
+      {
+       "regime": 2,
+       "trades": 2405,
+       "mu": -0.0843,
+       "share_of_drift": -0.352
+      }
+     ]
+    },
+    "prior_only": {
+     "holdout": {
+      "holdouts": [
+       {
+        "regime": 0,
+        "trades": 4893,
+        "p_pass": 0.5189,
+        "p_death": 0.0,
+        "loss": 0.09
+       },
+       {
+        "regime": 1,
+        "trades": 5612,
+        "p_pass": 0.67,
+        "p_death": 0.0,
+        "loss": -0.0611
+       },
+       {
+        "regime": 2,
+        "trades": 6866,
+        "p_pass": 0.6767,
+        "p_death": 0.0,
+        "loss": -0.0678
+       }
+      ],
+      "worst": {
+       "regime": 0,
+       "trades": 4893,
+       "p_pass": 0.5189,
+       "p_death": 0.0,
+       "loss": 0.09
+      },
+      "loss": 0.09
+     },
+     "profile": [
+      {
+       "regime": 0,
+       "trades": 3789,
+       "mu": 0.0693,
+       "share_of_drift": 0.456
+      },
+      {
+       "regime": 1,
+       "trades": 3070,
+       "mu": 0.0651,
+       "share_of_drift": 0.347
+      },
+      {
+       "regime": 2,
+       "trades": 1816,
+       "mu": 0.0632,
+       "share_of_drift": 0.199
+      }
+     ]
+    }
+   }
+  },
+  "mid": {
+   "base_p_pass": 0.9244,
+   "arms": {
+    "same_day": {
+     "holdout": {
+      "holdouts": [
+       {
+        "regime": 0,
+        "trades": 3781,
+        "p_pass": 0.0,
+        "p_death": 0.0,
+        "loss": 0.9244
+       },
+       {
+        "regime": 1,
+        "trades": 6499,
+        "p_pass": 0.0311,
+        "p_death": 0.0,
+        "loss": 0.8933
+       },
+       {
+        "regime": 2,
+        "trades": 7085,
+        "p_pass": 1.0,
+        "p_death": 0.0,
+        "loss": -0.0756
+       }
+      ],
+      "worst": {
+       "regime": 0,
+       "trades": 3781,
+       "p_pass": 0.0,
+       "p_death": 0.0,
+       "loss": 0.9244
+      },
+      "loss": 0.9244
+     },
+     "profile": [
+      {
+       "regime": 0,
+       "trades": 4901,
+       "mu": 0.1175,
+       "share_of_drift": 0.858
+      },
+      {
+       "regime": 1,
+       "trades": 2183,
+       "mu": 0.1799,
+       "share_of_drift": 0.585
+      },
+      {
+       "regime": 2,
+       "trades": 1597,
+       "mu": -0.187,
+       "share_of_drift": -0.445
+      }
+     ]
+    },
+    "prior_only": {
+     "holdout": {
+      "holdouts": [
+       {
+        "regime": 0,
+        "trades": 6089,
+        "p_pass": 0.7522,
+        "p_death": 0.0,
+        "loss": 0.1722
+       },
+       {
+        "regime": 1,
+        "trades": 4805,
+        "p_pass": 0.7644,
+        "p_death": 0.0,
+        "loss": 0.16
+       },
+       {
+        "regime": 2,
+        "trades": 6477,
+        "p_pass": 0.9967,
+        "p_death": 0.0,
+        "loss": -0.0722
+       }
+      ],
+      "worst": {
+       "regime": 0,
+       "trades": 6089,
+       "p_pass": 0.7522,
+       "p_death": 0.0,
+       "loss": 0.1722
+      },
+      "loss": 0.1722
+     },
+     "profile": [
+      {
+       "regime": 0,
+       "trades": 2593,
+       "mu": 0.0934,
+       "share_of_drift": 0.361
+      },
+      {
+       "regime": 1,
+       "trades": 3877,
+       "mu": 0.0873,
+       "share_of_drift": 0.504
+      },
+      {
+       "regime": 2,
+       "trades": 2205,
+       "mu": 0.0424,
+       "share_of_drift": 0.139
+      }
+     ]
+    }
+   }
+  },
+  "shipped": {
+   "base_p_pass": 0.9333,
+   "arms": {
+    "same_day": {
+     "holdout": {
+      "holdouts": [
+       {
+        "regime": 0,
+        "trades": 4471,
+        "p_pass": 0.0,
+        "p_death": 1.0,
+        "loss": 0.9333
+       },
+       {
+        "regime": 1,
+        "trades": 4650,
+        "p_pass": 1.0,
+        "p_death": 0.0,
+        "loss": -0.0667
+       },
+       {
+        "regime": 2,
+        "trades": 8244,
+        "p_pass": 1.0,
+        "p_death": 0.0,
+        "loss": -0.0667
+       }
+      ],
+      "worst": {
+       "regime": 0,
+       "trades": 4471,
+       "p_pass": 0.0,
+       "p_death": 1.0,
+       "loss": 0.9333
+      },
+      "loss": 0.9333
+     },
+     "profile": [
+      {
+       "regime": 0,
+       "trades": 4211,
+       "mu": 0.3173,
+       "share_of_drift": 1.812
+      },
+      {
+       "regime": 1,
+       "trades": 4032,
+       "mu": -0.0669,
+       "share_of_drift": -0.366
+      },
+      {
+       "regime": 2,
+       "trades": 438,
+       "mu": -0.7543,
+       "share_of_drift": -0.448
+      }
+     ]
+    },
+    "prior_only": {
+     "holdout": {
+      "holdouts": [
+       {
+        "regime": 0,
+        "trades": 6070,
+        "p_pass": 0.86,
+        "p_death": 0.0,
+        "loss": 0.0733
+       },
+       {
+        "regime": 1,
+        "trades": 5806,
+        "p_pass": 0.9967,
+        "p_death": 0.0,
+        "loss": -0.0633
+       },
+       {
+        "regime": 2,
+        "trades": 5495,
+        "p_pass": 0.8256,
+        "p_death": 0.0,
+        "loss": 0.1078
+       }
+      ],
+      "worst": {
+       "regime": 2,
+       "trades": 5495,
+       "p_pass": 0.8256,
+       "p_death": 0.0,
+       "loss": 0.1078
+      },
+      "loss": 0.1078
+     },
+     "profile": [
+      {
+       "regime": 0,
+       "trades": 2612,
+       "mu": 0.0958,
+       "share_of_drift": 0.339
+      },
+      {
+       "regime": 1,
+       "trades": 2876,
+       "mu": 0.0573,
+       "share_of_drift": 0.223
+      },
+      {
+       "regime": 2,
+       "trades": 3187,
+       "mu": 0.1031,
+       "share_of_drift": 0.446
+      }
+     ]
+    }
+   }
+  },
+  "wide": {
+   "base_p_pass": 0.9767,
+   "arms": {
+    "same_day": {
+     "holdout": {
+      "holdouts": [
+       {
+        "regime": 0,
+        "trades": 3624,
+        "p_pass": 0.0,
+        "p_death": 0.8222,
+        "loss": 0.9767
+       },
+       {
+        "regime": 1,
+        "trades": 6535,
+        "p_pass": 0.0956,
+        "p_death": 0.0978,
+        "loss": 0.8811
+       },
+       {
+        "regime": 2,
+        "trades": 7206,
+        "p_pass": 1.0,
+        "p_death": 0.0,
+        "loss": -0.0233
+       }
+      ],
+      "worst": {
+       "regime": 0,
+       "trades": 3624,
+       "p_pass": 0.0,
+       "p_death": 0.8222,
+       "loss": 0.9767
+      },
+      "loss": 0.9767
+     },
+     "profile": [
+      {
+       "regime": 0,
+       "trades": 5058,
+       "mu": 0.1952,
+       "share_of_drift": 1.149
+      },
+      {
+       "regime": 1,
+       "trades": 2147,
+       "mu": 0.3158,
+       "share_of_drift": 0.789
+      },
+      {
+       "regime": 2,
+       "trades": 1476,
+       "mu": -0.5468,
+       "share_of_drift": -0.939
+      }
+     ]
+    },
+    "prior_only": {
+     "holdout": {
+      "holdouts": [
+       {
+        "regime": 0,
+        "trades": 4662,
+        "p_pass": 0.98,
+        "p_death": 0.0,
+        "loss": -0.0033
+       },
+       {
+        "regime": 1,
+        "trades": 5467,
+        "p_pass": 0.9811,
+        "p_death": 0.0022,
+        "loss": -0.0044
+       },
+       {
+        "regime": 2,
+        "trades": 7242,
+        "p_pass": 0.9722,
+        "p_death": 0.0011,
+        "loss": 0.0044
+       }
+      ],
+      "worst": {
+       "regime": 2,
+       "trades": 7242,
+       "p_pass": 0.9722,
+       "p_death": 0.0011,
+       "loss": 0.0044
+      },
+      "loss": 0.0044
+     },
+     "profile": [
+      {
+       "regime": 0,
+       "trades": 4020,
+       "mu": 0.1052,
+       "share_of_drift": 0.492
+      },
+      {
+       "regime": 1,
+       "trades": 3215,
+       "mu": 0.0932,
+       "share_of_drift": 0.349
+      },
+      {
+       "regime": 2,
+       "trades": 1440,
+       "mu": 0.1022,
+       "share_of_drift": 0.171
+      }
+     ]
+    },
+    "shuffled": [
+     {
+      "seed": 0,
+      "holdout": {
+       "holdouts": [
+        {
+         "regime": 0,
+         "trades": 5491,
+         "p_pass": 1.0,
+         "p_death": 0.0,
+         "loss": -0.0233
+        },
+        {
+         "regime": 1,
+         "trades": 5318,
+         "p_pass": 0.9333,
+         "p_death": 0.0022,
+         "loss": 0.0433
+        },
+        {
+         "regime": 2,
+         "trades": 6556,
+         "p_pass": 0.7911,
+         "p_death": 0.0044,
+         "loss": 0.1856
+        }
+       ],
+       "worst": {
+        "regime": 2,
+        "trades": 6556,
+        "p_pass": 0.7911,
+        "p_death": 0.0044,
+        "loss": 0.1856
+       },
+       "loss": 0.1856
+      },
+      "profile": [
+       {
+        "regime": 0,
+        "trades": 3191,
+        "mu": 0.0407,
+        "share_of_drift": 0.151
+       },
+       {
+        "regime": 1,
+        "trades": 3364,
+        "mu": 0.1106,
+        "share_of_drift": 0.433
+       },
+       {
+        "regime": 2,
+        "trades": 2126,
+        "mu": 0.1676,
+        "share_of_drift": 0.414
+       }
+      ]
+     },
+     {
+      "seed": 1,
+      "holdout": {
+       "holdouts": [
+        {
+         "regime": 0,
+         "trades": 5462,
+         "p_pass": 0.9456,
+         "p_death": 0.0,
+         "loss": 0.0311
+        },
+        {
+         "regime": 1,
+         "trades": 5620,
+         "p_pass": 0.9833,
+         "p_death": 0.0,
+         "loss": -0.0067
+        },
+        {
+         "regime": 2,
+         "trades": 6283,
+         "p_pass": 0.9889,
+         "p_death": 0.0,
+         "loss": -0.0122
+        }
+       ],
+       "worst": {
+        "regime": 0,
+        "trades": 5462,
+        "p_pass": 0.9456,
+        "p_death": 0.0,
+        "loss": 0.0311
+       },
+       "loss": 0.0311
+      },
+      "profile": [
+       {
+        "regime": 0,
+        "trades": 3220,
+        "mu": 0.1081,
+        "share_of_drift": 0.405
+       },
+       {
+        "regime": 1,
+        "trades": 3062,
+        "mu": 0.1053,
+        "share_of_drift": 0.375
+       },
+       {
+        "regime": 2,
+        "trades": 2399,
+        "mu": 0.0784,
+        "share_of_drift": 0.219
+       }
+      ]
+     },
+     {
+      "seed": 2,
+      "holdout": {
+       "holdouts": [
+        {
+         "regime": 0,
+         "trades": 5613,
+         "p_pass": 1.0,
+         "p_death": 0.0,
+         "loss": -0.0233
+        },
+        {
+         "regime": 1,
+         "trades": 5696,
+         "p_pass": 0.8767,
+         "p_death": 0.0033,
+         "loss": 0.1
+        },
+        {
+         "regime": 2,
+         "trades": 6056,
+         "p_pass": 0.8278,
+         "p_death": 0.0011,
+         "loss": 0.1489
+        }
+       ],
+       "worst": {
+        "regime": 2,
+        "trades": 6056,
+        "p_pass": 0.8278,
+        "p_death": 0.0011,
+        "loss": 0.1489
+       },
+       "loss": 0.1489
+      },
+      "profile": [
+       {
+        "regime": 0,
+        "trades": 3069,
+        "mu": 0.0284,
+        "share_of_drift": 0.101
+       },
+       {
+        "regime": 1,
+        "trades": 2986,
+        "mu": 0.1269,
+        "share_of_drift": 0.441
+       },
+       {
+        "regime": 2,
+        "trades": 2626,
+        "mu": 0.1494,
+        "share_of_drift": 0.456
+       }
+      ]
+     },
+     {
+      "seed": 3,
+      "holdout": {
+       "holdouts": [
+        {
+         "regime": 0,
+         "trades": 5280,
+         "p_pass": 0.9744,
+         "p_death": 0.0,
+         "loss": 0.0022
+        },
+        {
+         "regime": 1,
+         "trades": 5849,
+         "p_pass": 0.99,
+         "p_death": 0.0,
+         "loss": -0.0133
+        },
+        {
+         "regime": 2,
+         "trades": 6236,
+         "p_pass": 0.9544,
+         "p_death": 0.0011,
+         "loss": 0.0222
+        }
+       ],
+       "worst": {
+        "regime": 2,
+        "trades": 6236,
+        "p_pass": 0.9544,
+        "p_death": 0.0011,
+        "loss": 0.0222
+       },
+       "loss": 0.0222
+      },
+      "profile": [
+       {
+        "regime": 0,
+        "trades": 3402,
+        "mu": 0.0953,
+        "share_of_drift": 0.377
+       },
+       {
+        "regime": 1,
+        "trades": 2833,
+        "mu": 0.0915,
+        "share_of_drift": 0.302
+       },
+       {
+        "regime": 2,
+        "trades": 2446,
+        "mu": 0.1123,
+        "share_of_drift": 0.32
+       }
+      ]
+     },
+     {
+      "seed": 4,
+      "holdout": {
+       "holdouts": [
+        {
+         "regime": 0,
+         "trades": 5657,
+         "p_pass": 0.9978,
+         "p_death": 0.0,
+         "loss": -0.0211
+        },
+        {
+         "regime": 1,
+         "trades": 5500,
+         "p_pass": 0.99,
+         "p_death": 0.0,
+         "loss": -0.0133
+        },
+        {
+         "regime": 2,
+         "trades": 6208,
+         "p_pass": 0.7822,
+         "p_death": 0.0022,
+         "loss": 0.1944
+        }
+       ],
+       "worst": {
+        "regime": 2,
+        "trades": 6208,
+        "p_pass": 0.7822,
+        "p_death": 0.0022,
+        "loss": 0.1944
+       },
+       "loss": 0.1944
+      },
+      "profile": [
+       {
+        "regime": 0,
+        "trades": 3025,
+        "mu": 0.0581,
+        "share_of_drift": 0.205
+       },
+       {
+        "regime": 1,
+        "trades": 3182,
+        "mu": 0.0893,
+        "share_of_drift": 0.33
+       },
+       {
+        "regime": 2,
+        "trades": 2474,
+        "mu": 0.1611,
+        "share_of_drift": 0.464
+       }
+      ]
+     }
+    ]
+   }
+  }
+ }
+}
