@@ -1,0 +1,11 @@
+  built tight: 8,682 trades
+  built mid: 8,682 trades
+  built shipped: 8,682 trades
+  built wide: 8,682 trades
+1. BEST CONTEST CONFIG
+   wide  stop/arm/give/take = (3.0, 0.4, 0.1, 0.0)   theta 1644.2   mu +0.0990%/trade
+2. ESTIMATED P(pass)  97.3%
+3. ESTIMATED P(death) 0.2%
+4. DOMINANT UNCERTAINTY: the edge estimate
+   t=-2.77 on the last 500 trades
+5. NEXT EXPERIMENT: Extend the tape forward and re-estimate mu on NEW days only (walk-forward), because the current edge rests on one 183-day sample whose CI is the binding uncertainty. Concretely: hold the config fixed, log the next N=500 live-shadow trades, and re-run this report; the answer changes iff the new CI excludes zero.

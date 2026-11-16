@@ -1,0 +1,37 @@
+1. BEST CONTEST CONFIG
+   wide  stop/arm/give/take = (3.0, 0.4, 0.1, 0.0)   theta 1644.2   mu +0.0990%/trade
+2. ESTIMATED P(pass)  99.9%
+3. ESTIMATED P(death) 0.1%
+4. DOMINANT UNCERTAINTY: the edge estimate
+   t=-2.77 on the last 500 trades
+5. NEXT EXPERIMENT: Extend the tape forward and re-estimate mu on NEW days only (walk-forward), because the current edge rests on one 183-day sample whose CI is the binding uncertainty. Concretely: hold the config fixed, log the next N=500 live-shadow trades, and re-run this report; the answer changes iff the new CI excludes zero.
+
+--- EDGE MONITOR --------------------------------------------
+  last 500   n=500   mu -0.16591  sd 1.33692  t -2.77  CI [-0.28309,-0.04872]  theta -1856  p_free 0.000
+  last 2000  n=2000  mu -0.00052  sd 1.21371  t -0.02  CI [-0.05372,+0.05267]  theta -7  p_free 0.000  <-- INDISTINGUISHABLE FROM ZERO
+  last all   n=8682  mu +0.09901  sd 1.09745  t +8.41  CI [+0.07593,+0.12210]  theta 1644  p_free 1.000
+
+--- REGIMES -------------------------------------------------
+  regime 0:  60d  drift +0.10418  vol 0.4722  breadth 0.87  part 77  drift share +0.84
+  regime 1:  49d  drift +0.17938  vol 0.3640  breadth 0.93  part 34  drift share +0.51
+  regime 2:  72d  drift -0.10415  vol 0.6056  breadth 0.70  part 33  drift share -0.35
+  TODAY resembles: {'regime': 1, 'similarity': 0.426, 'distance': 1.35, 'closest_drift': 0.17938, 'note': 'similarity only — this is not a direction forecast'}
+
+--- SCHEDULES (365d, block-50) --------------------------
+  const      pass  97.3%  death  0.2%  median pass at 10520.5
+  s(buffer)  pass 100.0%  death  0.0%  median pass at 6250.0
+  s(theta)   pass 100.0%  death  0.0%  median pass at 3591.0
+  s(p_pass)  pass 100.0%  death  0.0%  median pass at 4285.5
+
+--- COMPONENTS -----------------------------------------------
+  tight          n=8682  theta   4855  pass 100.0%  death  0.0%  median  350.0d  comp/day 0.00286  replay ALIVE  DISQUALIFIED: 4. profit dies under realistic costs; 5. answer flips under a small perturbation
+  mid            n=8682  theta   4202  pass 100.0%  death  0.0%  median  298.6d  comp/day 0.00335  replay ALIVE  CLEAR
+  shipped        n=8682  theta   2004  pass 100.0%  death  0.0%  median  261.7d  comp/day 0.00382  replay ALIVE  CLEAR
+  wide           n=8682  theta   1644  pass  99.9%  death  0.1%  median  220.9d  comp/day 0.00452  replay ALIVE  CLEAR
+  champion lane  UNMEASURED — no authoritative per-trade series on this tape
+  GO BIG lane    UNMEASURED — no authoritative per-trade series on this tape
+
+--- COST ---------------------------------------------------
+  refused (23): AIXBT, KAITO, LDO, POPCAT, PNUT, S, XPL, TRUMP, FIL, DRV, WIF, MOODENG
+  thin (8): VVV, TAO, ALGO, STX, ARB, ATOM, PUMP, HBAR
+  spread shocks >=1.5x today: POPCAT, FARTCOIN, APT, WLD, POL, PEPE, ZEC, ETH, BTC
