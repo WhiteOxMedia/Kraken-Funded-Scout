@@ -248,25 +248,39 @@ two-way split cannot:
 | November (holdout) | **+0.0379%** per trade, 80.8% wins, n=442, **t = 0.79** |
 | monthly positive | 5 of 7 — June −0.064%, October −0.051% |
 | worst loss streak | 13 in a row |
-| **max drawdown** | **$2,676.66** on $2,000 tickets |
-| cushion it must never touch | **$300** |
 
-**The 80% shape exists and does not pay.** The win rate is real and the expectancy is
-positive on average, but it is a rounding error (t = 0.79 out of sample), it is
-negative in 2 of 7 months, and its drawdown is **8.9× the cushion**. A 90.7%-win
-variant exists too (`S3.0/A0.25/G0.15`) and it is *negative* in November (−0.073%),
-which is the clearest possible sign that pushing the win rate up is pushing the tail
-risk up with it.
+### The risk question, asked correctly
 
-So the engine is **live as a shadow, never as an order**: `overwatch_timing.py` holds
-the entry (`e3_band`), the stop/ratchet/exit rules, `ARMED = False`, the measured
-record, and `should_arm()` gated on `ARM_CRITERIA` (200 shadow trades, ≥80% wins,
-≥+0.05%/trade, DD ≤ $150). `timing_shadow.py` runs that engine every cycle on real
-5m Kraken bars, writes entries and exits to `contest_timing_shadow.jsonl`, and
-self-polices: a rolling win rate under 70% or 8 losers in a row suspends entries for
-24h and logs why — bad trades punished, good trades what the record rewards.
+An earlier pass asked the wrong question — "is the peak-to-trough drawdown bigger than
+the $300 of room left?" That framing invents a buffer that does not exist in the
+contest. The death line is `start_balance * (1 - MAX_LOSS_PCT/100)` = **$9,700**, it
+never moves, and **the room above it grows with profit**. So the test is the lowest
+point the balance path reaches, against `death_floor.halt_line()` = $9,850.
 
-`test_overwatch_timing.py`: 22/22. Shadow process: **pid 26524**, no orders, no
+Re-run with `contest_account.sized_entry_usd` pricing every ticket (the repo's single
+sizing rule — no second copy of the arithmetic in the study):
+
+| size of one ticket | profit over the sample | lowest balance | room above the halt line |
+|---|---|---|---|
+| **1% of balance** | **+$148.45** | **$9,910.66** | **+$60.66 — never halted** |
+| 2% | +$298.33 | $9,839.67 | −$10.33 — halted |
+| 3% | +$449.66 | $9,769.00 | −$81.00 — halted |
+| 5% | +$700.95 | $9,701.20 | −$148.80 — halted, **$1.20 above death** |
+| 10% | −$177.48 | $9,700.00 | −$150.00 — halted |
+
+So the shape **does not die** — the sizing does. At 1% of the balance the 82.3% shape
+made **+$148.45 over six months** and never came closer than **$60.66** to the halt
+line. At 5% it makes $701 and passes within **$1.20 of dying**: the profit was luck,
+not skill, and the death line was one bad sequence away. Size is the risk control; the
+2% stop is not.
+
+The other candidates, largest size that never touches the halt line:
+`S2.5/A0.4/G0.15` (84.6% wins) 2% → +$405.70, room $27.33; `S3.0/A0.25/G0.15`
+(90.6% wins) 5% → +$670.55, room $16.58 but **November −0.073%**; `S1.5` 1% →
++$94.94. The 82.3% shape at 1% is the only one that is positive out of sample *and*
+comfortably above the floor.
+
+`test_overwatch_timing.py`: 27/27. Shadow process: **pid 26524**, no orders, no
 balance arithmetic.
 
 ## The binding constraint, named

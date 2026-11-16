@@ -86,37 +86,58 @@ check("3.2 the stop is 2% below entry",
 check("3.3 a win rate needs a stop this wide to keep 80% wins",
       ot.STOP_PCT >= 4 * ot.GIVE_PCT / 2, (ot.STOP_PCT, ot.GIVE_PCT))
 
-# ── 4. the shape measured, and why it is not armed ──────────────────────────
+
+# ── 4. the shape measured, and the death line that sizes it ─────────────────
 check("4.1 the study records the 82.3% win rate", ot.STUDY["win_pct"] == 82.3)
 check("4.2 and the positive November expectancy",
       ot.STUDY["november"]["mean_net_pct"] > 0, ot.STUDY["november"])
-check("4.3 and the drawdown that disqualifies it",
-      ot.STUDY["max_drawdown_usd_2k"] > 8 * ot.STUDY["cushion_usd"])
-check("4.4 November's t is inside noise, so the edge is not proven",
-      abs(ot.STUDY["november"]["t"]) < 2.0)
-check("4.5 real orders are OFF", ot.ARMED is False)
+check("4.3 the death line is -3% of the STARTING balance and never moves",
+      ot.STUDY["death_line_usd"] == 9700.0)
+acct = {"start_balance": 10000.0, "current_balance": 9981.95855906339}
+ctx = ot.death_context(acct)
+check("4.4 the context is the repo's own death_floor/halt_line arithmetic",
+      abs(ctx["death_line"] - 9700.0) < 1e-6 and abs(ctx["halt_line"] - 9850.0) < 1e-6,
+      ctx)
+check("4.5 the live headroom is balance minus the halt line (it grows with profit)",
+      abs(ctx["headroom"] - 131.95855906339) < 1e-6, ctx["headroom"])
+check("4.6 one ticket is 1% of the balance, via contest_account.sized_entry_usd",
+      abs(ot.ticket_usd(10000.0, 10000.0) - 100.0) < 1e-6,
+      ot.ticket_usd(10000.0, 10000.0))
+check("4.7 at 1% the path never halted and kept its room",
+      ot.STUDY["paths"]["1pct"]["halted"] is False
+      and ot.STUDY["paths"]["1pct"]["room_usd"] > 0)
+check("4.8 at 5% it earns more and nearly dies: size is the risk control",
+      ot.STUDY["paths"]["5pct"]["profit_usd"] > ot.STUDY["paths"]["1pct"]["profit_usd"]
+      and ot.STUDY["paths"]["5pct"]["room_usd"] < 0)
+check("4.9 real orders are OFF", ot.ARMED is False)
 
-empty_arm, empty_why = ot.should_arm({})
-check("4.6 with no shadow record the gate refuses and says what is missing",
+empty_arm, empty_why = ot.should_arm({}, acct)
+check("4.10 with no shadow record the gate refuses and says what is missing",
       empty_arm is False and "0/200 shadow trades" in empty_why, empty_why)
 
+at_floor, floor_why = ot.should_arm({}, {"start_balance": 10000.0,
+                                         "current_balance": 9850.0})
+check("4.11 at the halt line nothing new is risked, whatever the record says",
+      at_floor is False and "halt line" in floor_why, floor_why)
+
 proven = {"trades": 250, "win_pct": 85.0, "mean_net_pct": 0.10,
-          "max_drawdown_usd": 100.0}
-met_arm, met_why = ot.should_arm(proven)
-check("4.7 even a passing shadow record does not self-arm: that is a human call",
-      met_arm is False and "human decision" in met_why, met_why)
+          "min_headroom_usd": 200.0}
+met_arm, met_why = ot.should_arm(proven, acct)
+check("4.12 a passing record still needs the single execution path, not a second trader",
+      met_arm is False and "single execution path" in met_why, met_why)
 
 bad = {"trades": 250, "win_pct": 70.0, "mean_net_pct": -0.02,
-       "max_drawdown_usd": 400.0}
-bad_arm, bad_why = ot.should_arm(bad)
-check("4.8 a failing shadow record is refused on all three counts",
-      bad_arm is False and "win" in bad_why and "DD" in bad_why, bad_why)
+       "min_headroom_usd": 40.0}
+bad_arm, bad_why = ot.should_arm(bad, acct)
+check("4.13 a failing record is refused on every count",
+      bad_arm is False and "win" in bad_why and "room" in bad_why, bad_why)
 
 verdict = ot.shadow_verdict(proven)
-check("4.9 the verdict plate carries state, numbers and reason",
+check("4.14 the plate carries the death line, the room and the size",
       verdict["state"] == "shadow" and verdict["win_pct"] == 85.0
-      and "why" in verdict and verdict["armed"] is False)
+      and verdict["death_line_usd"] == 9700.0
+      and verdict["size_frac"] == 0.01 and verdict["armed"] is False)
 
-print("\n".join(lines))
-print(f"\nRESULT: {PASS} passed, {FAIL} failed")
+print(chr(10).join(lines))
+print(f"{chr(10)}RESULT: {PASS} passed, {FAIL} failed")
 sys.exit(1 if FAIL else 0)

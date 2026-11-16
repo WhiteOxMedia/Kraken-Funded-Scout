@@ -4,8 +4,9 @@ What "live" means here, precisely: it fetches real 5m Kraken candles, makes real
 entry and exit decisions with overwatch_timing's rules, and writes every decision to
 `contest_timing_shadow.jsonl`. It never places, cancels or closes an order and never
 touches the balance. That is deliberate — see overwatch_timing.STUDY: the shape wins
-82.3% of the time and still drew down $2,677 against a $300 cushion in simulation,
-so it has to prove itself on live data before it may spend money.
+82.3% of the time and only survives the -3% death line at 1% of the balance, so it
+prices every ticket with `overwatch_timing.ticket_usd()` (which is
+`contest_account.sized_entry_usd`) and it still has to prove itself on live data.
 
 The scorecard is the punish/reward loop:
   * every closed shadow trade updates the running record;
@@ -94,20 +95,24 @@ def fetch(ex, pair, limit=320):
 
 def scorecard(s: dict) -> dict:
     closed = [c["net_pct"] for c in s["closed"][-ROLL_WINDOW:]]
+    ctx = ot.death_context()
     if not closed:
         return {"trades": len(s["closed"]), "win_pct": 0.0, "mean_net_pct": 0.0,
-                "max_drawdown_usd": 0.0, "rolling_n": 0}
+                "min_headroom_usd": round(ctx["headroom"], 2), "rolling_n": 0}
     wins = sum(1 for x in closed if x > 0)
-    eq = peak = dd = 0.0
+    # the room is the balance above the HALT line, walking the paper path from the
+    # live balance with the same 1% ticket: the lowest it ever gets is the real risk
+    bal = ctx["balance"]
+    low = bal
     for c in s["closed"]:
-        eq += NOTIONAL * c["net_pct"] / 100.0
-        peak = max(peak, eq)
-        dd = max(dd, peak - eq)
+        bal += ot.ticket_usd(bal, ctx["start"]) * c["net_pct"] / 100.0
+        low = min(low, bal)
     return {
         "trades": len(s["closed"]),
         "win_pct": round(100.0 * wins / len(closed), 1),
         "mean_net_pct": round(sum(closed) / len(closed), 4),
-        "max_drawdown_usd": round(dd, 2),
+        "min_headroom_usd": round(low - ctx["halt_line"], 2),
+        "paper_balance_usd": round(bal, 2),
         "rolling_n": len(closed),
     }
 
@@ -186,7 +191,7 @@ def cycle(s: dict, ex) -> None:
     arm, why = ot.should_arm(sc)
     log(f"cycle {s['cycles']}: open {len(s['positions'])} closed {sc['trades']} "
         f"win {sc['win_pct']}% net {sc['mean_net_pct']:+.4f}% "
-        f"dd ${sc['max_drawdown_usd']:.0f} | armed={arm} ({why})")
+        f"room ${sc['min_headroom_usd']:.0f} above halt | armed={arm} ({why})")
     save_state(s)
 
 

@@ -1,286 +1,487 @@
 {
- "e3_band|S2.0|A0.4|G0.15": {
-  "overall": {
-   "n": 8304,
-   "win_pct": 82.3,
-   "mean_net_pct": 0.0178,
-   "total_net_pct": 148.0,
-   "median_hold_h": 1.17,
-   "t": 1.71,
-   "worst": -2.08,
-   "best": 4.1
-  },
-  "november": {
-   "n": 442,
-   "win_pct": 80.8,
-   "mean_net_pct": 0.0379,
-   "total_net_pct": 16.7,
-   "median_hold_h": 0.83,
-   "t": 0.79,
-   "worst": -2.08,
-   "best": 2.4
-  },
-  "monthly": {
-   "2026-05": {
-    "n": 718,
-    "win": 83.8,
-    "net": 0.0108,
-    "total_pct": 7.7
-   },
-   "2026-06": {
-    "n": 1245,
-    "win": 78.9,
-    "net": -0.0637,
-    "total_pct": -79.3
-   },
-   "2026-07": {
-    "n": 1509,
-    "win": 85.3,
-    "net": 0.0771,
-    "total_pct": 116.3
-   },
-   "2026-08": {
-    "n": 1534,
-    "win": 83.6,
-    "net": 0.0759,
-    "total_pct": 116.5
-   },
-   "2026-09": {
-    "n": 1501,
-    "win": 82.5,
-    "net": 0.026,
-    "total_pct": 39.1
-   },
-   "2026-10": {
-    "n": 1355,
-    "win": 80.0,
-    "net": -0.0509,
-    "total_pct": -69.0
-   },
-   "2026-11": {
-    "n": 442,
-    "win": 80.8,
-    "net": 0.0379,
-    "total_pct": 16.7
-   }
-  },
-  "positive_months": "5/7",
-  "worst_loss_streak": 13,
-  "equity_usd": 2959.84,
-  "max_drawdown_usd": 2676.66,
-  "cushion_breached": true
+ "context": {
+  "start": 10000.0,
+  "balance": 9981.95855906339,
+  "death_line": 9700.0,
+  "halt_line": 9850.0,
+  "buffer_now": 281.96
  },
- "e3_band|S2.5|A0.4|G0.15": {
-  "overall": {
-   "n": 8304,
-   "win_pct": 84.6,
-   "mean_net_pct": 0.0241,
-   "total_net_pct": 200.1,
-   "median_hold_h": 1.25,
-   "t": 2.13,
-   "worst": -2.58,
-   "best": 4.1
-  },
-  "november": {
-   "n": 442,
-   "win_pct": 81.9,
-   "mean_net_pct": 0.0014,
-   "total_net_pct": 0.6,
-   "median_hold_h": 0.92,
-   "t": 0.03,
-   "worst": -2.58,
-   "best": 2.4
-  },
-  "monthly": {
-   "2026-05": {
-    "n": 718,
-    "win": 86.4,
-    "net": 0.0425,
-    "total_pct": 30.5
+ "candidates": {
+  "e3_band|S2.0|A0.4|G0.15": {
+   "overall": {
+    "n": 8304,
+    "win_pct": 82.3,
+    "mean_net_pct": 0.0178,
+    "total_net_pct": 148.0,
+    "median_hold_h": 1.17,
+    "t": 1.71,
+    "worst": -2.08,
+    "best": 4.1
    },
-   "2026-06": {
-    "n": 1245,
-    "win": 81.6,
-    "net": -0.0658,
-    "total_pct": -81.9
-   },
-   "2026-07": {
-    "n": 1509,
-    "win": 87.1,
-    "net": 0.0777,
-    "total_pct": 117.2
-   },
-   "2026-08": {
-    "n": 1534,
-    "win": 85.5,
-    "net": 0.0856,
-    "total_pct": 131.3
-   },
-   "2026-09": {
-    "n": 1501,
-    "win": 85.5,
-    "net": 0.0429,
-    "total_pct": 64.4
-   },
-   "2026-10": {
-    "n": 1355,
-    "win": 82.7,
-    "net": -0.0458,
-    "total_pct": -62.0
-   },
-   "2026-11": {
+   "november": {
     "n": 442,
-    "win": 81.9,
-    "net": 0.0014,
-    "total_pct": 0.6
-   }
+    "win_pct": 80.8,
+    "mean_net_pct": 0.0379,
+    "total_net_pct": 16.7,
+    "median_hold_h": 0.83,
+    "t": 0.79,
+    "worst": -2.08,
+    "best": 2.4
+   },
+   "paths": [
+    {
+     "size_frac": 0.01,
+     "final_balance": 10130.4,
+     "profit_usd": 148.45,
+     "min_balance": 9910.66,
+     "min_at": "2026-06",
+     "min_headroom_to_halt_usd": 60.66,
+     "min_headroom_to_death_usd": 210.66,
+     "halted": false,
+     "per_month_usd": {
+      "2026-05": 7.55,
+      "2026-06": -79.05,
+      "2026-07": 115.75,
+      "2026-08": 117.58,
+      "2026-09": 39.8,
+      "2026-10": -70.12,
+      "2026-11": 17.0
+     }
+    },
+    {
+     "size_frac": 0.02,
+     "final_balance": 10280.29,
+     "profit_usd": 298.33,
+     "min_balance": 9839.67,
+     "min_at": "2026-06",
+     "min_headroom_to_halt_usd": -10.33,
+     "min_headroom_to_death_usd": 139.67,
+     "halted": true,
+     "per_month_usd": {
+      "2026-05": 15.45,
+      "2026-06": -157.68,
+      "2026-07": 231.39,
+      "2026-08": 237.19,
+      "2026-09": 80.58,
+      "2026-10": -142.52,
+      "2026-11": 34.23
+     }
+    },
+    {
+     "size_frac": 0.03,
+     "final_balance": 10431.62,
+     "profit_usd": 449.66,
+     "min_balance": 9769.0,
+     "min_at": "2026-06",
+     "min_headroom_to_halt_usd": -81.0,
+     "min_headroom_to_death_usd": 69.0,
+     "halted": true,
+     "per_month_usd": {
+      "2026-05": 22.91,
+      "2026-06": -235.81,
+      "2026-07": 346.4,
+      "2026-08": 359.11,
+      "2026-09": 122.96,
+      "2026-10": -217.77,
+      "2026-11": 52.01
+     }
+    },
+    {
+     "size_frac": 0.05,
+     "final_balance": 10682.9,
+     "profit_usd": 700.95,
+     "min_balance": 9701.2,
+     "min_at": "2026-06",
+     "min_headroom_to_halt_usd": -148.8,
+     "min_headroom_to_death_usd": 1.2,
+     "halted": true,
+     "per_month_usd": {
+      "2026-05": 38.1,
+      "2026-06": -318.78,
+      "2026-07": 449.69,
+      "2026-08": 607.03,
+      "2026-09": 210.25,
+      "2026-10": -373.57,
+      "2026-11": 88.39
+     }
+    },
+    {
+     "size_frac": 0.1,
+     "final_balance": 9804.48,
+     "profit_usd": -177.48,
+     "min_balance": 9700.0,
+     "min_at": "2026-08",
+     "min_headroom_to_halt_usd": -150.0,
+     "min_headroom_to_death_usd": 0.0,
+     "halted": true,
+     "per_month_usd": {
+      "2026-05": 69.16,
+      "2026-06": -350.95,
+      "2026-07": 2.21,
+      "2026-08": 435.29,
+      "2026-09": 359.67,
+      "2026-10": -755.52,
+      "2026-11": 62.04
+     }
+    }
+   ]
   },
-  "positive_months": "5/7",
-  "worst_loss_streak": 13,
-  "equity_usd": 4001.62,
-  "max_drawdown_usd": 2768.11,
-  "cushion_breached": true
- },
- "e3_band|S1.5|A0.4|G0.15": {
-  "overall": {
-   "n": 8304,
-   "win_pct": 78.6,
-   "mean_net_pct": 0.0114,
-   "total_net_pct": 95.0,
-   "median_hold_h": 1.08,
-   "t": 1.23,
-   "worst": -1.58,
-   "best": 4.1
-  },
-  "november": {
-   "n": 442,
-   "win_pct": 77.8,
-   "mean_net_pct": 0.0537,
-   "total_net_pct": 23.7,
-   "median_hold_h": 0.75,
-   "t": 1.28,
-   "worst": -1.58,
-   "best": 2.4
-  },
-  "monthly": {
-   "2026-05": {
-    "n": 718,
-    "win": 80.5,
-    "net": 0.0083,
-    "total_pct": 5.9
+  "e3_band|S2.5|A0.4|G0.15": {
+   "overall": {
+    "n": 8304,
+    "win_pct": 84.6,
+    "mean_net_pct": 0.0241,
+    "total_net_pct": 200.1,
+    "median_hold_h": 1.25,
+    "t": 2.13,
+    "worst": -2.58,
+    "best": 4.1
    },
-   "2026-06": {
-    "n": 1245,
-    "win": 73.8,
-    "net": -0.0741,
-    "total_pct": -92.3
-   },
-   "2026-07": {
-    "n": 1509,
-    "win": 82.9,
-    "net": 0.0811,
-    "total_pct": 122.4
-   },
-   "2026-08": {
-    "n": 1534,
-    "win": 80.9,
-    "net": 0.0692,
-    "total_pct": 106.1
-   },
-   "2026-09": {
-    "n": 1501,
-    "win": 78.5,
-    "net": 0.017,
-    "total_pct": 25.6
-   },
-   "2026-10": {
-    "n": 1355,
-    "win": 74.7,
-    "net": -0.0712,
-    "total_pct": -96.5
-   },
-   "2026-11": {
+   "november": {
     "n": 442,
-    "win": 77.8,
-    "net": 0.0537,
-    "total_pct": 23.7
-   }
+    "win_pct": 81.9,
+    "mean_net_pct": 0.0014,
+    "total_net_pct": 0.6,
+    "median_hold_h": 0.92,
+    "t": 0.03,
+    "worst": -2.58,
+    "best": 2.4
+   },
+   "paths": [
+    {
+     "size_frac": 0.01,
+     "final_balance": 10183.24,
+     "profit_usd": 201.28,
+     "min_balance": 9929.62,
+     "min_at": "2026-06",
+     "min_headroom_to_halt_usd": 79.62,
+     "min_headroom_to_death_usd": 229.62,
+     "halted": false,
+     "per_month_usd": {
+      "2026-05": 30.43,
+      "2026-06": -81.59,
+      "2026-07": 116.97,
+      "2026-08": 132.81,
+      "2026-09": 65.69,
+      "2026-10": -63.4,
+      "2026-11": 0.68
+     }
+    },
+    {
+     "size_frac": 0.02,
+     "final_balance": 10387.66,
+     "profit_usd": 405.7,
+     "min_balance": 9877.33,
+     "min_at": "2026-06",
+     "min_headroom_to_halt_usd": 27.33,
+     "min_headroom_to_death_usd": 177.33,
+     "halted": false,
+     "per_month_usd": {
+      "2026-05": 61.0,
+      "2026-06": -163.55,
+      "2026-07": 234.02,
+      "2026-08": 268.79,
+      "2026-09": 134.3,
+      "2026-10": -130.05,
+      "2026-11": 1.23
+     }
+    },
+    {
+     "size_frac": 0.03,
+     "final_balance": 10595.24,
+     "profit_usd": 613.28,
+     "min_balance": 9825.08,
+     "min_at": "2026-06",
+     "min_headroom_to_halt_usd": -24.92,
+     "min_headroom_to_death_usd": 125.08,
+     "halted": true,
+     "per_month_usd": {
+      "2026-05": 91.43,
+      "2026-06": -245.37,
+      "2026-07": 351.19,
+      "2026-08": 408.06,
+      "2026-09": 205.74,
+      "2026-10": -199.63,
+      "2026-11": 1.79
+     }
+    },
+    {
+     "size_frac": 0.05,
+     "final_balance": 11007.79,
+     "profit_usd": 1025.83,
+     "min_balance": 9722.2,
+     "min_at": "2026-06",
+     "min_headroom_to_halt_usd": -127.8,
+     "min_headroom_to_death_usd": 22.2,
+     "halted": true,
+     "per_month_usd": {
+      "2026-05": 152.63,
+      "2026-06": -410.53,
+      "2026-07": 575.64,
+      "2026-08": 696.86,
+      "2026-09": 357.45,
+      "2026-10": -348.99,
+      "2026-11": 2.64
+     }
+    },
+    {
+     "size_frac": 0.1,
+     "final_balance": 11652.47,
+     "profit_usd": 1670.51,
+     "min_balance": 9700.05,
+     "min_at": "2026-06",
+     "min_headroom_to_halt_usd": -149.95,
+     "min_headroom_to_death_usd": 0.05,
+     "halted": true,
+     "per_month_usd": {
+      "2026-05": 245.28,
+      "2026-06": -527.15,
+      "2026-07": 544.88,
+      "2026-08": 1394.99,
+      "2026-09": 763.93,
+      "2026-10": -755.41,
+      "2026-11": 3.98
+     }
+    }
+   ]
   },
-  "positive_months": "5/7",
-  "worst_loss_streak": 22,
-  "equity_usd": 1899.24,
-  "max_drawdown_usd": 2785.0,
-  "cushion_breached": true
- },
- "e3_band|S3.0|A0.25|G0.15": {
-  "overall": {
-   "n": 8304,
-   "win_pct": 90.6,
-   "mean_net_pct": 0.0159,
-   "total_net_pct": 131.8,
-   "median_hold_h": 0.67,
-   "t": 1.59,
-   "worst": -3.08,
-   "best": 4.1
-  },
-  "november": {
-   "n": 442,
-   "win_pct": 87.8,
-   "mean_net_pct": -0.0731,
-   "total_net_pct": -32.3,
-   "median_hold_h": 0.58,
-   "t": -1.45,
-   "worst": -3.08,
-   "best": 2.35
-  },
-  "monthly": {
-   "2026-05": {
-    "n": 718,
-    "win": 93.2,
-    "net": 0.0592,
-    "total_pct": 42.5
+  "e3_band|S1.5|A0.4|G0.15": {
+   "overall": {
+    "n": 8304,
+    "win_pct": 78.6,
+    "mean_net_pct": 0.0114,
+    "total_net_pct": 95.0,
+    "median_hold_h": 1.08,
+    "t": 1.23,
+    "worst": -1.58,
+    "best": 4.1
    },
-   "2026-06": {
-    "n": 1245,
-    "win": 88.8,
-    "net": -0.0471,
-    "total_pct": -58.6
-   },
-   "2026-07": {
-    "n": 1509,
-    "win": 91.8,
-    "net": 0.0486,
-    "total_pct": 73.3
-   },
-   "2026-08": {
-    "n": 1534,
-    "win": 90.9,
-    "net": 0.0509,
-    "total_pct": 78.1
-   },
-   "2026-09": {
-    "n": 1501,
-    "win": 91.0,
-    "net": 0.0409,
-    "total_pct": 61.4
-   },
-   "2026-10": {
-    "n": 1355,
-    "win": 89.7,
-    "net": -0.0241,
-    "total_pct": -32.7
-   },
-   "2026-11": {
+   "november": {
     "n": 442,
-    "win": 87.8,
-    "net": -0.0731,
-    "total_pct": -32.3
-   }
+    "win_pct": 77.8,
+    "mean_net_pct": 0.0537,
+    "total_net_pct": 23.7,
+    "median_hold_h": 0.75,
+    "t": 1.28,
+    "worst": -1.58,
+    "best": 2.4
+   },
+   "paths": [
+    {
+     "size_frac": 0.01,
+     "final_balance": 10076.9,
+     "profit_usd": 94.94,
+     "min_balance": 9896.06,
+     "min_at": "2026-06",
+     "min_headroom_to_halt_usd": 46.06,
+     "min_headroom_to_death_usd": 196.06,
+     "halted": false,
+     "per_month_usd": {
+      "2026-05": 5.58,
+      "2026-06": -91.8,
+      "2026-07": 121.91,
+      "2026-08": 106.9,
+      "2026-09": 25.99,
+      "2026-10": -97.27,
+      "2026-11": 23.94
+     }
+    },
+    {
+     "size_frac": 0.02,
+     "final_balance": 10172.14,
+     "profit_usd": 190.19,
+     "min_balance": 9810.75,
+     "min_at": "2026-06",
+     "min_headroom_to_halt_usd": -39.25,
+     "min_headroom_to_death_usd": 110.75,
+     "halted": true,
+     "per_month_usd": {
+      "2026-05": 11.83,
+      "2026-06": -183.03,
+      "2026-07": 242.71,
+      "2026-08": 215.2,
+      "2026-09": 52.45,
+      "2026-10": -197.5,
+      "2026-11": 48.05
+     }
+    },
+    {
+     "size_frac": 0.03,
+     "final_balance": 10267.68,
+     "profit_usd": 285.72,
+     "min_balance": 9726.03,
+     "min_at": "2026-06",
+     "min_headroom_to_halt_usd": -123.97,
+     "min_headroom_to_death_usd": 26.03,
+     "halted": true,
+     "per_month_usd": {
+      "2026-05": 17.47,
+      "2026-06": -273.56,
+      "2026-07": 363.25,
+      "2026-08": 325.95,
+      "2026-09": 79.68,
+      "2026-10": -299.96,
+      "2026-11": 72.69
+     }
+    },
+    {
+     "size_frac": 0.05,
+     "final_balance": 10367.05,
+     "profit_usd": 385.09,
+     "min_balance": 9700.15,
+     "min_at": "2026-06",
+     "min_headroom_to_halt_usd": -149.85,
+     "min_headroom_to_death_usd": 0.15,
+     "halted": true,
+     "per_month_usd": {
+      "2026-05": 29.09,
+      "2026-06": -310.79,
+      "2026-07": 370.39,
+      "2026-08": 547.39,
+      "2026-09": 135.23,
+      "2026-10": -507.75,
+      "2026-11": 121.89
+     }
+    },
+    {
+     "size_frac": 0.1,
+     "final_balance": 9700.3,
+     "profit_usd": -281.66,
+     "min_balance": 9700.0,
+     "min_at": "2026-08",
+     "min_headroom_to_halt_usd": -150.0,
+     "min_headroom_to_death_usd": 0.0,
+     "halted": true,
+     "per_month_usd": {
+      "2026-05": 57.13,
+      "2026-06": -339.01,
+      "2026-07": 4.8,
+      "2026-08": 459.64,
+      "2026-09": 236.15,
+      "2026-10": -701.25,
+      "2026-11": -0.05
+     }
+    }
+   ]
   },
-  "positive_months": "4/7",
-  "worst_loss_streak": 10,
-  "equity_usd": 2635.11,
-  "max_drawdown_usd": 2487.63,
-  "cushion_breached": true
+  "e3_band|S3.0|A0.25|G0.15": {
+   "overall": {
+    "n": 8304,
+    "win_pct": 90.6,
+    "mean_net_pct": 0.0159,
+    "total_net_pct": 131.8,
+    "median_hold_h": 0.67,
+    "t": 1.59,
+    "worst": -3.08,
+    "best": 4.1
+   },
+   "november": {
+    "n": 442,
+    "win_pct": 87.8,
+    "mean_net_pct": -0.0731,
+    "total_net_pct": -32.3,
+    "median_hold_h": 0.58,
+    "t": -1.45,
+    "worst": -3.08,
+    "best": 2.35
+   },
+   "paths": [
+    {
+     "size_frac": 0.01,
+     "final_balance": 10114.0,
+     "profit_usd": 132.04,
+     "min_balance": 9958.8,
+     "min_at": "2026-05",
+     "min_headroom_to_halt_usd": 108.8,
+     "min_headroom_to_death_usd": 258.8,
+     "halted": false,
+     "per_month_usd": {
+      "2026-05": 42.53,
+      "2026-06": -58.75,
+      "2026-07": 73.08,
+      "2026-08": 78.84,
+      "2026-09": 62.41,
+      "2026-10": -33.23,
+      "2026-11": -32.65
+     }
+    },
+    {
+     "size_frac": 0.02,
+     "final_balance": 10247.08,
+     "profit_usd": 265.12,
+     "min_balance": 9935.68,
+     "min_at": "2026-05",
+     "min_headroom_to_halt_usd": 85.68,
+     "min_headroom_to_death_usd": 235.68,
+     "halted": false,
+     "per_month_usd": {
+      "2026-05": 85.15,
+      "2026-06": -117.55,
+      "2026-07": 146.88,
+      "2026-08": 158.7,
+      "2026-09": 126.38,
+      "2026-10": -67.98,
+      "2026-11": -66.55
+     }
+    },
+    {
+     "size_frac": 0.03,
+     "final_balance": 10381.2,
+     "profit_usd": 399.24,
+     "min_balance": 9912.6,
+     "min_at": "2026-05",
+     "min_headroom_to_halt_usd": 62.6,
+     "min_headroom_to_death_usd": 212.6,
+     "halted": false,
+     "per_month_usd": {
+      "2026-05": 127.78,
+      "2026-06": -176.58,
+      "2026-07": 220.59,
+      "2026-08": 240.38,
+      "2026-09": 192.46,
+      "2026-10": -104.03,
+      "2026-11": -101.27
+     }
+    },
+    {
+     "size_frac": 0.05,
+     "final_balance": 10652.51,
+     "profit_usd": 670.55,
+     "min_balance": 9866.58,
+     "min_at": "2026-05",
+     "min_headroom_to_halt_usd": 16.58,
+     "min_headroom_to_death_usd": 166.58,
+     "halted": false,
+     "per_month_usd": {
+      "2026-05": 213.74,
+      "2026-06": -296.0,
+      "2026-07": 368.27,
+      "2026-08": 407.58,
+      "2026-09": 330.76,
+      "2026-10": -180.09,
+      "2026-11": -174.21
+     }
+    },
+    {
+     "size_frac": 0.1,
+     "final_balance": 11336.76,
+     "profit_usd": 1354.8,
+     "min_balance": 9753.65,
+     "min_at": "2026-05",
+     "min_headroom_to_halt_usd": -96.35,
+     "min_headroom_to_death_usd": 53.65,
+     "halted": true,
+     "per_month_usd": {
+      "2026-05": 420.27,
+      "2026-06": -598.9,
+      "2026-07": 740.92,
+      "2026-08": 850.93,
+      "2026-09": 713.29,
+      "2026-10": -396.87,
+      "2026-11": -375.16
+     }
+    }
+   ]
+  }
  }
 }

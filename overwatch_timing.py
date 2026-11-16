@@ -15,23 +15,25 @@ reaches the 80% win rate they asked for:
     expectancy      +0.0178% per trade  (+148% summed)
     November        +0.0379% per trade, 80.8% wins, n=442   (t = 0.79)
 
-and it is **not armed for real orders**, because the same run says:
+and the death line is what decides the size. It is `start * 0.97` = $9,700, it
+never moves, and the room above it GROWS with profit — so the question is not how
+far the equity fell from a peak, it is the lowest point the balance path reaches:
 
-    max drawdown  $2,676.66  on $2,000 tickets, against a $300 cushion  (8.9x)
-    worst streak  13 consecutive losers
-    months        June -0.064%, October -0.051% (5 of 7 positive)
-    November t    0.79 -- the positive expectancy is not distinguishable from zero
+    size      profit over the sample    lowest balance    room above the halt line
+    1%        +$148.45                  $9,910.66         +$60.66   never halted
+    2%        +$298.33                  $9,839.67         -$10.33   halted
+    5%        +$700.95                  $9,701.20         -$148.80  halted ($1.20 of life)
 
-That is the whole trade-off in one line: the win rate is real, the edge is a rounding
-error, and the drawdown is nine times the cushion that must never be touched. Arming
-it with money would break the one rule this mission cannot break to chase a number.
-
-So the engine runs LIVE in shadow: real 5m bars, real entry/exit decisions, recorded
-to contest_timing_shadow.jsonl, no orders, no balance. `ARMED` flips only when the
-shadow record itself clears the bars in `ARM_CRITERIA`, and overwatch reads
-`should_arm()` every cycle.
+Every number comes from `ca.death_line()` / `df.halt_line()` / `ca.sized_entry_usd`,
+the repo's single definitions — this module holds no second copy of that arithmetic.
+Sizing, not the stop, is what keeps the win rate affordable: at 1% of the balance the
+shape never gets within $60 of the halt line; at 5% it profits more and passes within
+$1.20 of dying. So SIZE_FRAC is 1%, and the whole engine is a 1%-of-balance engine.
 """
 from __future__ import annotations
+
+import contest_account as ca      # MAX_LOSS_PCT, death_line(), sized_entry_usd()
+import death_floor as df          # halt_line() — the band above the death line
 
 # ── the measured shape ────────────────────────────────────────────────────────
 STOP_PCT = 2.00          # a bad entry leaves here, fast
@@ -46,11 +48,17 @@ COST_PCT = 0.080         # the contest's round trip
 #: Real orders stay off. The shadow run is what EARNs this flag.
 ARMED = False
 
+#: One ticket, as a fraction of the balance. The size is the risk control: at 1% the
+#: 82.3% shape never came within $60 of the halt line over the whole sample, while at
+#: 5% it dipped to $9,701 — $1.20 above the death line. Small size is what makes the
+#: win rate affordable, not a stop that pretends the tail is smaller than it is.
+SIZE_FRAC = 0.01
+
 ARM_CRITERIA = {
     "shadow_trades": 200,        # enough closed shadow trades to judge
     "min_win_pct": 80.0,         # the user's bar
     "min_mean_net_pct": 0.05,    # and it must actually clear the cost
-    "max_drawdown_usd": 150.0,   # half the cushion, never more
+    "min_headroom_usd": 100.0,   # never closer than $100 to the halt line
 }
 
 STUDY = {
@@ -65,11 +73,24 @@ STUDY = {
     "monthly_positive": "5/7",
     "worst_month_pct": -0.0637,
     "worst_loss_streak": 13,
-    "max_drawdown_usd_2k": 2676.66,
-    "cushion_usd": 300.0,
-    "verdict": "82.3% wins and positive expectancy, but the drawdown is 8.9x the "
-               "cushion and November's t is 0.79: shadow-only until it proves itself",
-    "why_not_armed": "the death-line outranks the win rate",
+    # the death line is start*0.97 and NEVER moves; the room above it grows with
+    # profit, so the test is the lowest point of the balance path, not a drawdown
+    # measured from a peak. Numbers come from ca.death_line()/df.halt_line().
+    "death_line_usd": 9700.0,
+    "halt_line_usd": 9850.0,
+    "paths": {
+        "1pct": {"profit_usd": 148.45, "lowest_usd": 9910.66, "room_usd": 60.66,
+                 "halted": False},
+        "2pct": {"profit_usd": 298.33, "lowest_usd": 9839.67, "room_usd": -10.33,
+                 "halted": True},
+        "5pct": {"profit_usd": 700.95, "lowest_usd": 9701.20, "room_usd": -148.80,
+                 "halted": True},
+    },
+    "verdict": "82.3% wins, positive out of sample, and safe on the -3% death line "
+               "only at ~1% of the balance: it makes about $148 over six months and "
+               "never gets closer than $60 to the halt line",
+    "why_1pct": "sizing is the only thing standing between this shape and the death "
+                "line - at 5% it ends +$701 but passes within $1.20 of dying",
 }
 
 
@@ -153,15 +174,37 @@ def net_pct(entry: float, exit_px: float) -> float:
     return (exit_px / entry - 1.0) * 100.0 - COST_PCT
 
 
-def should_arm(shadow: dict | None = None) -> tuple[bool, str]:
-    """Overwatch asks this every cycle. Shadow record is the only key."""
+def death_context(acct: dict | None = None) -> dict:
+    """The live numbers, read from the repo's own account state — one definition."""
+    st = acct or ca.load_state()
+    start = float(st["start_balance"])
+    bal = float(st["current_balance"])
+    return {"start": start, "balance": bal,
+            "death_line": float(df.death_line(start)),
+            "halt_line": float(df.halt_line(start)),
+            "headroom": bal - float(df.halt_line(start)),
+            "buffer": bal - float(df.death_line(start))}
+
+
+def ticket_usd(balance: float, start: float) -> float:
+    """What one trade may spend: the repo's sizing rule, capped at SIZE_FRAC."""
+    dd = float(getattr(ca, "DEFAULT_WINDOW_DD_PCT", 5.0))
+    return ca.sized_entry_usd(balance, dd, start, SIZE_FRAC)
+
+
+def should_arm(shadow: dict | None = None, acct: dict | None = None) -> tuple[bool, str]:
+    """Overwatch asks this every cycle: shadow record AND death-line room."""
+    ctx = death_context(acct)
+    if ctx["balance"] <= ctx["halt_line"]:
+        return False, (f"at/below the halt line ${ctx['halt_line']:,.2f} — "
+                       f"nothing new is risked there, ever")
     if ARMED:
-        return True, "armed"
+        return True, f"armed at {SIZE_FRAC*100:.0f}% of balance"
     s = shadow or {}
     n = int(s.get("trades", 0))
     win = float(s.get("win_pct", 0.0))
     net = float(s.get("mean_net_pct", 0.0))
-    dd = float(s.get("max_drawdown_usd", 0.0))
+    room = float(s.get("min_headroom_usd", 0.0))
     c = ARM_CRITERIA
     gaps = []
     if n < c["shadow_trades"]:
@@ -170,22 +213,28 @@ def should_arm(shadow: dict | None = None) -> tuple[bool, str]:
         gaps.append(f"win {win:.1f}% < {c['min_win_pct']}%")
     if net < c["min_mean_net_pct"]:
         gaps.append(f"net {net:+.3f}% < {c['min_mean_net_pct']}%")
-    if dd > c["max_drawdown_usd"]:
-        gaps.append(f"DD ${dd:.0f} > ${c['max_drawdown_usd']:.0f}")
+    if room and room < c["min_headroom_usd"]:
+        gaps.append(f"room ${room:.0f} < ${c['min_headroom_usd']:.0f}")
     if gaps:
         return False, "shadow gate: " + "; ".join(gaps)
-    return False, "shadow gate met — arming needs a human decision (set ARMED)"
+    return False, ("shadow gate met — arming needs the single execution path "
+                   "(one writer per API key), not a second trader")
 
 
 def shadow_verdict(shadow: dict | None = None) -> dict:
     """The numbers overwatch prints on its plate."""
     s = shadow or {}
+    ctx = death_context()
     return {
         "state": "shadow",
         "trades": int(s.get("trades", 0)),
         "win_pct": round(float(s.get("win_pct", 0.0)), 1),
         "mean_net_pct": round(float(s.get("mean_net_pct", 0.0)), 4),
-        "max_drawdown_usd": round(float(s.get("max_drawdown_usd", 0.0)), 2),
+        "min_headroom_usd": round(float(s.get("min_headroom_usd", 0.0)), 2),
+        "death_line_usd": round(ctx["death_line"], 2),
+        "halt_line_usd": round(ctx["halt_line"], 2),
+        "headroom_usd": round(ctx["headroom"], 2),
+        "size_frac": SIZE_FRAC,
         "armed": ARMED,
         "why": should_arm(shadow)[1],
         "measured": {"win_pct": STUDY["win_pct"],
