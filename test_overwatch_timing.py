@@ -138,6 +138,17 @@ check("4.14 the plate carries the death line, the room and the size",
       and verdict["death_line_usd"] == 9700.0
       and verdict["size_frac"] == 0.01 and verdict["armed"] is False)
 
+check("4.15 the buffer is contest_account.buffer(), the number that grows with wins",
+      abs(ctx["buffer"] - 281.95855906339) < 1e-6, ctx["buffer"])
+check("4.16 the plate carries the buffer",
+      abs(verdict["buffer_usd"] - 281.96) < 0.01, verdict["buffer_usd"])
+
+thin, thin_why = ot.should_arm({"trades": 250, "win_pct": 90.0,
+                                "mean_net_pct": 0.10, "min_headroom_usd": 200.0},
+                               {"start_balance": 10000.0, "current_balance": 9930.0})
+check("4.17 a buffer under the $250 floor stops it, even on a winning record",
+      thin is False and "buffer" in thin_why and "under the" in thin_why, thin_why)
+
 print(chr(10).join(lines))
 print(f"{chr(10)}RESULT: {PASS} passed, {FAIL} failed")
 sys.exit(1 if FAIL else 0)

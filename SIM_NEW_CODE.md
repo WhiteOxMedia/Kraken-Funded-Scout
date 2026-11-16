@@ -172,7 +172,7 @@ tight stop, candle timeout) as pure functions with `ARMED = False` and the measu
 rejection stored beside the switch, `should_arm()` reporting why, and
 `breakeven_target()` / `required_stop()` so the geometry is never guessed again.
 Covered by `test_overwatch_timing.py` (16 checks). **Nothing was armed:** at
-−$0.12/trade it would spend the $300 cushion in days.
+−$0.12/trade it would spend the buffer in days.
 
 ## The pre-entry signal search: 11 order-flow signals, nothing clears November
 
@@ -252,10 +252,12 @@ two-way split cannot:
 ### The risk question, asked correctly
 
 An earlier pass asked the wrong question — "is the peak-to-trough drawdown bigger than
-the $300 of room left?" That framing invents a buffer that does not exist in the
-contest. The death line is `start_balance * (1 - MAX_LOSS_PCT/100)` = **$9,700**, it
-never moves, and **the room above it grows with profit**. So the test is the lowest
-point the balance path reaches, against `death_floor.halt_line()` = $9,850.
+the $300 of room left?" The buffer itself is real and it is `contest_account.buffer()`
+= balance − death line: **$300 at the start, $281.96 now, and it grows with every
+winning trade**. What was wrong was the *measure*: drawdown from a peak is not the
+buffer, because the peak is not the line. The death line is
+`start_balance * (1 - MAX_LOSS_PCT/100)` = **$9,700**, it never moves, so the test is
+the lowest point the balance path reaches, against `death_floor.halt_line()` = $9,850.
 
 Re-run with `contest_account.sized_entry_usd` pricing every ticket (the repo's single
 sizing rule — no second copy of the arithmetic in the study):

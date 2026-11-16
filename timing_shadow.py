@@ -189,9 +189,11 @@ def cycle(s: dict, ex) -> None:
         log(f"SUSPEND: {MAX_STREAK} losers in a row -- no entries for 24h")
 
     arm, why = ot.should_arm(sc)
+    ctx = ot.death_context()
     log(f"cycle {s['cycles']}: open {len(s['positions'])} closed {sc['trades']} "
         f"win {sc['win_pct']}% net {sc['mean_net_pct']:+.4f}% "
-        f"room ${sc['min_headroom_usd']:.0f} above halt | armed={arm} ({why})")
+        f"buffer ${ctx['buffer']:.2f} (${sc['min_headroom_usd']:.0f} above halt) "
+        f"| armed={arm} ({why})")
     save_state(s)
 
 

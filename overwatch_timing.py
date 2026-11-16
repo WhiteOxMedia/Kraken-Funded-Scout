@@ -59,6 +59,7 @@ ARM_CRITERIA = {
     "min_win_pct": 80.0,         # the user's bar
     "min_mean_net_pct": 0.05,    # and it must actually clear the cost
     "min_headroom_usd": 100.0,   # never closer than $100 to the halt line
+    "min_buffer_usd": 250.0,     # buffer = balance - death line; it grows with wins
 }
 
 STUDY = {
@@ -175,15 +176,23 @@ def net_pct(entry: float, exit_px: float) -> float:
 
 
 def death_context(acct: dict | None = None) -> dict:
-    """The live numbers, read from the repo's own account state — one definition."""
+    """The live numbers, read from the repo's own account state — one definition.
+
+    `buffer` is `contest_account.buffer()`: the money between the balance and the
+    -3% death line. It is $300 at the start and it GROWS with every winning trade,
+    which is the whole reason the risk is measured against the line and not against
+    a fixed figure. `headroom` is the same distance measured to the halt band.
+    """
     st = acct or ca.load_state()
     start = float(st["start_balance"])
     bal = float(st["current_balance"])
+    buf = float(ca.buffer(st))
+    halt = float(df.halt_line(start))
     return {"start": start, "balance": bal,
             "death_line": float(df.death_line(start)),
-            "halt_line": float(df.halt_line(start)),
-            "headroom": bal - float(df.halt_line(start)),
-            "buffer": bal - float(df.death_line(start))}
+            "halt_line": halt,
+            "buffer": buf,
+            "headroom": bal - halt}
 
 
 def ticket_usd(balance: float, start: float) -> float:
@@ -198,6 +207,10 @@ def should_arm(shadow: dict | None = None, acct: dict | None = None) -> tuple[bo
     if ctx["balance"] <= ctx["halt_line"]:
         return False, (f"at/below the halt line ${ctx['halt_line']:,.2f} — "
                        f"nothing new is risked there, ever")
+    if ctx["buffer"] < ARM_CRITERIA["min_buffer_usd"]:
+        return False, (f"buffer ${ctx['buffer']:,.2f} is under the "
+                       f"${ARM_CRITERIA['min_buffer_usd']:,.0f} floor — the room "
+                       f"above the death line is what pays for the next loss")
     if ARMED:
         return True, f"armed at {SIZE_FRAC*100:.0f}% of balance"
     s = shadow or {}
@@ -231,6 +244,7 @@ def shadow_verdict(shadow: dict | None = None) -> dict:
         "win_pct": round(float(s.get("win_pct", 0.0)), 1),
         "mean_net_pct": round(float(s.get("mean_net_pct", 0.0)), 4),
         "min_headroom_usd": round(float(s.get("min_headroom_usd", 0.0)), 2),
+        "buffer_usd": round(ctx["buffer"], 2),
         "death_line_usd": round(ctx["death_line"], 2),
         "halt_line_usd": round(ctx["halt_line"], 2),
         "headroom_usd": round(ctx["headroom"], 2),
