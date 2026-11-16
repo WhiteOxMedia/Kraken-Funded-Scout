@@ -104,7 +104,23 @@
   "manufactures_distress": false,
   "at_matched_length": "the tape's -0.0158 sits at the 38th percentile of block-50 paths; median simulated -0.0144. The simulator draws slightly MILDER troughs than the one path that happened, not deeper ones.",
   "but_the_block_length_is_doing_the_work": "iid resampling gives a median drawdown of -0.0035 and a 0.5% completion rate at the tape's length; block 50 gives -0.0144 and 20%. The drawdown the report quotes is a property of the 50-block splice, and 50 is the value that matches the tape, which is evidence for it rather than against.",
-  "power": "one path, one draw. It sits mid-distribution, so it neither rejects the model nor confirms it: a single observation cannot estimate the simulator's error, and the 0.1% death tail rests on 0-1 events out of 900 paths, which the tape can never check because the tape never died."
+  "power": "one path, one draw. It sits mid-distribution, so it neither rejects the model nor confirms it: a single observation cannot estimate the simulator's error, and the 0.1% death tail rests on 0-1 events out of 900 paths, which the tape can never check because the tape never died.",
+  "three_points": {
+   "dd_percentiles": [
+    0.1133,
+    0.8867,
+    0.1822
+   ],
+   "peak_percentiles": [
+    0.87,
+    0.1756,
+    0.3233
+   ],
+   "inside_central_90": 3,
+   "of": 3,
+   "reading": "no slice lands outside the central 90% band on either statistic, and the percentiles spread 11-89% for drawdown and 18-87% for peak, which is what a single path per window looks like when the simulator is not biased. The simulator still shows no sign of manufacturing distress, and the tape's full path at the 38th percentile is joined by three slices that are unremarkable in both directions.",
+   "what_it_does_not_do": "three correlated windows of one history are not three draws. They cannot estimate the model's error, they cannot check the death tail, and they inherit the full tape's survivorship because wide was selected on it."
+  }
  },
  "block_sweep": {
   "matched_8682": {
@@ -207,5 +223,118 @@
   "reproduced": false,
   "note": "-0.0083 does not come out of the cached series at 1% or 2% size for any config (tight -0.0056, mid -0.0074, shipped -0.0134, wide -0.0158 at 1%). It is closest to mid at 1% and to the block-10 simulator median, so it is either an older tape slice or a different sizing; the comparison below uses wide at 1%, which is the config the verdict ranks first and reproduces exactly.",
   "tape_reference_used": -0.01582
+ },
+ "date_slices": {
+  "config": "wide",
+  "paths": 900,
+  "block": 50,
+  "size": 0.01,
+  "slices": {
+   "slice_1": {
+    "window": [
+     "2026-05-15T09:25:00",
+     "2026-07-15T03:28:20"
+    ],
+    "tape": {
+     "trades": 2956,
+     "max_dd": -0.01582,
+     "peak": 0.01778,
+     "final": 0.01778,
+     "completed": false
+    },
+    "max_dd": {
+     "sim_median": -0.01008,
+     "sim_p05": -0.01888,
+     "sim_p95": -0.00536,
+     "tape_percentile": 0.1133
+    },
+    "peak": {
+     "sim_median": 0.03391,
+     "sim_p05": 0.01163,
+     "sim_p95": 0.05531,
+     "tape_percentile": 0.87
+    },
+    "completion": {
+     "share_simulated": 0.0,
+     "tape_completed": false
+    }
+   },
+   "slice_2": {
+    "window": [
+     "2026-07-15T03:28:20",
+     "2026-09-13T21:31:40"
+    ],
+    "tape": {
+     "trades": 2965,
+     "max_dd": -0.00627,
+     "peak": 0.04725,
+     "final": 0.04359,
+     "completed": false
+    },
+    "max_dd": {
+     "sim_median": -0.01009,
+     "sim_p05": -0.01888,
+     "sim_p95": -0.00536,
+     "tape_percentile": 0.8867
+    },
+    "peak": {
+     "sim_median": 0.03408,
+     "sim_p05": 0.01163,
+     "sim_p95": 0.05544,
+     "tape_percentile": 0.1756
+    },
+    "completion": {
+     "share_simulated": 0.0,
+     "tape_completed": false
+    }
+   },
+   "slice_3": {
+    "window": [
+     "2026-09-13T21:31:40",
+     "2026-11-13T15:35:00"
+    ],
+    "tape": {
+     "trades": 2761,
+     "max_dd": -0.01396,
+     "peak": 0.03787,
+     "final": 0.02454,
+     "completed": false
+    },
+    "max_dd": {
+     "sim_median": -0.00978,
+     "sim_p05": -0.0183,
+     "sim_p95": -0.00527,
+     "tape_percentile": 0.1822
+    },
+    "peak": {
+     "sim_median": 0.03189,
+     "sim_p05": 0.00945,
+     "sim_p95": 0.05245,
+     "tape_percentile": 0.3233
+    },
+    "completion": {
+     "share_simulated": 0.0,
+     "tape_completed": false
+    }
+   }
+  },
+  "tape_days": 182.3,
+  "ts_unit": "seconds",
+  "summary": {
+   "n_slices": 3,
+   "dd_percentiles": [
+    0.1133,
+    0.8867,
+    0.1822
+   ],
+   "peak_percentiles": [
+    0.87,
+    0.1756,
+    0.3233
+   ],
+   "inside_central_90": 3,
+   "expected_inside_if_model_right": 2.43,
+   "independence": "none: the slices are consecutive windows of ONE path, correlated by construction, and each is hypothetical - the tape did not trade only that window, so a slice drawdown is not a drawdown anyone lived through. Three points cannot turn one realized path into a distribution."
+  }
  }
 }

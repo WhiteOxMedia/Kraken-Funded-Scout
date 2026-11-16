@@ -1,0 +1,113 @@
+{
+ "config": "wide",
+ "paths": 900,
+ "block": 50,
+ "size": 0.01,
+ "slices": {
+  "slice_1": {
+   "window": [
+    "2026-05-15T09:25:00",
+    "2026-07-15T03:28:20"
+   ],
+   "tape": {
+    "trades": 2956,
+    "max_dd": -0.01582,
+    "peak": 0.01778,
+    "final": 0.01778,
+    "completed": false
+   },
+   "max_dd": {
+    "sim_median": -0.01008,
+    "sim_p05": -0.01888,
+    "sim_p95": -0.00536,
+    "tape_percentile": 0.1133
+   },
+   "peak": {
+    "sim_median": 0.03391,
+    "sim_p05": 0.01163,
+    "sim_p95": 0.05531,
+    "tape_percentile": 0.87
+   },
+   "completion": {
+    "share_simulated": 0.0,
+    "tape_completed": false
+   }
+  },
+  "slice_2": {
+   "window": [
+    "2026-07-15T03:28:20",
+    "2026-09-13T21:31:40"
+   ],
+   "tape": {
+    "trades": 2965,
+    "max_dd": -0.00627,
+    "peak": 0.04725,
+    "final": 0.04359,
+    "completed": false
+   },
+   "max_dd": {
+    "sim_median": -0.01009,
+    "sim_p05": -0.01888,
+    "sim_p95": -0.00536,
+    "tape_percentile": 0.8867
+   },
+   "peak": {
+    "sim_median": 0.03408,
+    "sim_p05": 0.01163,
+    "sim_p95": 0.05544,
+    "tape_percentile": 0.1756
+   },
+   "completion": {
+    "share_simulated": 0.0,
+    "tape_completed": false
+   }
+  },
+  "slice_3": {
+   "window": [
+    "2026-09-13T21:31:40",
+    "2026-11-13T15:35:00"
+   ],
+   "tape": {
+    "trades": 2761,
+    "max_dd": -0.01396,
+    "peak": 0.03787,
+    "final": 0.02454,
+    "completed": false
+   },
+   "max_dd": {
+    "sim_median": -0.00978,
+    "sim_p05": -0.0183,
+    "sim_p95": -0.00527,
+    "tape_percentile": 0.1822
+   },
+   "peak": {
+    "sim_median": 0.03189,
+    "sim_p05": 0.00945,
+    "sim_p95": 0.05245,
+    "tape_percentile": 0.3233
+   },
+   "completion": {
+    "share_simulated": 0.0,
+    "tape_completed": false
+   }
+  }
+ },
+ "tape_days": 182.3,
+ "ts_unit": "seconds",
+ "summary": {
+  "n_slices": 3,
+  "dd_percentiles": [
+   0.1133,
+   0.8867,
+   0.1822
+  ],
+  "peak_percentiles": [
+   0.87,
+   0.1756,
+   0.3233
+  ],
+  "inside_central_90": 3,
+  "expected_inside_if_model_right": 2.43,
+  "independence": "none: the slices are consecutive windows of ONE path, correlated by construction, and each is hypothetical - the tape did not trade only that window, so a slice drawdown is not a drawdown anyone lived through. Three points cannot turn one realized path into a distribution."
+ }
+}
