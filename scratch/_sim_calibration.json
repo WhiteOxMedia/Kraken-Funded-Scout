@@ -1,0 +1,211 @@
+{
+ "config": "wide",
+ "tape_trades": 8682,
+ "tape": {
+  "max_dd": -0.01582,
+  "peak": 0.09924,
+  "final": 0.08591,
+  "completed": false,
+  "trades_to_target": null
+ },
+ "arms": {
+  "matched_8682": {
+   "trades": 8682,
+   "paths": 900,
+   "max_dd": {
+    "tape": -0.01582,
+    "sim_median": -0.01441,
+    "sim_p05": -0.02556,
+    "sim_p95": -0.00889,
+    "tape_percentile": 0.3778,
+    "share_at_least_as_bad": 0.3778
+   },
+   "peak": {
+    "tape": 0.09924,
+    "sim_median": 0.0915,
+    "sim_p05": 0.05148,
+    "sim_p95": 0.13136,
+    "tape_percentile": 0.3667
+   },
+   "final": {
+    "tape": 0.08591,
+    "sim_median": 0.08817,
+    "tape_percentile": 0.5278
+   },
+   "completion": {
+    "share_completed": 0.1867,
+    "tape_completed": false,
+    "median_trades_to_target": 7871.0,
+    "p10_trades_to_target": 6514.0
+   }
+  },
+  "horizon_365d": {
+   "trades": 17301,
+   "paths": 900,
+   "max_dd": {
+    "tape": -0.01582,
+    "sim_median": -0.01628,
+    "sim_p05": -0.02733,
+    "sim_p95": -0.01129,
+    "tape_percentile": 0.5467,
+    "share_at_least_as_bad": 0.5467
+   },
+   "peak": {
+    "tape": 0.09924,
+    "sim_median": 0.18437,
+    "sim_p05": 0.12826,
+    "sim_p95": 0.24272,
+    "tape_percentile": 0.9911
+   },
+   "final": {
+    "tape": 0.08591,
+    "sim_median": 0.18108,
+    "tape_percentile": 0.9967
+   },
+   "completion": {
+    "share_completed": 0.9822,
+    "tape_completed": false,
+    "median_trades_to_target": 10420.0,
+    "p10_trades_to_target": 7526.0
+   }
+  },
+  "horizon_730d": {
+   "trades": 34602,
+   "paths": 600,
+   "max_dd": {
+    "tape": -0.01582,
+    "sim_median": -0.01984,
+    "sim_p05": -0.03201,
+    "sim_p95": -0.01398,
+    "tape_percentile": 0.8533,
+    "share_at_least_as_bad": 0.8533
+   },
+   "peak": {
+    "tape": 0.09924,
+    "sim_median": 0.35876,
+    "sim_p05": 0.27954,
+    "sim_p95": 0.43799,
+    "tape_percentile": 1.0
+   },
+   "final": {
+    "tape": 0.08591,
+    "sim_median": 0.35547,
+    "tape_percentile": 1.0
+   },
+   "completion": {
+    "share_completed": 1.0,
+    "tape_completed": false,
+    "median_trades_to_target": 10504.0,
+    "p10_trades_to_target": 7938.0
+   }
+  }
+ },
+ "verdict": {
+  "manufactures_distress": false,
+  "at_matched_length": "the tape's -0.0158 sits at the 38th percentile of block-50 paths; median simulated -0.0144. The simulator draws slightly MILDER troughs than the one path that happened, not deeper ones.",
+  "but_the_block_length_is_doing_the_work": "iid resampling gives a median drawdown of -0.0035 and a 0.5% completion rate at the tape's length; block 50 gives -0.0144 and 20%. The drawdown the report quotes is a property of the 50-block splice, and 50 is the value that matches the tape, which is evidence for it rather than against.",
+  "power": "one path, one draw. It sits mid-distribution, so it neither rejects the model nor confirms it: a single observation cannot estimate the simulator's error, and the 0.1% death tail rests on 0-1 events out of 900 paths, which the tape can never check because the tape never died."
+ },
+ "block_sweep": {
+  "matched_8682": {
+   "1": {
+    "block": 1,
+    "dd_median": -0.00351,
+    "dd_p05": -0.00519,
+    "dd_p95": -0.00248,
+    "final_median": 0.08568,
+    "share_completed": 0.005
+   },
+   "10": {
+    "block": 10,
+    "dd_median": -0.00872,
+    "dd_p05": -0.01428,
+    "dd_p95": -0.0057,
+    "final_median": 0.08598,
+    "share_completed": 0.0733
+   },
+   "50": {
+    "block": 50,
+    "dd_median": -0.01444,
+    "dd_p05": -0.02503,
+    "dd_p95": -0.00875,
+    "final_median": 0.08774,
+    "share_completed": 0.2017
+   },
+   "200": {
+    "block": 200,
+    "dd_median": -0.01378,
+    "dd_p05": -0.02323,
+    "dd_p95": -0.00921,
+    "final_median": 0.09208,
+    "share_completed": 0.235
+   }
+  },
+  "horizon_365d": {
+   "1": {
+    "block": 1,
+    "dd_median": -0.00391,
+    "dd_p05": -0.00561,
+    "dd_p95": -0.00288,
+    "final_median": 0.17039,
+    "share_completed": 1.0
+   },
+   "10": {
+    "block": 10,
+    "dd_median": -0.00994,
+    "dd_p05": -0.01526,
+    "dd_p95": -0.00694,
+    "final_median": 0.17119,
+    "share_completed": 0.99
+   },
+   "50": {
+    "block": 50,
+    "dd_median": -0.01713,
+    "dd_p05": -0.02882,
+    "dd_p95": -0.01108,
+    "final_median": 0.17628,
+    "share_completed": 0.97
+   },
+   "200": {
+    "block": 200,
+    "dd_median": -0.01624,
+    "dd_p05": -0.02554,
+    "dd_p95": -0.01138,
+    "final_median": 0.18548,
+    "share_completed": 0.9783
+   }
+  }
+ },
+ "tape_all_configs": {
+  "tight": {
+   "max_dd": -0.0056,
+   "final": 0.0576,
+   "peak": 0.06012,
+   "trades": 8682
+  },
+  "mid": {
+   "max_dd": -0.00741,
+   "final": 0.06712,
+   "peak": 0.07125,
+   "trades": 8682
+  },
+  "shipped": {
+   "max_dd": -0.01337,
+   "final": 0.0737,
+   "peak": 0.08671,
+   "trades": 8682
+  },
+  "wide": {
+   "max_dd": -0.01582,
+   "final": 0.08591,
+   "peak": 0.09924,
+   "trades": 8682
+  }
+ },
+ "premise_correction": {
+  "quoted": -0.0083,
+  "reproduced": false,
+  "note": "-0.0083 does not come out of the cached series at 1% or 2% size for any config (tight -0.0056, mid -0.0074, shipped -0.0134, wide -0.0158 at 1%). It is closest to mid at 1% and to the block-10 simulator median, so it is either an older tape slice or a different sizing; the comparison below uses wide at 1%, which is the config the verdict ranks first and reproduces exactly.",
+  "tape_reference_used": -0.01582
+ }
+}
