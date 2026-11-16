@@ -1,0 +1,36 @@
+
+SHIPPED  shipped 2.0/0.4/0.15, all pairs, 0.08 toll   n=15,877
+  baseline (no gate)           n=15877  win  83.6%  mean +0.0254%  train +0.0327%  Nov -0.1085%
+  mean_50_shadow               n= 5498  win  89.7%  mean +0.1759%  train +0.1838%  Nov -0.0491%  (Nov n 187)
+  tstat_50_shadow              n= 5498  win  89.7%  mean +0.1759%  train +0.1838%  Nov -0.0491%  (Nov n 187)
+  mean_100_shadow              n= 6096  win  87.0%  mean +0.1025%  train +0.1128%  Nov -0.3772%  (Nov n 128)
+  tstat_100_shadow             n= 6096  win  87.0%  mean +0.1025%  train +0.1128%  Nov -0.3772%  (Nov n 128)
+  mean_200_shadow              n= 7175  win  85.8%  mean +0.0798%  train +0.0860%  Nov -0.0366%  (Nov n 366)
+  tstat_200_shadow             n= 7175  win  85.8%  mean +0.0798%  train +0.0860%  Nov -0.0366%  (Nov n 366)
+  mean_400_shadow              n= 7770  win  84.4%  mean +0.0392%  train +0.0400%  Nov -2.0800%  (Nov n 3)
+  tstat_400_shadow             n= 7770  win  84.4%  mean +0.0392%  train +0.0400%  Nov -2.0800%  (Nov n 3)
+  mean_100_cool24h             n=11190  win  85.9%  mean +0.0748%  train +0.0856%  Nov -0.1557%  (Nov n 501)
+  mean_100_cool72h             n= 7764  win  86.5%  mean +0.0980%  train +0.1129%  Nov -0.3713%  (Nov n 239)
+  mean_100_shadow_m0.02        n= 6476  win  86.9%  mean +0.1004%  train +0.1105%  Nov -0.3798%  (Nov n 134)
+  mean_100_shadow_m0.05        n= 6873  win  86.8%  mean +0.0964%  train +0.1083%  Nov -0.4383%  (Nov n 149)
+  winrate+8streak (shipped)    n=12194  win  85.7%  mean +0.0703%  train +0.0815%  Nov -0.2477%
+  ORACLE skip November         n=15056  mean +0.0327%  train +0.0327%  Nov None (0 trades)
+
+BEST  best 1.0/0.2/0.08, cheap pairs, measured tolls   n=8,682
+  baseline (no gate)           n= 8682  win  83.8%  mean +0.0714%  train +0.0766%  Nov -0.0311%
+  mean_50_shadow               n= 4109  win  85.3%  mean +0.0860%  train +0.0905%  Nov -0.0292%  (Nov n 152)
+  tstat_50_shadow              n= 4109  win  85.3%  mean +0.0860%  train +0.0905%  Nov -0.0292%  (Nov n 152)
+  mean_100_shadow              n= 5237  win  84.4%  mean +0.0734%  train +0.0762%  Nov -0.0617%  (Nov n 104)
+  tstat_100_shadow             n= 5237  win  84.4%  mean +0.0734%  train +0.0762%  Nov -0.0617%  (Nov n 104)
+  mean_200_shadow              n= 6761  win  84.7%  mean +0.0815%  train +0.0830%  Nov -0.0899%  (Nov n 57)
+  tstat_200_shadow             n= 6761  win  84.7%  mean +0.0815%  train +0.0830%  Nov -0.0899%  (Nov n 57)
+  mean_400_shadow              n= 7494  win  84.6%  mean +0.0771%  train +0.0806%  Nov -0.0363%  (Nov n 221)
+  tstat_400_shadow             n= 7494  win  84.6%  mean +0.0771%  train +0.0806%  Nov -0.0363%  (Nov n 221)
+  mean_100_cool24h             n= 7382  win  83.6%  mean +0.0694%  train +0.0748%  Nov -0.0436%  (Nov n 333)
+  mean_100_cool72h             n= 5094  win  83.6%  mean +0.0685%  train +0.0751%  Nov -0.1097%  (Nov n 183)
+  mean_100_shadow_m0.02        n= 6037  win  84.6%  mean +0.0759%  train +0.0813%  Nov -0.1234%  (Nov n 160)
+  mean_100_shadow_m0.05        n= 6784  win  84.4%  mean +0.0741%  train +0.0783%  Nov -0.0899%  (Nov n 168)
+  winrate+8streak (shipped)    n= 7250  win  84.2%  mean +0.0738%  train +0.0778%  Nov -0.0055%
+  ORACLE skip November         n= 8260  mean +0.0766%  train +0.0766%  Nov None (0 trades)
+
+wrote C:\Users\birds\Workspace\kraken_scout\scratch\_drift_gate.json

@@ -1,0 +1,312 @@
+{
+ "shipped": {
+  "desc": "shipped 2.0/0.4/0.15, all pairs, 0.08 toll",
+  "rows": {
+   "baseline": {
+    "n": 15877,
+    "win_pct": 83.6,
+    "mean_pct": 0.0254,
+    "train_mean": 0.0327,
+    "train_n": 15056,
+    "nov_mean": -0.1085,
+    "nov_n": 821,
+    "total_pct": 403.0
+   },
+   "mean_50_shadow": {
+    "n": 5498,
+    "win_pct": 89.7,
+    "mean_pct": 0.1759,
+    "train_mean": 0.1838,
+    "train_n": 5311,
+    "nov_mean": -0.0491,
+    "nov_n": 187,
+    "total_pct": 966.8
+   },
+   "tstat_50_shadow": {
+    "n": 5498,
+    "win_pct": 89.7,
+    "mean_pct": 0.1759,
+    "train_mean": 0.1838,
+    "train_n": 5311,
+    "nov_mean": -0.0491,
+    "nov_n": 187,
+    "total_pct": 966.8
+   },
+   "mean_100_shadow": {
+    "n": 6096,
+    "win_pct": 87.0,
+    "mean_pct": 0.1025,
+    "train_mean": 0.1128,
+    "train_n": 5968,
+    "nov_mean": -0.3772,
+    "nov_n": 128,
+    "total_pct": 625.1
+   },
+   "tstat_100_shadow": {
+    "n": 6096,
+    "win_pct": 87.0,
+    "mean_pct": 0.1025,
+    "train_mean": 0.1128,
+    "train_n": 5968,
+    "nov_mean": -0.3772,
+    "nov_n": 128,
+    "total_pct": 625.1
+   },
+   "mean_200_shadow": {
+    "n": 7175,
+    "win_pct": 85.8,
+    "mean_pct": 0.0798,
+    "train_mean": 0.086,
+    "train_n": 6809,
+    "nov_mean": -0.0366,
+    "nov_n": 366,
+    "total_pct": 572.3
+   },
+   "tstat_200_shadow": {
+    "n": 7175,
+    "win_pct": 85.8,
+    "mean_pct": 0.0798,
+    "train_mean": 0.086,
+    "train_n": 6809,
+    "nov_mean": -0.0366,
+    "nov_n": 366,
+    "total_pct": 572.3
+   },
+   "mean_400_shadow": {
+    "n": 7770,
+    "win_pct": 84.4,
+    "mean_pct": 0.0392,
+    "train_mean": 0.04,
+    "train_n": 7767,
+    "nov_mean": -2.08,
+    "nov_n": 3,
+    "total_pct": 304.4
+   },
+   "tstat_400_shadow": {
+    "n": 7770,
+    "win_pct": 84.4,
+    "mean_pct": 0.0392,
+    "train_mean": 0.04,
+    "train_n": 7767,
+    "nov_mean": -2.08,
+    "nov_n": 3,
+    "total_pct": 304.4
+   },
+   "mean_100_cool24h": {
+    "n": 11190,
+    "win_pct": 85.9,
+    "mean_pct": 0.0748,
+    "train_mean": 0.0856,
+    "train_n": 10689,
+    "nov_mean": -0.1557,
+    "nov_n": 501,
+    "total_pct": 836.5
+   },
+   "mean_100_cool72h": {
+    "n": 7764,
+    "win_pct": 86.5,
+    "mean_pct": 0.098,
+    "train_mean": 0.1129,
+    "train_n": 7525,
+    "nov_mean": -0.3713,
+    "nov_n": 239,
+    "total_pct": 760.5
+   },
+   "mean_100_shadow_m0.02": {
+    "n": 6476,
+    "win_pct": 86.9,
+    "mean_pct": 0.1004,
+    "train_mean": 0.1105,
+    "train_n": 6342,
+    "nov_mean": -0.3798,
+    "nov_n": 134,
+    "total_pct": 650.0
+   },
+   "mean_100_shadow_m0.05": {
+    "n": 6873,
+    "win_pct": 86.8,
+    "mean_pct": 0.0964,
+    "train_mean": 0.1083,
+    "train_n": 6724,
+    "nov_mean": -0.4383,
+    "nov_n": 149,
+    "total_pct": 662.8
+   },
+   "winrate_shipped_rule": {
+    "n": 12194,
+    "win_pct": 85.7,
+    "mean_pct": 0.0703,
+    "train_mean": 0.0815,
+    "train_n": 11779,
+    "nov_mean": -0.2477,
+    "nov_n": 415,
+    "total_pct": 857.4
+   },
+   "oracle_skip_november": {
+    "n": 15056,
+    "win_pct": 84.0,
+    "mean_pct": 0.0327,
+    "train_mean": 0.0327,
+    "train_n": 15056,
+    "nov_mean": null,
+    "nov_n": 0,
+    "total_pct": 492.0
+   }
+  }
+ },
+ "best": {
+  "desc": "best 1.0/0.2/0.08, cheap pairs, measured tolls",
+  "rows": {
+   "baseline": {
+    "n": 8682,
+    "win_pct": 83.8,
+    "mean_pct": 0.0714,
+    "train_mean": 0.0766,
+    "train_n": 8260,
+    "nov_mean": -0.0311,
+    "nov_n": 422,
+    "total_pct": 620.0
+   },
+   "mean_50_shadow": {
+    "n": 4109,
+    "win_pct": 85.3,
+    "mean_pct": 0.086,
+    "train_mean": 0.0905,
+    "train_n": 3957,
+    "nov_mean": -0.0292,
+    "nov_n": 152,
+    "total_pct": 353.6
+   },
+   "tstat_50_shadow": {
+    "n": 4109,
+    "win_pct": 85.3,
+    "mean_pct": 0.086,
+    "train_mean": 0.0905,
+    "train_n": 3957,
+    "nov_mean": -0.0292,
+    "nov_n": 152,
+    "total_pct": 353.6
+   },
+   "mean_100_shadow": {
+    "n": 5237,
+    "win_pct": 84.4,
+    "mean_pct": 0.0734,
+    "train_mean": 0.0762,
+    "train_n": 5133,
+    "nov_mean": -0.0617,
+    "nov_n": 104,
+    "total_pct": 384.5
+   },
+   "tstat_100_shadow": {
+    "n": 5237,
+    "win_pct": 84.4,
+    "mean_pct": 0.0734,
+    "train_mean": 0.0762,
+    "train_n": 5133,
+    "nov_mean": -0.0617,
+    "nov_n": 104,
+    "total_pct": 384.5
+   },
+   "mean_200_shadow": {
+    "n": 6761,
+    "win_pct": 84.7,
+    "mean_pct": 0.0815,
+    "train_mean": 0.083,
+    "train_n": 6704,
+    "nov_mean": -0.0899,
+    "nov_n": 57,
+    "total_pct": 551.2
+   },
+   "tstat_200_shadow": {
+    "n": 6761,
+    "win_pct": 84.7,
+    "mean_pct": 0.0815,
+    "train_mean": 0.083,
+    "train_n": 6704,
+    "nov_mean": -0.0899,
+    "nov_n": 57,
+    "total_pct": 551.2
+   },
+   "mean_400_shadow": {
+    "n": 7494,
+    "win_pct": 84.6,
+    "mean_pct": 0.0771,
+    "train_mean": 0.0806,
+    "train_n": 7273,
+    "nov_mean": -0.0363,
+    "nov_n": 221,
+    "total_pct": 577.9
+   },
+   "tstat_400_shadow": {
+    "n": 7494,
+    "win_pct": 84.6,
+    "mean_pct": 0.0771,
+    "train_mean": 0.0806,
+    "train_n": 7273,
+    "nov_mean": -0.0363,
+    "nov_n": 221,
+    "total_pct": 577.9
+   },
+   "mean_100_cool24h": {
+    "n": 7382,
+    "win_pct": 83.6,
+    "mean_pct": 0.0694,
+    "train_mean": 0.0748,
+    "train_n": 7049,
+    "nov_mean": -0.0436,
+    "nov_n": 333,
+    "total_pct": 512.5
+   },
+   "mean_100_cool72h": {
+    "n": 5094,
+    "win_pct": 83.6,
+    "mean_pct": 0.0685,
+    "train_mean": 0.0751,
+    "train_n": 4911,
+    "nov_mean": -0.1097,
+    "nov_n": 183,
+    "total_pct": 348.8
+   },
+   "mean_100_shadow_m0.02": {
+    "n": 6037,
+    "win_pct": 84.6,
+    "mean_pct": 0.0759,
+    "train_mean": 0.0813,
+    "train_n": 5877,
+    "nov_mean": -0.1234,
+    "nov_n": 160,
+    "total_pct": 458.0
+   },
+   "mean_100_shadow_m0.05": {
+    "n": 6784,
+    "win_pct": 84.4,
+    "mean_pct": 0.0741,
+    "train_mean": 0.0783,
+    "train_n": 6616,
+    "nov_mean": -0.0899,
+    "nov_n": 168,
+    "total_pct": 502.6
+   },
+   "winrate_shipped_rule": {
+    "n": 7250,
+    "win_pct": 84.2,
+    "mean_pct": 0.0738,
+    "train_mean": 0.0778,
+    "train_n": 6902,
+    "nov_mean": -0.0055,
+    "nov_n": 348,
+    "total_pct": 534.9
+   },
+   "oracle_skip_november": {
+    "n": 8260,
+    "win_pct": 84.1,
+    "mean_pct": 0.0766,
+    "train_mean": 0.0766,
+    "train_n": 8260,
+    "nov_mean": null,
+    "nov_n": 0,
+    "total_pct": 633.1
+   }
+  }
+ }
+}
