@@ -1,0 +1,285 @@
+policy L.dip.trend.chandelier.6.any.us
+  long dip / trend / chandelier / 6% / ATR any / us
+tape: 199 pairs
+signal rows: 118274
+selected trades for this policy: 4870
+
+== PER COIN ==
+cell                     n    mean%     med%   win      t     lo95  w1/w2/w3               verdict
+GHST/USD                 9   +15.99   +14.99  0.56  +2.51    +3.50  +15.99/  -  /  -       NO EVIDENCE
+SUSHI/USD                9   +15.45    +0.43  0.78  +2.42    +2.94  +15.45/  -  /  -       NO EVIDENCE
+FORTH/USD                5   +11.15   +16.44  0.80  +2.64    +2.86  +15.13/ -4.79/  -      NO EVIDENCE
+AIN/USD                 21    +4.40    +5.05  0.71  +2.55    +1.02    -  / -1.83/ +7.01    THIN
+SC/USD                  10    +4.04    +3.88  0.90  +3.28    +1.63   +5.95/ +2.77/  -      NO EVIDENCE
+PARTI/USD               14    +3.95    -0.30  0.43  +1.03    -3.57    -  / -1.10/+36.77    NO EVIDENCE
+GLMR/USD                13    +3.71    +1.71  0.85  +1.44    -1.35   +3.71/  -  /  -       NO EVIDENCE
+FOLD/USD                17    +3.62    +3.02  0.71  +2.91    +1.18   +6.27/ +3.27/  -      THIN
+MUBARAK/USD              4    +3.53    +3.90  1.00  +3.43    +1.52   +3.83/ +2.64/  -      NO EVIDENCE
+EIGEN/USD               19    +3.52    +1.85  0.84  +2.71    +0.97    -  / +3.72/ -0.12    THIN
+SHX/USD                 23    +3.40    +0.38  0.52  +2.63    +0.86   +0.10/ +4.10/  -      THIN
+FLUX/USD                22    +3.37    +3.47  0.73  +3.68    +1.58   +2.34/ +3.42/  -      THIN
+AVA/USD                 31    +2.81    +0.37  0.58  +2.10    +0.18   +2.07/ +3.45/ +3.41   EDGE
+UP/USD                  12    +2.73    +0.89  0.67  +1.26    -1.53    -  / -0.22/ +5.06    NO EVIDENCE
+TRAC/USD                13    +2.42    +1.89  0.69  +1.85    -0.15   +4.33/ +1.85/  -      NO EVIDENCE
+MET/USD                 14    +2.42    +2.00  0.79  +2.83    +0.74   +0.82/ +4.55/  -      NO EVIDENCE
+B2/USD                   7    +2.35    +4.08  0.71  +1.78    -0.24   -2.48/ +4.29/  -      NO EVIDENCE
+KTA/USD                 17    +2.08    +1.65  0.82  +2.63    +0.53   +1.73/ +2.73/  -      THIN
+KNTQ/USD                36    +1.95    -0.19  0.50  +1.60    -0.44   -0.48/ +3.26/ +6.50   THIN
+ADA/USD                 29    +1.85    +0.63  0.52  +1.86    -0.10   +5.09/ +2.66/ -0.70   THIN
+JUP/USD                 49    +1.84    +0.02  0.51  +2.47    +0.38   -0.89/ +5.21/ -0.57   THIN
+OXT/USD                  1    +1.80    +1.80  1.00    -      -      -  / +1.80/  -       NO EVIDENCE
+INJ/USD                 40    +1.73    +1.56  0.70  +2.23    +0.21   +2.49/ +2.48/ +1.35   EDGE
+XMR/USD                  2    +1.70    +1.70  1.00  +1.96    -0.00   +0.83/ +2.56/  -      NO EVIDENCE
+SPK/USD                 13    +1.54    +0.61  0.69  +1.91    -0.04   +1.10/ +1.58/  -      NO EVIDENCE
+TREAD/USD               40    +1.54    -1.49  0.45  +1.42    -0.59    -  / -0.12/ +2.60    THIN
+RE/USD                   8    +1.51    +0.43  0.75  +1.30    -0.77   +1.70/ +0.95/  -      NO EVIDENCE
+A/USD                   20    +1.50    +0.96  0.75  +1.67    -0.26    -  / +1.94/ +0.68    THIN
+ETC/USD                 31    +1.48    +1.78  0.71  +3.39    +0.63   +3.44/ +2.25/ +0.44   EDGE
+UMA/USD                  5    +1.27    +0.42  0.60  +0.84    -1.70    -  / +1.27/  -       NO EVIDENCE
+DRV/USD                 46    +1.23    +0.64  0.59  +2.42    +0.24   -0.62/ +3.13/ +0.40   THIN
+ASTER/USD               16    +1.21    +0.78  0.62  +1.39    -0.50   +1.47/ +1.16/ -0.48   THIN
+QI/USD                  12    +1.17    +1.40  0.67  +1.56    -0.30   +5.24/ +0.35/  -      NO EVIDENCE
+S/USD                   39    +1.16    -0.08  0.49  +1.61    -0.25   -2.00/ +4.94/ -0.94   THIN
+SAGA/USD                13    +1.12    -0.02  0.39  +0.50    -3.23   +5.97/ -1.04/  -      NO EVIDENCE
+ZEC/USD                 58    +1.11    +0.34  0.53  +1.59    -0.26   +8.93/ +1.94/ +0.51   THIN
+JTO/USD                 67    +1.09    +0.01  0.51  +1.76    -0.12   -0.63/ +3.43/ -0.91   THIN
+PENGU/USD               57    +1.08    +0.51  0.63  +2.48    +0.23   +2.06/ +1.64/ -1.16   THIN
+USELESS/USD             66    +1.00    +0.76  0.55  +1.62    -0.21   +1.87/ -0.07/ +3.14   THIN
+XCN/USD                  6    +0.95    +0.72  0.67  +1.36    -0.41   +0.86/ +1.40/  -      NO EVIDENCE
+TAC/USD                 10    +0.93    +0.55  0.60  +0.77    -1.45    -  /  -  / +1.03     NO EVIDENCE
+OOB/USD                  3    +0.93    +0.24  0.67  +0.38    -3.88   +0.93/  -  /  -       NO EVIDENCE
+AUDIO/USD                3    +0.92    +0.00  0.67  +0.72    -1.57   +0.92/  -  /  -       NO EVIDENCE
+LSK/USD                 59    +0.88    +0.21  0.53  +1.30    -0.44    -  / +0.60/ +1.38    THIN
+DOT/USD                 46    +0.85    +0.35  0.61  +1.63    -0.17   +0.62/ +1.59/ -0.46   THIN
+ICNT/USD                28    +0.84    +0.46  0.54  +0.89    -1.00    -  / +1.58/ +1.72    THIN
+OCEAN/USD                9    +0.81    -0.86  0.33  +0.47    -2.56    -  /  -  / +0.81     NO EVIDENCE
+TAO/USD                 40    +0.79    -0.96  0.47  +1.31    -0.39   +1.42/ +1.78/ -1.18   THIN
+AZTEC/USD               41    +0.75    +0.28  0.58  +1.10    -0.59    -  / +3.92/ -0.96    THIN
+APE/USD                 25    +0.73    -1.61  0.40  +0.82    -1.02   -1.68/ +0.94/  -      THIN
+NPC/USD                  1    +0.71    +0.71  1.00    -      -     +0.71/  -  /  -       NO EVIDENCE
+ENA/USD                 33    +0.71    -1.93  0.39  +0.75    -1.15   +3.36/ -0.80/  -      THIN
+XLM/USD                 16    +0.70    -0.18  0.44  +0.88    -0.85   +3.22/ -0.46/ -0.31   THIN
+NEAR/USD                48    +0.66    +0.53  0.58  +1.11    -0.50   +2.38/ +1.47/ -0.10   THIN
+QNT/USD                 27    +0.65    -1.79  0.44  +0.92    -0.74   -0.70/ +0.82/  -      THIN
+ETHFI/USD               55    +0.65    -0.12  0.46  +1.15    -0.46   -1.55/ +0.58/ +2.70   THIN
+REPPO/USD               11    +0.65    +0.18  0.55  +0.36    -2.86   +0.65/  -  /  -       NO EVIDENCE
+GWEI/USD                31    +0.61    +0.07  0.52  +1.22    -0.37   +0.57/ +0.63/  -      THIN
+BABYSHARK/USD            1    +0.58    +0.58  1.00    -      -     +0.58/  -  /  -       NO EVIDENCE
+ARB/USD                 49    +0.53    +0.05  0.53  +1.01    -0.50   -0.70/ +0.61/ -0.45   THIN
+ZRO/USD                 32    +0.53    -1.76  0.41  +0.70    -0.95   -0.20/ +0.96/  -      THIN
+CRV/USD                 43    +0.50    +0.49  0.56  +0.96    -0.52   -0.51/ +3.00/ -1.60   THIN
+AVAX/USD                31    +0.48    +0.68  0.55  +0.70    -0.87   +8.22/ +0.25/ -0.13   THIN
+LDO/USD                 39    +0.47    +0.01  0.51  +0.96    -0.49   -1.16/ +1.46/ -0.52   THIN
+CFX/USD                  9    +0.46    -0.22  0.33  +0.74    -0.76    -  / +0.57/ -0.36    NO EVIDENCE
+NIL/USD                 27    +0.46    -2.02  0.37  +0.36    -2.05   -2.18/ +1.38/  -      THIN
+RAY/USD                 44    +0.45    -1.54  0.43  +0.73    -0.75   +6.04/ -0.46/ +0.15   THIN
+VIRTUAL/USD             59    +0.45    +0.35  0.63  +1.28    -0.24   +0.27/ +1.05/ -0.26   THIN
+WLD/USD                 49    +0.43    +0.07  0.51  +0.94    -0.46   +0.61/ +1.74/ -1.22   THIN
+POL/USD                 33    +0.42    +0.44  0.64  +1.25    -0.24   -0.34/ +0.57/ +0.94   THIN
+FUN/USD                 19    +0.38    +0.94  0.63  +0.61    -0.84   +1.31/ -0.46/  -      THIN
+DOGE/USD                36    +0.38    +0.08  0.53  +0.86    -0.48   +1.55/ +0.74/ -0.56   THIN
+CVX/USD                 44    +0.36    -0.13  0.48  +0.81    -0.50   +0.36/ +1.31/ -0.61   THIN
+KAITO/USD               42    +0.35    -1.13  0.45  +0.74    -0.56   -1.90/ +1.82/ +0.04   THIN
+WIF/USD                 52    +0.34    +0.06  0.52  +0.78    -0.51   +2.98/ +0.21/ -1.05   THIN
+LIGHTER/USD             51    +0.30    -0.02  0.49  +0.54    -0.79   -0.82/ -0.19/ +2.56   THIN
+REQ/USD                  4    +0.27    +0.78  0.75  +0.36    -1.20    -  /  -  /  -        NO EVIDENCE
+POPCAT/USD              49    +0.26    +0.20  0.53  +0.65    -0.53   +0.81/ +0.79/ -0.86   THIN
+SUI/USD                 45    +0.26    +0.20  0.53  +0.68    -0.49   -0.93/ +1.45/ -1.05   THIN
+MORPHO/USD              23    +0.25    -0.01  0.48  +0.32    -1.30    -  / +0.25/ +0.26    THIN
+MOVR/USD                 8    +0.24    +0.62  0.62  +0.30    -1.34   -0.24/ +3.60/  -      NO EVIDENCE
+COMP/USD                16    +0.22    +0.21  0.62  +0.34    -1.05   +0.15/ +0.72/ -0.52   THIN
+IP/USD                  13    +0.20    +0.80  0.61  +0.47    -0.64    -  / +0.56/ -0.61    NO EVIDENCE
+AAVE/USD                49    +0.18    -0.04  0.41  +0.44    -0.61   +2.76/ +0.50/ -0.37   THIN
+MANA/USD                10    +0.16    -0.29  0.50  +0.19    -1.46    -  / +0.16/  -       NO EVIDENCE
+ZBCN/USD                39    +0.15    -1.06  0.49  +0.23    -1.14    -  / +0.47/ -0.04    THIN
+BNB/USD                 18    +0.14    +0.14  0.56  +0.36    -0.64   -0.37/ +1.54/ -0.88   THIN
+SAND/USD                 7    +0.13    -0.08  0.43  +0.11    -2.07    -  / +0.13/  -       NO EVIDENCE
+SOL/USD                 26    +0.11    +0.04  0.50  +0.17    -1.18   +7.11/ -0.35/ -0.85   THIN
+CHIP/USD                23    +0.10    -1.97  0.35  +0.11    -1.58    -  / +1.28/ -1.20    THIN
+VVV/USD                 48    +0.09    -0.42  0.50  +0.15    -1.06   +4.37/ -0.65/ +0.87   THIN
+GALA/USD                14    +0.09    -1.47  0.36  +0.09    -1.86   -1.39/ +0.33/  -      NO EVIDENCE
+PONS/USD                30    +0.06    +0.20  0.50  +0.09    -1.28    -  / +0.04/ +0.54    THIN
+LINK/USD                31    +0.06    +0.51  0.61  +0.18    -0.58   -0.84/ +0.15/ +0.06   THIN
+ATOM/USD                34    +0.06    -1.54  0.44  +0.12    -0.86   -1.77/ +0.65/ +0.97   THIN
+GRASS/USD               54    +0.03    -0.02  0.50  +0.07    -0.88   +2.26/ -0.12/ -0.28   THIN
+NIGHT/USD               13    +0.02    -2.85  0.46  +0.02    -1.97   -1.67/ +0.53/  -      NO EVIDENCE
+PYTH/USD                18    -0.01    +0.14  0.50  -0.02    -1.19   -2.47/ +0.57/ -0.89   THIN
+BAT/USD                 55    -0.02    -1.86  0.44  -0.03    -1.12   -1.15/+10.61/ -0.56   THIN
+CVC/USD                  6    -0.03    +0.49  0.67  -0.04    -1.44    -  / -0.03/  -       NO EVIDENCE
+TRX/USD                  3    -0.11    +0.72  0.67  -0.10    -2.31    -  /  -  / -0.11     NO EVIDENCE
+POND/USD                20    -0.12    -0.36  0.45  -0.23    -1.14   -1.16/ +0.14/  -      THIN
+ORCA/USD                18    -0.12    -1.13  0.33  -0.18    -1.43   +8.10/ -0.60/  -      THIN
+AXS/USD                 16    -0.12    -0.71  0.44  -0.26    -1.00   -1.67/ +0.81/  -      THIN
+PUMP/USD                81    -0.17    -1.97  0.43  -0.39    -1.03   -0.62/ +0.36/ -1.64   THIN
+RENDER/USD              36    -0.18    +0.12  0.53  -0.54    -0.84   -0.61/ +0.18/ -0.15   THIN
+XRP/USD                 24    -0.20    -1.21  0.33  -0.38    -1.25   +1.17/ -0.50/ -1.30   THIN
+ONDO/USD                32    -0.21    -0.82  0.47  -0.49    -1.07   -0.24/ +0.26/ -1.00   THIN
+SUPER/USD               14    -0.24    -1.33  0.36  -0.43    -1.34   -0.51/ -0.13/  -      NO EVIDENCE
+SYRUP/USD                4    -0.24    -1.69  0.25  -0.13    -3.99   -0.24/  -  /  -       NO EVIDENCE
+BMT/USD                 29    -0.25    -0.65  0.38  -0.56    -1.11    -  / +0.72/ -0.28    THIN
+STX/USD                 43    -0.27    -1.50  0.44  -0.70    -1.04   -0.71/ -0.24/ +0.42   THIN
+W/USD                   57    -0.28    -1.62  0.33  -0.60    -1.18   -0.81/ -1.83/ +1.54   THIN
+DGAI/USD                 4    -0.28    +0.29  0.75  -0.28    -2.23   -0.28/  -  /  -       NO EVIDENCE
+APT/USD                 41    -0.29    +0.05  0.51  -0.79    -1.00   -0.84/ +0.82/ -1.10   THIN
+FARTCOIN/USD            66    -0.29    -1.60  0.41  -0.69    -1.12   +0.94/ -0.08/ -0.83   THIN
+PEPE/USD                19    -0.29    -1.92  0.47  -0.40    -1.74    -  /  -  / +2.28     THIN
+RED/USD                 10    -0.30    -0.20  0.40  -0.75    -1.08    -  / -0.30/  -       NO EVIDENCE
+SKR/USD                 24    -0.30    -1.00  0.46  -0.71    -1.14    -  / -0.30/  -       THIN
+AIXBT/USD               19    -0.31    -0.88  0.42  -0.45    -1.66   -0.56/ +0.25/ -2.19   THIN
+FHE/USD                  6    -0.31    -1.14  0.33  -0.37    -1.99   -0.58/ +0.21/  -      NO EVIDENCE
+ALGO/USD                40    -0.33    -0.14  0.42  -1.08    -0.92   -0.09/ +0.19/ -0.83   THIN
+ETH/USD                 28    -0.33    -0.42  0.46  -0.94    -1.01   +0.27/ +0.42/ -1.77   THIN
+VTHO/USD                14    -0.35    -1.02  0.29  -0.56    -1.56    -  / -0.35/  -       NO EVIDENCE
+XTZ/USD                 17    -0.35    -1.09  0.41  -0.84    -1.16    -  / -0.28/ -0.29    THIN
+DEEP/USD                20    -0.35    -1.11  0.40  -0.69    -1.35   -2.07/ +0.80/  -      THIN
+PNUT/USD                39    -0.36    -1.09  0.41  -1.14    -0.96   -0.73/ +0.01/ -0.38   THIN
+TOSHI/USD               20    -0.39    -0.57  0.50  -1.25    -1.01   -0.52/ -0.30/  -      THIN
+CELO/USD                 8    -0.42    -1.45  0.38  -0.58    -1.86   -1.26/ +0.97/  -      NO EVIDENCE
+SPX/USD                 40    -0.46    -2.00  0.45  -1.14    -1.26   -0.83/ -0.79/ +2.57   THIN
+LCX/USD                 11    -0.47    -0.18  0.46  -0.64    -1.89   -0.25/ -0.52/  -      NO EVIDENCE
+VELO/USD                17    -0.48    -1.31  0.23  -1.27    -1.21    -  / -0.72/ -0.32    THIN
+UNI/USD                 64    -0.48    -1.58  0.38  -1.51    -1.11   -1.40/ -0.87/ +1.07   THIN
+GRIFFAIN/USD            10    -0.50    -1.67  0.20  -0.17    -6.29    -  / -0.50/  -       NO EVIDENCE
+HYPE/USD                30    -0.53    -1.28  0.40  -1.87    -1.08   -0.65/ +0.05/ -1.26   THIN
+LTC/USD                 28    -0.56    -0.94  0.36  -2.17    -1.07    -  / -0.45/ -0.77    THIN
+AKT/USD                 12    -0.57    -2.49  0.25  -0.49    -2.85   +4.16/ -1.51/  -      NO EVIDENCE
+NOS/USD                 43    -0.57    -1.58  0.42  -1.11    -1.58   -1.48/ +0.43/ -0.60   THIN
+HNT/USD                 18    -0.58    -2.31  0.28  -0.63    -2.41   -0.58/  -  /  -       THIN
+ARX/USD                 21    -0.60    -1.63  0.29  -0.74    -2.20    -  / +1.23/ -1.62    THIN
+MOODENG/USD             39    -0.61    -1.14  0.39  -2.21    -1.15   -2.11/ -0.10/ -0.76   THIN
+HBAR/USD                28    -0.62    -1.28  0.36  -2.03    -1.22   -0.30/ -0.48/ -0.68   THIN
+OP/USD                  34    -0.65    -1.50  0.41  -1.72    -1.38   -2.63/ +0.52/ -0.86   THIN
+TRUMP/USD               67    -0.65    -1.22  0.45  -2.32    -1.19   -0.29/ +0.24/ -1.54   THIN
+ZEUS/USD                45    -0.65    -0.08  0.47  -0.96    -1.97    -  / +0.82/ -1.29    THIN
+COTI/USD                 2    -0.66    -0.66  0.50  -0.58    -2.88   -0.66/  -  /  -       NO EVIDENCE
+MEGA/USD                29    -0.66    -1.66  0.45  -1.57    -1.48   -2.80/ +0.10/ -0.88   THIN
+AERO/USD                 9    -0.68    -1.87  0.44  -1.08    -1.93   +0.07/ -1.62/  -      NO EVIDENCE
+RLC/USD                 19    -0.69    -0.57  0.42  -1.65    -1.52    -  / -0.64/ -1.15    THIN
+BEAM/USD                13    -0.70    +0.31  0.54  -0.76    -2.52    -  / +1.07/ -1.24    NO EVIDENCE
+FIL/USD                 42    -0.71    -1.92  0.33  -1.59    -1.59   -1.36/ +0.22/ -1.37   THIN
+ATH/USD                 23    -0.72    -1.64  0.39  -2.20    -1.35    -  / -0.81/ +1.26    THIN
+ALEO/USD                28    -0.74    -1.26  0.36  -1.09    -2.06   -1.20/ +0.64/ -0.90   THIN
+ESPORTS/USD             26    -0.78    -1.19  0.39  -2.12    -1.51    -  / -0.75/ -0.84    THIN
+BCH/USD                 32    -0.79    -1.22  0.31  -2.00    -1.56   -2.30/ -1.48/ -0.14   THIN
+XPL/USD                 51    -0.81    -1.94  0.33  -1.58    -1.81   -2.18/ -0.41/ -0.44   THIN
+PROS/USD                 5    -0.83    -1.36  0.20  -1.25    -2.15    -  / -0.83/  -       NO EVIDENCE
+Q/USD                   41    -0.85    -2.30  0.46  -0.30    -6.38    -  / -2.22/ -0.19    THIN
+TIA/USD                 40    -0.87    -2.23  0.33  -1.79    -1.83   -1.11/ -0.63/ -0.89   THIN
+SPELL/USD                1    -0.94    -0.94  0.00    -      -     -0.94/  -  /  -       NO EVIDENCE
+TON/USD                  9    -0.96    -1.85  0.22  -1.86    -1.97    -  /  -  / -1.05     NO EVIDENCE
+SKY/USD                 13    -0.97    -1.65  0.31  -2.63    -1.69   -0.97/  -  /  -       NO EVIDENCE
+PLUME/USD               14    -1.08    -1.88  0.29  -1.80    -2.25   -1.76/ +3.02/  -      NO EVIDENCE
+DENT/USD                 4    -1.19    -2.65  0.25  -0.69    -4.56   -1.19/  -  /  -       NO EVIDENCE
+SOON/USD                 9    -1.23    -1.41  0.22  -3.72    -1.87   -0.77/ -1.28/  -      NO EVIDENCE
+BTC/USD                 11    -1.23    -1.30  0.09  -4.04    -1.82    -  /  -  / -1.08     NO EVIDENCE
+PROMPT/USD              21    -1.27    -0.91  0.33  -2.33    -2.35    -  /  -  / -1.52     THIN
+CPOOL/USD                6    -1.28    -0.97  0.33  -1.84    -2.63    -  /  -  / -1.15     NO EVIDENCE
+RUNE/USD                26    -1.34    -1.36  0.15  -3.32    -2.14   -1.45/ +0.01/ -3.11   THIN
+DOG/USD                 20    -1.35    -2.57  0.45  -1.48    -3.13   -2.62/ -0.80/  -      THIN
+CSPR/USD                 2    -1.41    -1.41  0.00 -30.72    -1.50   -1.41/  -  /  -       NO EVIDENCE
+STRK/USD                32    -1.43    -2.11  0.22  -3.38    -2.26    -  / -3.39/ -1.69    THIN
+FLOKI/USD                3    -1.48    -1.41  0.00 -11.15    -1.74   -1.48/  -  /  -       NO EVIDENCE
+NOT/USD                  3    -1.54    -1.49  0.00  -8.55    -1.89   -1.54/  -  /  -       NO EVIDENCE
+GRT/USD                  2    -1.71    -1.71  0.00 -20.82    -1.87   -1.71/  -  /  -       NO EVIDENCE
+DNA/USD                 17    -1.75    -2.50  0.23  -3.23    -2.81    -  /  -  / -2.19     THIN
+GTC/USD                 15    -1.77    -2.14  0.27  -2.37    -3.24   -0.48/ -1.24/ -2.03   THIN
+ZORA/USD                 3    -1.79    -2.32  0.00  -2.90    -3.01   -1.79/  -  /  -       NO EVIDENCE
+DASH/USD                 4    -1.83    -2.66  0.25  -2.08    -3.54   -1.83/  -  /  -       NO EVIDENCE
+OSMO/USD                31    -1.91    -3.29  0.32  -3.31    -3.05    -  /  -  / -3.13     THIN
+PIEVERSE/USD             3    -1.92    -1.94  0.00 -52.51    -1.99    -  /  -  / -1.92     NO EVIDENCE
+AR/USD                   2    -2.04    -2.04  0.00  -9.72    -2.45   -2.04/  -  /  -       NO EVIDENCE
+KAS/USD                  4    -2.15    -3.05  0.25  -2.20    -4.07   -2.15/  -  /  -       NO EVIDENCE
+0G/USD                   4    -2.19    -2.20  0.00  -9.79    -2.63   -2.19/  -  /  -       NO EVIDENCE
+APR/USD                 85    -2.26    -3.29  0.34  -3.84    -3.41   -3.09/ -3.08/ -0.56   THIN
+LRC/USD                  4    -2.33    -2.04  0.00  -6.69    -3.01   -2.33/  -  /  -       NO EVIDENCE
+VET/USD                  5    -2.50    -2.45  0.00 -16.68    -2.80   -2.50/  -  /  -       NO EVIDENCE
+HONEY/USD               14    -2.67    -3.20  0.14  -3.68    -4.09   -3.69/ -1.91/  -      NO EVIDENCE
+MINA/USD                 4    -4.80    -4.61  0.00 -22.63    -5.21   -4.80/  -  /  -       NO EVIDENCE
+AKE/USD                 50    -4.88    -3.21  0.26  -4.99    -6.80   +3.36/ -0.18/ -9.62   THIN
+UAI/USD                 98    -5.01    -4.47  0.22  -5.27    -6.88   -4.31/ -4.93/ -6.58   THIN
+INIT/USD                25    -6.97    -6.63  0.20  -4.46   -10.04    -  /  -  / -3.83     THIN
+ALTHEA/USD              14    -9.16    -6.04  0.43  -1.76   -19.36    -  / -9.16/  -       NO EVIDENCE
+ES/USD                   0    -      -      -      -      -      -  /  -  /  -        MISSING
+EUR/USD                  0    -      -      -      -      -      -  /  -  /  -        MISSING
+FLR/USD                  0    -      -      -      -      -      -  /  -  /  -        MISSING
+ICP/USD                  0    -      -      -      -      -      -  /  -  /  -        MISSING
+KII/USD                  0    -      -      -      -      -      -  /  -  /  -        MISSING
+SHAPE/USD                0    -      -      -      -      -      -  /  -  /  -        MISSING
+
+== PER ROTATION (4h MST) ==
+cell                     n    mean%     med%   win      t     lo95  w1/w2/w3               verdict
+16-20                  885    +0.47    +0.04  0.51  +3.03    +0.17   +1.22/ +0.28/ -0.23   THIN
+12-16                 1855    +0.25    -0.02  0.50  +2.22    +0.03   +0.32/ +1.02/ -0.84   THIN
+08-12                 1717    -0.26    -1.32  0.42  -2.14    -0.50   +0.40/ -0.20/ -0.36   THIN
+04-08                  413    -0.41    -1.51  0.36  -1.60    -0.91   -0.41/ +0.73/ -0.96   THIN
+00-04                    0    -      -      -      -      -      -  /  -  /  -        MISSING
+20-24                    0    -      -      -      -      -      -  /  -  /  -        MISSING
+  ALL cells (the shipped claim) trades=132 final=10335.78 passes=3/3 died=False w3=0.923%
+  coins allowed on w1-2 (n=54) trades=98 final=9888.91 passes=2/3 died=True w3=-3.453%
+  coins REJECTED on w1-2 (n=34) trades=97 final=9400.27 passes=0/3 died=True w3=-2.266%
+  rotations allowed on w1-2 (['04-08', '12-16', '16-20']) trades=71 final=9606.72 passes=1/3 died=True w3=-0.739%
+  rotations rejected on w1-2 (['08-12']) trades=83 final=9896.29 passes=0/3 died=False w3=-0.365%
+
+== PER ROTATION, hour gate ANY ==
+cell                     n    mean%     med%   win      t     lo95  w1/w2/w3               verdict
+16-20                 1886    +0.60    +0.26  0.54  +3.37    +0.25   +1.13/ +0.56/ +0.29   EDGE
+12-16                 1855    +0.25    -0.02  0.50  +2.22    +0.03   +0.32/ +1.02/ -0.84   THIN
+20-24                 1774    +0.22    -1.27  0.46  +1.32    -0.11   +0.10/ -0.01/ +0.56   THIN
+00-04                 1488    -0.20    -1.27  0.42  -1.38    -0.48   -0.62/ +0.23/ -0.31   THIN
+04-08                 1403    -0.24    -1.53  0.36  -1.30    -0.60   -0.27/ +0.13/ -0.26   THIN
+08-12                 1717    -0.26    -1.32  0.42  -2.14    -0.50   +0.40/ -0.20/ -0.36   THIN
+  selected with the gate removed: 10123 (vs 4870 gated)
+  hour gate ANY (all rotations) trades=98 final=9574.98 passes=0/3 died=True w3=-3.296%
+
+permutation null over 2992 windows-1-2 trades
+  real allow-list (n=54) window-3 chain: -3.453%
+  all-cells window-3 chain:                            +0.923%
+  null window-3: mean -2.515% median -3.039%  p10 -3.409%  p90 -0.956%
+  null beats the all-cells chain : 94/2000 = 0.047
+  null at or worse than the REAL : 168/2000 = 0.084   -> the real list sits at percentile 8.4
+  allow-list size: real 54, null median 60
+  AVA/USD   n= 31 mean +2.81%  blind draws of 31 reach it   0.3% of the time (draw mean +0.06%, p95 +1.58%)
+  INJ/USD   n= 40 mean +1.73%  blind draws of 40 reach it   2.1% of the time (draw mean +0.05%, p95 +1.40%)
+  ETC/USD   n= 31 mean +1.48%  blind draws of 31 reach it   5.5% of the time (draw mean +0.06%, p95 +1.55%)
+
+== COIN QUALITY (the three standouts) ==
+AVA/USD   n=31  trades 2026-09-04 .. 2026-10-31  months={'2026-09': 15, '2026-10': 16}
+          tape 2026-08-24 -> 2026-11-02 (1677 candles, stale 14d vs 2026-11-16)
+          $vol/h median 966  on trades 1,230  -> $600 clip = 48.8% of an hour  zero-vol hours 12%
+          round trip measured 0.08% vs charged 0.08%
+          w1: n=14  mean 2.07  range [-4.38, 29.37]
+          w2: n=8   mean 3.45  range [-1.02, 25.54]
+          w3: n=9   mean 3.41  range [-3.27, 11.96]
+          months: {"2026-09": 15, "2026-10": 16}
+          mean without its single best trade: +1.93%  (best +29.37% on 2026-09-16 15:00, that hour's $vol 83)
+          top3: [{"ts": "2026-09-16 15:00", "net_pct": 29.37, "dollar_vol_that_hour": 83.0}, {"ts": "2026-10-13 13:00", "net_pct": 25.54, "dollar_vol_that_hour": 1853.0}, {"ts": "2026-10-26 19:00", "net_pct": 11.96, "dollar_vol_that_hour": 794.0}]
+INJ/USD   n=40  trades 2026-09-04 .. 2026-11-16  months={'2026-09': 18, '2026-10': 14, '2026-11': 8}
+          tape 2026-08-24 -> 2026-11-16 (2017 candles, stale 0d vs 2026-11-16)
+          $vol/h median 32,334  on trades 49,011  -> $600 clip = 1.2% of an hour  zero-vol hours 1%
+          round trip measured 0.043805% vs charged 0.08%
+          w1: n=10  mean 2.49  range [-2.93, 22.66]
+          w2: n=17  mean 2.48  range [-3.35, 14.62]
+          w3: n=6   mean 1.35  range [-2.32, 3.49]
+          months: {"2026-09": 18, "2026-10": 14, "2026-11": 8}
+          mean without its single best trade: +1.19%  (best +22.66% on 2026-09-15 23:00, that hour's $vol 746,017)
+          top3: [{"ts": "2026-09-15 23:00", "net_pct": 22.66, "dollar_vol_that_hour": 746017.0}, {"ts": "2026-10-15 14:00", "net_pct": 14.62, "dollar_vol_that_hour": 64440.0}, {"ts": "2026-10-18 21:00", "net_pct": 8.59, "dollar_vol_that_hour": 138857.0}]
+ETC/USD   n=31  trades 2026-09-04 .. 2026-11-14  months={'2026-09': 3, '2026-10': 25, '2026-11': 3}
+          tape 2026-08-24 -> 2026-11-16 (2017 candles, stale 0d vs 2026-11-16)
+          $vol/h median 976  on trades 2,433  -> $600 clip = 24.7% of an hour  zero-vol hours 12%
+          round trip measured 0.100217% vs charged 0.08%
+          w1: n=3   mean 3.44  range [-1.72, 7.55]
+          w2: n=14  mean 2.25  range [-1.95, 5.79]
+          w3: n=13  mean 0.44  range [-2.02, 2.19]
+          months: {"2026-09": 3, "2026-10": 25, "2026-11": 3}
+          mean without its single best trade: +1.28%  (best +7.55% on 2026-09-15 22:00, that hour's $vol 372)
+          top3: [{"ts": "2026-09-15 22:00", "net_pct": 7.55, "dollar_vol_that_hour": 372.0}, {"ts": "2026-10-08 18:00", "net_pct": 5.79, "dollar_vol_that_hour": 1037.0}, {"ts": "2026-09-04 15:00", "net_pct": 4.51, "dollar_vol_that_hour": 868.0}]
+
+== AUDIT ==
+coins with an edge      : 3
+coins THIN              : 117
+coins with no evidence  : 73
+coins with NO signals   : 6 of 199
+rotations with an edge  : []
+rotations w1-2 means    : {"04-08": 0.272, "08-12": -0.01, "12-16": 0.874, "16-20": 0.582}
+rotations EDGE with the gate removed: ['16-20']
+wrote C:\Users\birds\Workspace\kraken_scout\scratch\_edge_slices.json

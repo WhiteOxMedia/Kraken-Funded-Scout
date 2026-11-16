@@ -1,0 +1,3911 @@
+{
+  "policy": "L.dip.trend.chandelier.6.any.us",
+  "label": "long dip / trend / chandelier / 6% / ATR any / us",
+  "spec": {
+    "side": "long",
+    "entry": "dip",
+    "regime": "trend",
+    "exit": "chandelier",
+    "size_frac": 0.06,
+    "vol_gate": "any",
+    "hour_gate": "us"
+  },
+  "tape": {
+    "pairs": 199,
+    "signal_rows": 118274,
+    "selected": 4870,
+    "through": "2026-11-16 16:00:00+00:00"
+  },
+  "thresholds": {
+    "min_n": 15,
+    "t_min": 2.0
+  },
+  "per_coin": {
+    "0G/USD": {
+      "n": 4,
+      "mean": -2.1947,
+      "median": -2.1977,
+      "win": 0.0,
+      "t": -9.79,
+      "lower": -2.6339,
+      "windows": [
+        -2.1947,
+        null,
+        null
+      ],
+      "verdict": "NO EVIDENCE"
+    },
+    "A/USD": {
+      "n": 20,
+      "mean": 1.5006,
+      "median": 0.9568,
+      "win": 0.75,
+      "t": 1.67,
+      "lower": -0.2626,
+      "windows": [
+        null,
+        1.9413,
+        0.6822
+      ],
+      "verdict": "THIN"
+    },
+    "AAVE/USD": {
+      "n": 49,
+      "mean": 0.1761,
+      "median": -0.0366,
+      "win": 0.408,
+      "t": 0.44,
+      "lower": -0.6059,
+      "windows": [
+        2.76,
+        0.4997,
+        -0.3683
+      ],
+      "verdict": "THIN"
+    },
+    "ADA/USD": {
+      "n": 29,
+      "mean": 1.8459,
+      "median": 0.6321,
+      "win": 0.517,
+      "t": 1.86,
+      "lower": -0.0976,
+      "windows": [
+        5.0868,
+        2.6641,
+        -0.7023
+      ],
+      "verdict": "THIN"
+    },
+    "AERO/USD": {
+      "n": 9,
+      "mean": -0.6826,
+      "median": -1.8737,
+      "win": 0.444,
+      "t": -1.08,
+      "lower": -1.9269,
+      "windows": [
+        0.0698,
+        -1.6232,
+        null
+      ],
+      "verdict": "NO EVIDENCE"
+    },
+    "AIN/USD": {
+      "n": 21,
+      "mean": 4.396,
+      "median": 5.0525,
+      "win": 0.714,
+      "t": 2.55,
+      "lower": 1.016,
+      "windows": [
+        null,
+        -1.8331,
+        7.0097
+      ],
+      "verdict": "THIN"
+    },
+    "AIXBT/USD": {
+      "n": 19,
+      "mean": -0.3097,
+      "median": -0.8784,
+      "win": 0.421,
+      "t": -0.45,
+      "lower": -1.6597,
+      "windows": [
+        -0.5622,
+        0.2491,
+        -2.1867
+      ],
+      "verdict": "THIN"
+    },
+    "AKE/USD": {
+      "n": 50,
+      "mean": -4.8791,
+      "median": -3.2102,
+      "win": 0.26,
+      "t": -4.99,
+      "lower": -6.7959,
+      "windows": [
+        3.3555,
+        -0.1815,
+        -9.6235
+      ],
+      "verdict": "THIN"
+    },
+    "AKT/USD": {
+      "n": 12,
+      "mean": -0.5686,
+      "median": -2.4888,
+      "win": 0.25,
+      "t": -0.49,
+      "lower": -2.8479,
+      "windows": [
+        4.1553,
+        -1.5134,
+        null
+      ],
+      "verdict": "NO EVIDENCE"
+    },
+    "ALEO/USD": {
+      "n": 28,
+      "mean": -0.7381,
+      "median": -1.2623,
+      "win": 0.357,
+      "t": -1.09,
+      "lower": -2.0637,
+      "windows": [
+        -1.2024,
+        0.644,
+        -0.8996
+      ],
+      "verdict": "THIN"
+    },
+    "ALGO/USD": {
+      "n": 40,
+      "mean": -0.3264,
+      "median": -0.1391,
+      "win": 0.425,
+      "t": -1.08,
+      "lower": -0.9201,
+      "windows": [
+        -0.0886,
+        0.1935,
+        -0.8334
+      ],
+      "verdict": "THIN"
+    },
+    "ALTHEA/USD": {
+      "n": 14,
+      "mean": -9.1588,
+      "median": -6.0415,
+      "win": 0.429,
+      "t": -1.76,
+      "lower": -19.3578,
+      "windows": [
+        null,
+        -9.1588,
+        null
+      ],
+      "verdict": "NO EVIDENCE"
+    },
+    "APE/USD": {
+      "n": 25,
+      "mean": 0.7279,
+      "median": -1.6057,
+      "win": 0.4,
+      "t": 0.82,
+      "lower": -1.0223,
+      "windows": [
+        -1.6802,
+        0.9373,
+        null
+      ],
+      "verdict": "THIN"
+    },
+    "APR/USD": {
+      "n": 85,
+      "mean": -2.2584,
+      "median": -3.2912,
+      "win": 0.341,
+      "t": -3.84,
+      "lower": -3.4111,
+      "windows": [
+        -3.0902,
+        -3.0809,
+        -0.5627
+      ],
+      "verdict": "THIN"
+    },
+    "APT/USD": {
+      "n": 41,
+      "mean": -0.286,
+      "median": 0.0534,
+      "win": 0.512,
+      "t": -0.79,
+      "lower": -0.9966,
+      "windows": [
+        -0.8356,
+        0.8209,
+        -1.1018
+      ],
+      "verdict": "THIN"
+    },
+    "AR/USD": {
+      "n": 2,
+      "mean": -2.037,
+      "median": -2.037,
+      "win": 0.0,
+      "t": -9.72,
+      "lower": -2.4478,
+      "windows": [
+        -2.037,
+        null,
+        null
+      ],
+      "verdict": "NO EVIDENCE"
+    },
+    "ARB/USD": {
+      "n": 49,
+      "mean": 0.5257,
+      "median": 0.0544,
+      "win": 0.531,
+      "t": 1.01,
+      "lower": -0.4993,
+      "windows": [
+        -0.6955,
+        0.6127,
+        -0.4515
+      ],
+      "verdict": "THIN"
+    },
+    "ARX/USD": {
+      "n": 21,
+      "mean": -0.6048,
+      "median": -1.6287,
+      "win": 0.286,
+      "t": -0.74,
+      "lower": -2.1981,
+      "windows": [
+        null,
+        1.2336,
+        -1.6162
+      ],
+      "verdict": "THIN"
+    },
+    "ASTER/USD": {
+      "n": 16,
+      "mean": 1.2112,
+      "median": 0.7774,
+      "win": 0.625,
+      "t": 1.39,
+      "lower": -0.4967,
+      "windows": [
+        1.4707,
+        1.1597,
+        -0.4797
+      ],
+      "verdict": "THIN"
+    },
+    "ATH/USD": {
+      "n": 23,
+      "mean": -0.7158,
+      "median": -1.6425,
+      "win": 0.391,
+      "t": -2.2,
+      "lower": -1.3539,
+      "windows": [
+        null,
+        -0.8054,
+        1.2566
+      ],
+      "verdict": "THIN"
+    },
+    "ATOM/USD": {
+      "n": 34,
+      "mean": 0.0555,
+      "median": -1.5354,
+      "win": 0.441,
+      "t": 0.12,
+      "lower": -0.8594,
+      "windows": [
+        -1.7742,
+        0.6502,
+        0.9698
+      ],
+      "verdict": "THIN"
+    },
+    "AUDIO/USD": {
+      "n": 3,
+      "mean": 0.9219,
+      "median": 0.0008,
+      "win": 0.667,
+      "t": 0.72,
+      "lower": -1.571,
+      "windows": [
+        0.9219,
+        null,
+        null
+      ],
+      "verdict": "NO EVIDENCE"
+    },
+    "AVA/USD": {
+      "n": 31,
+      "mean": 2.8148,
+      "median": 0.3662,
+      "win": 0.581,
+      "t": 2.1,
+      "lower": 0.1823,
+      "windows": [
+        2.0689,
+        3.4466,
+        3.4134
+      ],
+      "verdict": "EDGE"
+    },
+    "AVAX/USD": {
+      "n": 31,
+      "mean": 0.4846,
+      "median": 0.6768,
+      "win": 0.548,
+      "t": 0.7,
+      "lower": -0.8662,
+      "windows": [
+        8.2205,
+        0.2518,
+        -0.1343
+      ],
+      "verdict": "THIN"
+    },
+    "AXS/USD": {
+      "n": 16,
+      "mean": -0.1194,
+      "median": -0.7073,
+      "win": 0.438,
+      "t": -0.26,
+      "lower": -1.0036,
+      "windows": [
+        -1.6652,
+        0.8081,
+        null
+      ],
+      "verdict": "THIN"
+    },
+    "AZTEC/USD": {
+      "n": 41,
+      "mean": 0.7542,
+      "median": 0.2801,
+      "win": 0.585,
+      "t": 1.1,
+      "lower": -0.589,
+      "windows": [
+        null,
+        3.9193,
+        -0.9566
+      ],
+      "verdict": "THIN"
+    },
+    "B2/USD": {
+      "n": 7,
+      "mean": 2.3543,
+      "median": 4.0775,
+      "win": 0.714,
+      "t": 1.78,
+      "lower": -0.237,
+      "windows": [
+        -2.483,
+        4.2893,
+        null
+      ],
+      "verdict": "NO EVIDENCE"
+    },
+    "BABYSHARK/USD": {
+      "n": 1,
+      "mean": 0.5845,
+      "median": 0.5845,
+      "win": 1.0,
+      "t": null,
+      "lower": null,
+      "windows": [
+        0.5845,
+        null,
+        null
+      ],
+      "verdict": "NO EVIDENCE"
+    },
+    "BAT/USD": {
+      "n": 55,
+      "mean": -0.0191,
+      "median": -1.8596,
+      "win": 0.436,
+      "t": -0.03,
+      "lower": -1.1183,
+      "windows": [
+        -1.1483,
+        10.6085,
+        -0.5556
+      ],
+      "verdict": "THIN"
+    },
+    "BCH/USD": {
+      "n": 32,
+      "mean": -0.7879,
+      "median": -1.2247,
+      "win": 0.312,
+      "t": -2.0,
+      "lower": -1.5601,
+      "windows": [
+        -2.303,
+        -1.4815,
+        -0.1363
+      ],
+      "verdict": "THIN"
+    },
+    "BEAM/USD": {
+      "n": 13,
+      "mean": -0.7032,
+      "median": 0.3141,
+      "win": 0.538,
+      "t": -0.76,
+      "lower": -2.5249,
+      "windows": [
+        null,
+        1.0739,
+        -1.2363
+      ],
+      "verdict": "NO EVIDENCE"
+    },
+    "BMT/USD": {
+      "n": 29,
+      "mean": -0.2474,
+      "median": -0.6509,
+      "win": 0.379,
+      "t": -0.56,
+      "lower": -1.1114,
+      "windows": [
+        null,
+        0.7177,
+        -0.2849
+      ],
+      "verdict": "THIN"
+    },
+    "BNB/USD": {
+      "n": 18,
+      "mean": 0.1446,
+      "median": 0.1442,
+      "win": 0.556,
+      "t": 0.36,
+      "lower": -0.6381,
+      "windows": [
+        -0.3671,
+        1.5376,
+        -0.884
+      ],
+      "verdict": "THIN"
+    },
+    "BTC/USD": {
+      "n": 11,
+      "mean": -1.2274,
+      "median": -1.3035,
+      "win": 0.091,
+      "t": -4.04,
+      "lower": -1.8233,
+      "windows": [
+        null,
+        null,
+        -1.0844
+      ],
+      "verdict": "NO EVIDENCE"
+    },
+    "CELO/USD": {
+      "n": 8,
+      "mean": -0.4234,
+      "median": -1.4462,
+      "win": 0.375,
+      "t": -0.58,
+      "lower": -1.8584,
+      "windows": [
+        -1.2612,
+        0.9729,
+        null
+      ],
+      "verdict": "NO EVIDENCE"
+    },
+    "CFX/USD": {
+      "n": 9,
+      "mean": 0.4623,
+      "median": -0.2175,
+      "win": 0.333,
+      "t": 0.74,
+      "lower": -0.7621,
+      "windows": [
+        null,
+        0.5654,
+        -0.3626
+      ],
+      "verdict": "NO EVIDENCE"
+    },
+    "CHIP/USD": {
+      "n": 23,
+      "mean": 0.0961,
+      "median": -1.969,
+      "win": 0.348,
+      "t": 0.11,
+      "lower": -1.5838,
+      "windows": [
+        null,
+        1.28,
+        -1.1953
+      ],
+      "verdict": "THIN"
+    },
+    "COMP/USD": {
+      "n": 16,
+      "mean": 0.2218,
+      "median": 0.2136,
+      "win": 0.625,
+      "t": 0.34,
+      "lower": -1.0484,
+      "windows": [
+        0.1504,
+        0.7228,
+        -0.5179
+      ],
+      "verdict": "THIN"
+    },
+    "COTI/USD": {
+      "n": 2,
+      "mean": -0.6556,
+      "median": -0.6556,
+      "win": 0.5,
+      "t": -0.58,
+      "lower": -2.8822,
+      "windows": [
+        -0.6556,
+        null,
+        null
+      ],
+      "verdict": "NO EVIDENCE"
+    },
+    "CPOOL/USD": {
+      "n": 6,
+      "mean": -1.2761,
+      "median": -0.9667,
+      "win": 0.333,
+      "t": -1.84,
+      "lower": -2.6339,
+      "windows": [
+        null,
+        null,
+        -1.1508
+      ],
+      "verdict": "NO EVIDENCE"
+    },
+    "CRV/USD": {
+      "n": 43,
+      "mean": 0.5024,
+      "median": 0.4856,
+      "win": 0.558,
+      "t": 0.96,
+      "lower": -0.5207,
+      "windows": [
+        -0.5131,
+        3.0026,
+        -1.5991
+      ],
+      "verdict": "THIN"
+    },
+    "CSPR/USD": {
+      "n": 2,
+      "mean": -1.4102,
+      "median": -1.4102,
+      "win": 0.0,
+      "t": -30.72,
+      "lower": -1.5002,
+      "windows": [
+        -1.4102,
+        null,
+        null
+      ],
+      "verdict": "NO EVIDENCE"
+    },
+    "CVC/USD": {
+      "n": 6,
+      "mean": -0.031,
+      "median": 0.4914,
+      "win": 0.667,
+      "t": -0.04,
+      "lower": -1.442,
+      "windows": [
+        null,
+        -0.031,
+        null
+      ],
+      "verdict": "NO EVIDENCE"
+    },
+    "CVX/USD": {
+      "n": 44,
+      "mean": 0.3551,
+      "median": -0.1329,
+      "win": 0.477,
+      "t": 0.81,
+      "lower": -0.5009,
+      "windows": [
+        0.3586,
+        1.3053,
+        -0.6126
+      ],
+      "verdict": "THIN"
+    },
+    "DASH/USD": {
+      "n": 4,
+      "mean": -1.8262,
+      "median": -2.6587,
+      "win": 0.25,
+      "t": -2.08,
+      "lower": -3.5444,
+      "windows": [
+        -1.8262,
+        null,
+        null
+      ],
+      "verdict": "NO EVIDENCE"
+    },
+    "DEEP/USD": {
+      "n": 20,
+      "mean": -0.3499,
+      "median": -1.1134,
+      "win": 0.4,
+      "t": -0.69,
+      "lower": -1.3492,
+      "windows": [
+        -2.0738,
+        0.7995,
+        null
+      ],
+      "verdict": "THIN"
+    },
+    "DENT/USD": {
+      "n": 4,
+      "mean": -1.1905,
+      "median": -2.6549,
+      "win": 0.25,
+      "t": -0.69,
+      "lower": -4.5626,
+      "windows": [
+        -1.1905,
+        null,
+        null
+      ],
+      "verdict": "NO EVIDENCE"
+    },
+    "DGAI/USD": {
+      "n": 4,
+      "mean": -0.2781,
+      "median": 0.2882,
+      "win": 0.75,
+      "t": -0.28,
+      "lower": -2.2286,
+      "windows": [
+        -0.2781,
+        null,
+        null
+      ],
+      "verdict": "NO EVIDENCE"
+    },
+    "DNA/USD": {
+      "n": 17,
+      "mean": -1.7487,
+      "median": -2.4981,
+      "win": 0.235,
+      "t": -3.23,
+      "lower": -2.8097,
+      "windows": [
+        null,
+        null,
+        -2.1892
+      ],
+      "verdict": "THIN"
+    },
+    "DOG/USD": {
+      "n": 20,
+      "mean": -1.3468,
+      "median": -2.5748,
+      "win": 0.45,
+      "t": -1.48,
+      "lower": -3.1347,
+      "windows": [
+        -2.6239,
+        -0.7994,
+        null
+      ],
+      "verdict": "THIN"
+    },
+    "DOGE/USD": {
+      "n": 36,
+      "mean": 0.3752,
+      "median": 0.0818,
+      "win": 0.528,
+      "t": 0.86,
+      "lower": -0.4771,
+      "windows": [
+        1.55,
+        0.7368,
+        -0.5645
+      ],
+      "verdict": "THIN"
+    },
+    "DOT/USD": {
+      "n": 46,
+      "mean": 0.853,
+      "median": 0.3519,
+      "win": 0.609,
+      "t": 1.63,
+      "lower": -0.1726,
+      "windows": [
+        0.6225,
+        1.5915,
+        -0.4631
+      ],
+      "verdict": "THIN"
+    },
+    "DRV/USD": {
+      "n": 46,
+      "mean": 1.2327,
+      "median": 0.6382,
+      "win": 0.587,
+      "t": 2.42,
+      "lower": 0.2357,
+      "windows": [
+        -0.6173,
+        3.1282,
+        0.4012
+      ],
+      "verdict": "THIN"
+    },
+    "EIGEN/USD": {
+      "n": 19,
+      "mean": 3.5158,
+      "median": 1.8545,
+      "win": 0.842,
+      "t": 2.71,
+      "lower": 0.972,
+      "windows": [
+        null,
+        3.7181,
+        -0.125
+      ],
+      "verdict": "THIN"
+    },
+    "ENA/USD": {
+      "n": 33,
+      "mean": 0.7112,
+      "median": -1.9253,
+      "win": 0.394,
+      "t": 0.75,
+      "lower": -1.15,
+      "windows": [
+        3.3615,
+        -0.8032,
+        null
+      ],
+      "verdict": "THIN"
+    },
+    "ES/USD": {
+      "n": 0,
+      "mean": null,
+      "median": null,
+      "win": null,
+      "t": null,
+      "lower": null,
+      "windows": [
+        null,
+        null,
+        null
+      ],
+      "verdict": "MISSING"
+    },
+    "ESPORTS/USD": {
+      "n": 26,
+      "mean": -0.7825,
+      "median": -1.192,
+      "win": 0.385,
+      "t": -2.12,
+      "lower": -1.5053,
+      "windows": [
+        null,
+        -0.7532,
+        -0.8378
+      ],
+      "verdict": "THIN"
+    },
+    "ETC/USD": {
+      "n": 31,
+      "mean": 1.4849,
+      "median": 1.7755,
+      "win": 0.71,
+      "t": 3.39,
+      "lower": 0.6272,
+      "windows": [
+        3.445,
+        2.2508,
+        0.4362
+      ],
+      "verdict": "EDGE"
+    },
+    "ETH/USD": {
+      "n": 28,
+      "mean": -0.3277,
+      "median": -0.4163,
+      "win": 0.464,
+      "t": -0.94,
+      "lower": -1.0136,
+      "windows": [
+        0.2734,
+        0.4187,
+        -1.7737
+      ],
+      "verdict": "THIN"
+    },
+    "ETHFI/USD": {
+      "n": 55,
+      "mean": 0.6483,
+      "median": -0.1218,
+      "win": 0.455,
+      "t": 1.15,
+      "lower": -0.4595,
+      "windows": [
+        -1.546,
+        0.5766,
+        2.6972
+      ],
+      "verdict": "THIN"
+    },
+    "EUR/USD": {
+      "n": 0,
+      "mean": null,
+      "median": null,
+      "win": null,
+      "t": null,
+      "lower": null,
+      "windows": [
+        null,
+        null,
+        null
+      ],
+      "verdict": "MISSING"
+    },
+    "FARTCOIN/USD": {
+      "n": 66,
+      "mean": -0.2906,
+      "median": -1.5953,
+      "win": 0.409,
+      "t": -0.69,
+      "lower": -1.1181,
+      "windows": [
+        0.942,
+        -0.0822,
+        -0.8298
+      ],
+      "verdict": "THIN"
+    },
+    "FHE/USD": {
+      "n": 6,
+      "mean": -0.3139,
+      "median": -1.1429,
+      "win": 0.333,
+      "t": -0.37,
+      "lower": -1.9855,
+      "windows": [
+        -0.5783,
+        0.2149,
+        null
+      ],
+      "verdict": "NO EVIDENCE"
+    },
+    "FIL/USD": {
+      "n": 42,
+      "mean": -0.7104,
+      "median": -1.9159,
+      "win": 0.333,
+      "t": -1.59,
+      "lower": -1.5856,
+      "windows": [
+        -1.3627,
+        0.2242,
+        -1.3669
+      ],
+      "verdict": "THIN"
+    },
+    "FLOKI/USD": {
+      "n": 3,
+      "mean": -1.4825,
+      "median": -1.4073,
+      "win": 0.0,
+      "t": -11.15,
+      "lower": -1.7431,
+      "windows": [
+        -1.4825,
+        null,
+        null
+      ],
+      "verdict": "NO EVIDENCE"
+    },
+    "FLR/USD": {
+      "n": 0,
+      "mean": null,
+      "median": null,
+      "win": null,
+      "t": null,
+      "lower": null,
+      "windows": [
+        null,
+        null,
+        null
+      ],
+      "verdict": "MISSING"
+    },
+    "FLUX/USD": {
+      "n": 22,
+      "mean": 3.3685,
+      "median": 3.4661,
+      "win": 0.727,
+      "t": 3.68,
+      "lower": 1.5757,
+      "windows": [
+        2.3403,
+        3.4175,
+        null
+      ],
+      "verdict": "THIN"
+    },
+    "FOLD/USD": {
+      "n": 17,
+      "mean": 3.6216,
+      "median": 3.0226,
+      "win": 0.706,
+      "t": 2.91,
+      "lower": 1.1821,
+      "windows": [
+        6.269,
+        3.2686,
+        null
+      ],
+      "verdict": "THIN"
+    },
+    "FORTH/USD": {
+      "n": 5,
+      "mean": 11.1455,
+      "median": 16.4417,
+      "win": 0.8,
+      "t": 2.64,
+      "lower": 2.8566,
+      "windows": [
+        15.1282,
+        -4.7856,
+        null
+      ],
+      "verdict": "NO EVIDENCE"
+    },
+    "FUN/USD": {
+      "n": 19,
+      "mean": 0.3778,
+      "median": 0.9373,
+      "win": 0.632,
+      "t": 0.61,
+      "lower": -0.8448,
+      "windows": [
+        1.3124,
+        -0.4633,
+        null
+      ],
+      "verdict": "THIN"
+    },
+    "GALA/USD": {
+      "n": 14,
+      "mean": 0.0869,
+      "median": -1.4665,
+      "win": 0.357,
+      "t": 0.09,
+      "lower": -1.8589,
+      "windows": [
+        -1.394,
+        0.3337,
+        null
+      ],
+      "verdict": "NO EVIDENCE"
+    },
+    "GHST/USD": {
+      "n": 9,
+      "mean": 15.9869,
+      "median": 14.989,
+      "win": 0.556,
+      "t": 2.51,
+      "lower": 3.4952,
+      "windows": [
+        15.9869,
+        null,
+        null
+      ],
+      "verdict": "NO EVIDENCE"
+    },
+    "GLMR/USD": {
+      "n": 13,
+      "mean": 3.7076,
+      "median": 1.7121,
+      "win": 0.846,
+      "t": 1.44,
+      "lower": -1.3545,
+      "windows": [
+        3.7076,
+        null,
+        null
+      ],
+      "verdict": "NO EVIDENCE"
+    },
+    "GRASS/USD": {
+      "n": 54,
+      "mean": 0.0344,
+      "median": -0.0213,
+      "win": 0.5,
+      "t": 0.07,
+      "lower": -0.8838,
+      "windows": [
+        2.2624,
+        -0.1248,
+        -0.2772
+      ],
+      "verdict": "THIN"
+    },
+    "GRIFFAIN/USD": {
+      "n": 10,
+      "mean": -0.4968,
+      "median": -1.6674,
+      "win": 0.2,
+      "t": -0.17,
+      "lower": -6.2929,
+      "windows": [
+        null,
+        -0.4968,
+        null
+      ],
+      "verdict": "NO EVIDENCE"
+    },
+    "GRT/USD": {
+      "n": 2,
+      "mean": -1.7061,
+      "median": -1.7061,
+      "win": 0.0,
+      "t": -20.82,
+      "lower": -1.8666,
+      "windows": [
+        -1.7061,
+        null,
+        null
+      ],
+      "verdict": "NO EVIDENCE"
+    },
+    "GTC/USD": {
+      "n": 15,
+      "mean": -1.7731,
+      "median": -2.1407,
+      "win": 0.267,
+      "t": -2.37,
+      "lower": -3.242,
+      "windows": [
+        -0.4843,
+        -1.2372,
+        -2.026
+      ],
+      "verdict": "THIN"
+    },
+    "GWEI/USD": {
+      "n": 31,
+      "mean": 0.6113,
+      "median": 0.0749,
+      "win": 0.516,
+      "t": 1.22,
+      "lower": -0.3686,
+      "windows": [
+        0.5688,
+        0.6347,
+        null
+      ],
+      "verdict": "THIN"
+    },
+    "HBAR/USD": {
+      "n": 28,
+      "mean": -0.6209,
+      "median": -1.2794,
+      "win": 0.357,
+      "t": -2.03,
+      "lower": -1.219,
+      "windows": [
+        -0.3027,
+        -0.4826,
+        -0.6758
+      ],
+      "verdict": "THIN"
+    },
+    "HNT/USD": {
+      "n": 18,
+      "mean": -0.5843,
+      "median": -2.3112,
+      "win": 0.278,
+      "t": -0.63,
+      "lower": -2.4117,
+      "windows": [
+        -0.5843,
+        null,
+        null
+      ],
+      "verdict": "THIN"
+    },
+    "HONEY/USD": {
+      "n": 14,
+      "mean": -2.6708,
+      "median": -3.2009,
+      "win": 0.143,
+      "t": -3.68,
+      "lower": -4.0948,
+      "windows": [
+        -3.689,
+        -1.9072,
+        null
+      ],
+      "verdict": "NO EVIDENCE"
+    },
+    "HYPE/USD": {
+      "n": 30,
+      "mean": -0.5281,
+      "median": -1.2821,
+      "win": 0.4,
+      "t": -1.87,
+      "lower": -1.0807,
+      "windows": [
+        -0.6524,
+        0.0531,
+        -1.2583
+      ],
+      "verdict": "THIN"
+    },
+    "ICNT/USD": {
+      "n": 28,
+      "mean": 0.8361,
+      "median": 0.464,
+      "win": 0.536,
+      "t": 0.89,
+      "lower": -0.9969,
+      "windows": [
+        null,
+        1.5776,
+        1.7203
+      ],
+      "verdict": "THIN"
+    },
+    "ICP/USD": {
+      "n": 0,
+      "mean": null,
+      "median": null,
+      "win": null,
+      "t": null,
+      "lower": null,
+      "windows": [
+        null,
+        null,
+        null
+      ],
+      "verdict": "MISSING"
+    },
+    "INIT/USD": {
+      "n": 25,
+      "mean": -6.973,
+      "median": -6.6298,
+      "win": 0.2,
+      "t": -4.46,
+      "lower": -10.0392,
+      "windows": [
+        null,
+        null,
+        -3.8291
+      ],
+      "verdict": "THIN"
+    },
+    "INJ/USD": {
+      "n": 40,
+      "mean": 1.7304,
+      "median": 1.5595,
+      "win": 0.7,
+      "t": 2.23,
+      "lower": 0.2081,
+      "windows": [
+        2.492,
+        2.4835,
+        1.3514
+      ],
+      "verdict": "EDGE"
+    },
+    "IP/USD": {
+      "n": 13,
+      "mean": 0.1988,
+      "median": 0.8041,
+      "win": 0.615,
+      "t": 0.47,
+      "lower": -0.6364,
+      "windows": [
+        null,
+        0.5604,
+        -0.6148
+      ],
+      "verdict": "NO EVIDENCE"
+    },
+    "JTO/USD": {
+      "n": 67,
+      "mean": 1.0857,
+      "median": 0.0118,
+      "win": 0.507,
+      "t": 1.76,
+      "lower": -0.1217,
+      "windows": [
+        -0.6263,
+        3.426,
+        -0.9063
+      ],
+      "verdict": "THIN"
+    },
+    "JUP/USD": {
+      "n": 49,
+      "mean": 1.8373,
+      "median": 0.0158,
+      "win": 0.51,
+      "t": 2.47,
+      "lower": 0.3788,
+      "windows": [
+        -0.8947,
+        5.2111,
+        -0.5748
+      ],
+      "verdict": "THIN"
+    },
+    "KAITO/USD": {
+      "n": 42,
+      "mean": 0.3458,
+      "median": -1.1267,
+      "win": 0.452,
+      "t": 0.74,
+      "lower": -0.5645,
+      "windows": [
+        -1.896,
+        1.8231,
+        0.0418
+      ],
+      "verdict": "THIN"
+    },
+    "KAS/USD": {
+      "n": 4,
+      "mean": -2.1514,
+      "median": -3.0466,
+      "win": 0.25,
+      "t": -2.2,
+      "lower": -4.0658,
+      "windows": [
+        -2.1514,
+        null,
+        null
+      ],
+      "verdict": "NO EVIDENCE"
+    },
+    "KII/USD": {
+      "n": 0,
+      "mean": null,
+      "median": null,
+      "win": null,
+      "t": null,
+      "lower": null,
+      "windows": [
+        null,
+        null,
+        null
+      ],
+      "verdict": "MISSING"
+    },
+    "KNTQ/USD": {
+      "n": 36,
+      "mean": 1.9473,
+      "median": -0.1907,
+      "win": 0.5,
+      "t": 1.6,
+      "lower": -0.4448,
+      "windows": [
+        -0.4761,
+        3.2592,
+        6.4973
+      ],
+      "verdict": "THIN"
+    },
+    "KTA/USD": {
+      "n": 17,
+      "mean": 2.0844,
+      "median": 1.6529,
+      "win": 0.824,
+      "t": 2.63,
+      "lower": 0.5306,
+      "windows": [
+        1.7306,
+        2.7332,
+        null
+      ],
+      "verdict": "THIN"
+    },
+    "LCX/USD": {
+      "n": 11,
+      "mean": -0.4669,
+      "median": -0.1835,
+      "win": 0.455,
+      "t": -0.64,
+      "lower": -1.8856,
+      "windows": [
+        -0.2496,
+        -0.5151,
+        null
+      ],
+      "verdict": "NO EVIDENCE"
+    },
+    "LDO/USD": {
+      "n": 39,
+      "mean": 0.4675,
+      "median": 0.0116,
+      "win": 0.513,
+      "t": 0.96,
+      "lower": -0.4875,
+      "windows": [
+        -1.1582,
+        1.4576,
+        -0.5226
+      ],
+      "verdict": "THIN"
+    },
+    "LIGHTER/USD": {
+      "n": 51,
+      "mean": 0.2966,
+      "median": -0.0159,
+      "win": 0.49,
+      "t": 0.54,
+      "lower": -0.7896,
+      "windows": [
+        -0.818,
+        -0.1869,
+        2.5634
+      ],
+      "verdict": "THIN"
+    },
+    "LINK/USD": {
+      "n": 31,
+      "mean": 0.0574,
+      "median": 0.5102,
+      "win": 0.613,
+      "t": 0.18,
+      "lower": -0.5819,
+      "windows": [
+        -0.8431,
+        0.1529,
+        0.0559
+      ],
+      "verdict": "THIN"
+    },
+    "LRC/USD": {
+      "n": 4,
+      "mean": -2.3306,
+      "median": -2.0439,
+      "win": 0.0,
+      "t": -6.69,
+      "lower": -3.014,
+      "windows": [
+        -2.3306,
+        null,
+        null
+      ],
+      "verdict": "NO EVIDENCE"
+    },
+    "LSK/USD": {
+      "n": 59,
+      "mean": 0.8798,
+      "median": 0.2082,
+      "win": 0.525,
+      "t": 1.3,
+      "lower": -0.4424,
+      "windows": [
+        null,
+        0.5959,
+        1.3753
+      ],
+      "verdict": "THIN"
+    },
+    "LTC/USD": {
+      "n": 28,
+      "mean": -0.5625,
+      "median": -0.945,
+      "win": 0.357,
+      "t": -2.17,
+      "lower": -1.0702,
+      "windows": [
+        null,
+        -0.4522,
+        -0.7655
+      ],
+      "verdict": "THIN"
+    },
+    "MANA/USD": {
+      "n": 10,
+      "mean": 0.1571,
+      "median": -0.2928,
+      "win": 0.5,
+      "t": 0.19,
+      "lower": -1.4555,
+      "windows": [
+        null,
+        0.1571,
+        null
+      ],
+      "verdict": "NO EVIDENCE"
+    },
+    "MEGA/USD": {
+      "n": 29,
+      "mean": -0.657,
+      "median": -1.6585,
+      "win": 0.448,
+      "t": -1.57,
+      "lower": -1.4765,
+      "windows": [
+        -2.7981,
+        0.1014,
+        -0.8841
+      ],
+      "verdict": "THIN"
+    },
+    "MET/USD": {
+      "n": 14,
+      "mean": 2.4154,
+      "median": 2.0047,
+      "win": 0.786,
+      "t": 2.83,
+      "lower": 0.7445,
+      "windows": [
+        0.8164,
+        4.5474,
+        null
+      ],
+      "verdict": "NO EVIDENCE"
+    },
+    "MINA/USD": {
+      "n": 4,
+      "mean": -4.796,
+      "median": -4.6136,
+      "win": 0.0,
+      "t": -22.63,
+      "lower": -5.2115,
+      "windows": [
+        -4.796,
+        null,
+        null
+      ],
+      "verdict": "NO EVIDENCE"
+    },
+    "MOODENG/USD": {
+      "n": 39,
+      "mean": -0.6095,
+      "median": -1.1363,
+      "win": 0.385,
+      "t": -2.21,
+      "lower": -1.149,
+      "windows": [
+        -2.1113,
+        -0.1024,
+        -0.764
+      ],
+      "verdict": "THIN"
+    },
+    "MORPHO/USD": {
+      "n": 23,
+      "mean": 0.2529,
+      "median": -0.0096,
+      "win": 0.478,
+      "t": 0.32,
+      "lower": -1.2953,
+      "windows": [
+        null,
+        0.2494,
+        0.2567
+      ],
+      "verdict": "THIN"
+    },
+    "MOVR/USD": {
+      "n": 8,
+      "mean": 0.2408,
+      "median": 0.6191,
+      "win": 0.625,
+      "t": 0.3,
+      "lower": -1.3446,
+      "windows": [
+        -0.2397,
+        3.6048,
+        null
+      ],
+      "verdict": "NO EVIDENCE"
+    },
+    "MUBARAK/USD": {
+      "n": 4,
+      "mean": 3.5307,
+      "median": 3.8995,
+      "win": 1.0,
+      "t": 3.43,
+      "lower": 1.5154,
+      "windows": [
+        3.8285,
+        2.6371,
+        null
+      ],
+      "verdict": "NO EVIDENCE"
+    },
+    "NEAR/USD": {
+      "n": 48,
+      "mean": 0.6584,
+      "median": 0.5273,
+      "win": 0.583,
+      "t": 1.11,
+      "lower": -0.5013,
+      "windows": [
+        2.3833,
+        1.474,
+        -0.101
+      ],
+      "verdict": "THIN"
+    },
+    "NIGHT/USD": {
+      "n": 13,
+      "mean": 0.0237,
+      "median": -2.851,
+      "win": 0.462,
+      "t": 0.02,
+      "lower": -1.9715,
+      "windows": [
+        -1.6667,
+        0.5308,
+        null
+      ],
+      "verdict": "NO EVIDENCE"
+    },
+    "NIL/USD": {
+      "n": 27,
+      "mean": 0.4562,
+      "median": -2.0208,
+      "win": 0.37,
+      "t": 0.36,
+      "lower": -2.0469,
+      "windows": [
+        -2.1821,
+        1.3796,
+        null
+      ],
+      "verdict": "THIN"
+    },
+    "NOS/USD": {
+      "n": 43,
+      "mean": -0.5712,
+      "median": -1.5784,
+      "win": 0.419,
+      "t": -1.11,
+      "lower": -1.5826,
+      "windows": [
+        -1.4833,
+        0.4317,
+        -0.6012
+      ],
+      "verdict": "THIN"
+    },
+    "NOT/USD": {
+      "n": 3,
+      "mean": -1.5395,
+      "median": -1.4885,
+      "win": 0.0,
+      "t": -8.55,
+      "lower": -1.8924,
+      "windows": [
+        -1.5395,
+        null,
+        null
+      ],
+      "verdict": "NO EVIDENCE"
+    },
+    "NPC/USD": {
+      "n": 1,
+      "mean": 0.7148,
+      "median": 0.7148,
+      "win": 1.0,
+      "t": null,
+      "lower": null,
+      "windows": [
+        0.7148,
+        null,
+        null
+      ],
+      "verdict": "NO EVIDENCE"
+    },
+    "OCEAN/USD": {
+      "n": 9,
+      "mean": 0.8056,
+      "median": -0.8586,
+      "win": 0.333,
+      "t": 0.47,
+      "lower": -2.5553,
+      "windows": [
+        null,
+        null,
+        0.8056
+      ],
+      "verdict": "NO EVIDENCE"
+    },
+    "ONDO/USD": {
+      "n": 32,
+      "mean": -0.2148,
+      "median": -0.8248,
+      "win": 0.469,
+      "t": -0.49,
+      "lower": -1.066,
+      "windows": [
+        -0.2361,
+        0.2616,
+        -0.9987
+      ],
+      "verdict": "THIN"
+    },
+    "OOB/USD": {
+      "n": 3,
+      "mean": 0.9273,
+      "median": 0.2412,
+      "win": 0.667,
+      "t": 0.38,
+      "lower": -3.882,
+      "windows": [
+        0.9273,
+        null,
+        null
+      ],
+      "verdict": "NO EVIDENCE"
+    },
+    "OP/USD": {
+      "n": 34,
+      "mean": -0.647,
+      "median": -1.5035,
+      "win": 0.412,
+      "t": -1.72,
+      "lower": -1.3845,
+      "windows": [
+        -2.6253,
+        0.5247,
+        -0.8634
+      ],
+      "verdict": "THIN"
+    },
+    "ORCA/USD": {
+      "n": 18,
+      "mean": -0.1193,
+      "median": -1.1284,
+      "win": 0.333,
+      "t": -0.18,
+      "lower": -1.4339,
+      "windows": [
+        8.1027,
+        -0.6029,
+        null
+      ],
+      "verdict": "THIN"
+    },
+    "OSMO/USD": {
+      "n": 31,
+      "mean": -1.9132,
+      "median": -3.2879,
+      "win": 0.323,
+      "t": -3.31,
+      "lower": -3.0454,
+      "windows": [
+        null,
+        null,
+        -3.1254
+      ],
+      "verdict": "THIN"
+    },
+    "OXT/USD": {
+      "n": 1,
+      "mean": 1.7999,
+      "median": 1.7999,
+      "win": 1.0,
+      "t": null,
+      "lower": null,
+      "windows": [
+        null,
+        1.7999,
+        null
+      ],
+      "verdict": "NO EVIDENCE"
+    },
+    "PARTI/USD": {
+      "n": 14,
+      "mean": 3.9498,
+      "median": -0.3023,
+      "win": 0.429,
+      "t": 1.03,
+      "lower": -3.5704,
+      "windows": [
+        null,
+        -1.0968,
+        36.7732
+      ],
+      "verdict": "NO EVIDENCE"
+    },
+    "PENGU/USD": {
+      "n": 57,
+      "mean": 1.0775,
+      "median": 0.5136,
+      "win": 0.632,
+      "t": 2.48,
+      "lower": 0.2271,
+      "windows": [
+        2.0573,
+        1.6436,
+        -1.1576
+      ],
+      "verdict": "THIN"
+    },
+    "PEPE/USD": {
+      "n": 19,
+      "mean": -0.2929,
+      "median": -1.9196,
+      "win": 0.474,
+      "t": -0.4,
+      "lower": -1.7389,
+      "windows": [
+        null,
+        null,
+        2.2845
+      ],
+      "verdict": "THIN"
+    },
+    "PIEVERSE/USD": {
+      "n": 3,
+      "mean": -1.9206,
+      "median": -1.9363,
+      "win": 0.0,
+      "t": -52.51,
+      "lower": -1.9923,
+      "windows": [
+        null,
+        null,
+        -1.9206
+      ],
+      "verdict": "NO EVIDENCE"
+    },
+    "PLUME/USD": {
+      "n": 14,
+      "mean": -1.0776,
+      "median": -1.8807,
+      "win": 0.286,
+      "t": -1.8,
+      "lower": -2.2493,
+      "windows": [
+        -1.7603,
+        3.0185,
+        null
+      ],
+      "verdict": "NO EVIDENCE"
+    },
+    "PNUT/USD": {
+      "n": 39,
+      "mean": -0.3552,
+      "median": -1.0908,
+      "win": 0.41,
+      "t": -1.14,
+      "lower": -0.9643,
+      "windows": [
+        -0.7341,
+        0.0078,
+        -0.3773
+      ],
+      "verdict": "THIN"
+    },
+    "POL/USD": {
+      "n": 33,
+      "mean": 0.4184,
+      "median": 0.4424,
+      "win": 0.636,
+      "t": 1.25,
+      "lower": -0.2402,
+      "windows": [
+        -0.3396,
+        0.5712,
+        0.9362
+      ],
+      "verdict": "THIN"
+    },
+    "POND/USD": {
+      "n": 20,
+      "mean": -0.1187,
+      "median": -0.3596,
+      "win": 0.45,
+      "t": -0.23,
+      "lower": -1.139,
+      "windows": [
+        -1.1636,
+        0.1425,
+        null
+      ],
+      "verdict": "THIN"
+    },
+    "PONS/USD": {
+      "n": 30,
+      "mean": 0.0606,
+      "median": 0.1962,
+      "win": 0.5,
+      "t": 0.09,
+      "lower": -1.2799,
+      "windows": [
+        null,
+        0.044,
+        0.5433
+      ],
+      "verdict": "THIN"
+    },
+    "POPCAT/USD": {
+      "n": 49,
+      "mean": 0.2638,
+      "median": 0.1981,
+      "win": 0.531,
+      "t": 0.65,
+      "lower": -0.5261,
+      "windows": [
+        0.808,
+        0.7932,
+        -0.861
+      ],
+      "verdict": "THIN"
+    },
+    "PROMPT/USD": {
+      "n": 21,
+      "mean": -1.2737,
+      "median": -0.9089,
+      "win": 0.333,
+      "t": -2.33,
+      "lower": -2.3468,
+      "windows": [
+        null,
+        null,
+        -1.5221
+      ],
+      "verdict": "THIN"
+    },
+    "PROS/USD": {
+      "n": 5,
+      "mean": -0.8341,
+      "median": -1.3563,
+      "win": 0.2,
+      "t": -1.25,
+      "lower": -2.1455,
+      "windows": [
+        null,
+        -0.8341,
+        null
+      ],
+      "verdict": "NO EVIDENCE"
+    },
+    "PUMP/USD": {
+      "n": 81,
+      "mean": -0.1726,
+      "median": -1.9671,
+      "win": 0.432,
+      "t": -0.39,
+      "lower": -1.0344,
+      "windows": [
+        -0.6175,
+        0.3592,
+        -1.644
+      ],
+      "verdict": "THIN"
+    },
+    "PYTH/USD": {
+      "n": 18,
+      "mean": -0.014,
+      "median": 0.1375,
+      "win": 0.5,
+      "t": -0.02,
+      "lower": -1.19,
+      "windows": [
+        -2.4703,
+        0.5749,
+        -0.8897
+      ],
+      "verdict": "THIN"
+    },
+    "Q/USD": {
+      "n": 41,
+      "mean": -0.8492,
+      "median": -2.2981,
+      "win": 0.463,
+      "t": -0.3,
+      "lower": -6.3836,
+      "windows": [
+        null,
+        -2.2157,
+        -0.192
+      ],
+      "verdict": "THIN"
+    },
+    "QI/USD": {
+      "n": 12,
+      "mean": 1.1669,
+      "median": 1.4006,
+      "win": 0.667,
+      "t": 1.56,
+      "lower": -0.2979,
+      "windows": [
+        5.2419,
+        0.3519,
+        null
+      ],
+      "verdict": "NO EVIDENCE"
+    },
+    "QNT/USD": {
+      "n": 27,
+      "mean": 0.6535,
+      "median": -1.7908,
+      "win": 0.444,
+      "t": 0.92,
+      "lower": -0.7449,
+      "windows": [
+        -0.702,
+        0.823,
+        null
+      ],
+      "verdict": "THIN"
+    },
+    "RAY/USD": {
+      "n": 44,
+      "mean": 0.4474,
+      "median": -1.5391,
+      "win": 0.432,
+      "t": 0.73,
+      "lower": -0.7542,
+      "windows": [
+        6.0423,
+        -0.4579,
+        0.1547
+      ],
+      "verdict": "THIN"
+    },
+    "RE/USD": {
+      "n": 8,
+      "mean": 1.5136,
+      "median": 0.4313,
+      "win": 0.75,
+      "t": 1.3,
+      "lower": -0.7692,
+      "windows": [
+        1.7026,
+        0.9467,
+        null
+      ],
+      "verdict": "NO EVIDENCE"
+    },
+    "RED/USD": {
+      "n": 10,
+      "mean": -0.2972,
+      "median": -0.2047,
+      "win": 0.4,
+      "t": -0.75,
+      "lower": -1.0766,
+      "windows": [
+        null,
+        -0.2972,
+        null
+      ],
+      "verdict": "NO EVIDENCE"
+    },
+    "RENDER/USD": {
+      "n": 36,
+      "mean": -0.1809,
+      "median": 0.1229,
+      "win": 0.528,
+      "t": -0.54,
+      "lower": -0.8428,
+      "windows": [
+        -0.6053,
+        0.1839,
+        -0.1452
+      ],
+      "verdict": "THIN"
+    },
+    "REPPO/USD": {
+      "n": 11,
+      "mean": 0.6467,
+      "median": 0.1847,
+      "win": 0.545,
+      "t": 0.36,
+      "lower": -2.8562,
+      "windows": [
+        0.6467,
+        null,
+        null
+      ],
+      "verdict": "NO EVIDENCE"
+    },
+    "REQ/USD": {
+      "n": 4,
+      "mean": 0.2677,
+      "median": 0.7837,
+      "win": 0.75,
+      "t": 0.36,
+      "lower": -1.1974,
+      "windows": [
+        null,
+        null,
+        null
+      ],
+      "verdict": "NO EVIDENCE"
+    },
+    "RLC/USD": {
+      "n": 19,
+      "mean": -0.6942,
+      "median": -0.5676,
+      "win": 0.421,
+      "t": -1.65,
+      "lower": -1.521,
+      "windows": [
+        null,
+        -0.6404,
+        -1.1515
+      ],
+      "verdict": "THIN"
+    },
+    "RUNE/USD": {
+      "n": 26,
+      "mean": -1.3447,
+      "median": -1.3618,
+      "win": 0.154,
+      "t": -3.32,
+      "lower": -2.1389,
+      "windows": [
+        -1.4495,
+        0.0063,
+        -3.1059
+      ],
+      "verdict": "THIN"
+    },
+    "S/USD": {
+      "n": 39,
+      "mean": 1.1643,
+      "median": -0.08,
+      "win": 0.487,
+      "t": 1.61,
+      "lower": -0.2541,
+      "windows": [
+        -2.0006,
+        4.9402,
+        -0.9405
+      ],
+      "verdict": "THIN"
+    },
+    "SAGA/USD": {
+      "n": 13,
+      "mean": 1.1158,
+      "median": -0.0208,
+      "win": 0.385,
+      "t": 0.5,
+      "lower": -3.2348,
+      "windows": [
+        5.9746,
+        -1.0436,
+        null
+      ],
+      "verdict": "NO EVIDENCE"
+    },
+    "SAND/USD": {
+      "n": 7,
+      "mean": 0.1268,
+      "median": -0.08,
+      "win": 0.429,
+      "t": 0.11,
+      "lower": -2.0651,
+      "windows": [
+        null,
+        0.1268,
+        null
+      ],
+      "verdict": "NO EVIDENCE"
+    },
+    "SC/USD": {
+      "n": 10,
+      "mean": 4.0438,
+      "median": 3.8752,
+      "win": 0.9,
+      "t": 3.28,
+      "lower": 1.627,
+      "windows": [
+        5.9474,
+        2.7747,
+        null
+      ],
+      "verdict": "NO EVIDENCE"
+    },
+    "SHAPE/USD": {
+      "n": 0,
+      "mean": null,
+      "median": null,
+      "win": null,
+      "t": null,
+      "lower": null,
+      "windows": [
+        null,
+        null,
+        null
+      ],
+      "verdict": "MISSING"
+    },
+    "SHX/USD": {
+      "n": 23,
+      "mean": 3.4024,
+      "median": 0.3847,
+      "win": 0.522,
+      "t": 2.63,
+      "lower": 0.8625,
+      "windows": [
+        0.1045,
+        4.0967,
+        null
+      ],
+      "verdict": "THIN"
+    },
+    "SKR/USD": {
+      "n": 24,
+      "mean": -0.3016,
+      "median": -0.9977,
+      "win": 0.458,
+      "t": -0.71,
+      "lower": -1.137,
+      "windows": [
+        null,
+        -0.3016,
+        null
+      ],
+      "verdict": "THIN"
+    },
+    "SKY/USD": {
+      "n": 13,
+      "mean": -0.9687,
+      "median": -1.6493,
+      "win": 0.308,
+      "t": -2.63,
+      "lower": -1.6901,
+      "windows": [
+        -0.9687,
+        null,
+        null
+      ],
+      "verdict": "NO EVIDENCE"
+    },
+    "SOL/USD": {
+      "n": 26,
+      "mean": 0.1096,
+      "median": 0.0383,
+      "win": 0.5,
+      "t": 0.17,
+      "lower": -1.1773,
+      "windows": [
+        7.1112,
+        -0.3513,
+        -0.8537
+      ],
+      "verdict": "THIN"
+    },
+    "SOON/USD": {
+      "n": 9,
+      "mean": -1.2265,
+      "median": -1.4107,
+      "win": 0.222,
+      "t": -3.72,
+      "lower": -1.8736,
+      "windows": [
+        -0.7704,
+        -1.2835,
+        null
+      ],
+      "verdict": "NO EVIDENCE"
+    },
+    "SPELL/USD": {
+      "n": 1,
+      "mean": -0.94,
+      "median": -0.94,
+      "win": 0.0,
+      "t": null,
+      "lower": null,
+      "windows": [
+        -0.94,
+        null,
+        null
+      ],
+      "verdict": "NO EVIDENCE"
+    },
+    "SPK/USD": {
+      "n": 13,
+      "mean": 1.5437,
+      "median": 0.6077,
+      "win": 0.692,
+      "t": 1.91,
+      "lower": -0.0413,
+      "windows": [
+        1.1032,
+        1.5804,
+        null
+      ],
+      "verdict": "NO EVIDENCE"
+    },
+    "SPX/USD": {
+      "n": 40,
+      "mean": -0.4623,
+      "median": -2.0027,
+      "win": 0.45,
+      "t": -1.14,
+      "lower": -1.2585,
+      "windows": [
+        -0.828,
+        -0.7891,
+        2.5664
+      ],
+      "verdict": "THIN"
+    },
+    "STRK/USD": {
+      "n": 32,
+      "mean": -1.4312,
+      "median": -2.1103,
+      "win": 0.219,
+      "t": -3.38,
+      "lower": -2.2608,
+      "windows": [
+        null,
+        -3.387,
+        -1.6897
+      ],
+      "verdict": "THIN"
+    },
+    "STX/USD": {
+      "n": 43,
+      "mean": -0.2746,
+      "median": -1.5044,
+      "win": 0.442,
+      "t": -0.7,
+      "lower": -1.0424,
+      "windows": [
+        -0.7094,
+        -0.2411,
+        0.4163
+      ],
+      "verdict": "THIN"
+    },
+    "SUI/USD": {
+      "n": 45,
+      "mean": 0.2604,
+      "median": 0.1979,
+      "win": 0.533,
+      "t": 0.68,
+      "lower": -0.4854,
+      "windows": [
+        -0.9296,
+        1.4491,
+        -1.0477
+      ],
+      "verdict": "THIN"
+    },
+    "SUPER/USD": {
+      "n": 14,
+      "mean": -0.2388,
+      "median": -1.3309,
+      "win": 0.357,
+      "t": -0.43,
+      "lower": -1.3399,
+      "windows": [
+        -0.5117,
+        -0.1296,
+        null
+      ],
+      "verdict": "NO EVIDENCE"
+    },
+    "SUSHI/USD": {
+      "n": 9,
+      "mean": 15.4538,
+      "median": 0.4328,
+      "win": 0.778,
+      "t": 2.42,
+      "lower": 2.9407,
+      "windows": [
+        15.4538,
+        null,
+        null
+      ],
+      "verdict": "NO EVIDENCE"
+    },
+    "SYRUP/USD": {
+      "n": 4,
+      "mean": -0.2406,
+      "median": -1.6862,
+      "win": 0.25,
+      "t": -0.13,
+      "lower": -3.9857,
+      "windows": [
+        -0.2406,
+        null,
+        null
+      ],
+      "verdict": "NO EVIDENCE"
+    },
+    "TAC/USD": {
+      "n": 10,
+      "mean": 0.9325,
+      "median": 0.5489,
+      "win": 0.6,
+      "t": 0.77,
+      "lower": -1.4453,
+      "windows": [
+        null,
+        null,
+        1.0284
+      ],
+      "verdict": "NO EVIDENCE"
+    },
+    "TAO/USD": {
+      "n": 40,
+      "mean": 0.7901,
+      "median": -0.9597,
+      "win": 0.475,
+      "t": 1.31,
+      "lower": -0.391,
+      "windows": [
+        1.4205,
+        1.7788,
+        -1.1829
+      ],
+      "verdict": "THIN"
+    },
+    "TIA/USD": {
+      "n": 40,
+      "mean": -0.8744,
+      "median": -2.2315,
+      "win": 0.325,
+      "t": -1.79,
+      "lower": -1.831,
+      "windows": [
+        -1.1146,
+        -0.63,
+        -0.8918
+      ],
+      "verdict": "THIN"
+    },
+    "TON/USD": {
+      "n": 9,
+      "mean": -0.96,
+      "median": -1.8496,
+      "win": 0.222,
+      "t": -1.86,
+      "lower": -1.9706,
+      "windows": [
+        null,
+        null,
+        -1.0459
+      ],
+      "verdict": "NO EVIDENCE"
+    },
+    "TOSHI/USD": {
+      "n": 20,
+      "mean": -0.391,
+      "median": -0.5743,
+      "win": 0.5,
+      "t": -1.25,
+      "lower": -1.0061,
+      "windows": [
+        -0.5208,
+        -0.3044,
+        null
+      ],
+      "verdict": "THIN"
+    },
+    "TRAC/USD": {
+      "n": 13,
+      "mean": 2.4249,
+      "median": 1.8885,
+      "win": 0.692,
+      "t": 1.85,
+      "lower": -0.1461,
+      "windows": [
+        4.3337,
+        1.8523,
+        null
+      ],
+      "verdict": "NO EVIDENCE"
+    },
+    "TREAD/USD": {
+      "n": 40,
+      "mean": 1.5402,
+      "median": -1.4921,
+      "win": 0.45,
+      "t": 1.42,
+      "lower": -0.5863,
+      "windows": [
+        null,
+        -0.1159,
+        2.5978
+      ],
+      "verdict": "THIN"
+    },
+    "TRUMP/USD": {
+      "n": 67,
+      "mean": -0.647,
+      "median": -1.2155,
+      "win": 0.448,
+      "t": -2.32,
+      "lower": -1.1932,
+      "windows": [
+        -0.2935,
+        0.2361,
+        -1.5432
+      ],
+      "verdict": "THIN"
+    },
+    "TRX/USD": {
+      "n": 3,
+      "mean": -0.1121,
+      "median": 0.7184,
+      "win": 0.667,
+      "t": -0.1,
+      "lower": -2.3139,
+      "windows": [
+        null,
+        null,
+        -0.1121
+      ],
+      "verdict": "NO EVIDENCE"
+    },
+    "UAI/USD": {
+      "n": 98,
+      "mean": -5.0139,
+      "median": -4.466,
+      "win": 0.224,
+      "t": -5.27,
+      "lower": -6.8784,
+      "windows": [
+        -4.3114,
+        -4.935,
+        -6.5821
+      ],
+      "verdict": "THIN"
+    },
+    "UMA/USD": {
+      "n": 5,
+      "mean": 1.2657,
+      "median": 0.4175,
+      "win": 0.6,
+      "t": 0.84,
+      "lower": -1.6994,
+      "windows": [
+        null,
+        1.2657,
+        null
+      ],
+      "verdict": "NO EVIDENCE"
+    },
+    "UNI/USD": {
+      "n": 64,
+      "mean": -0.4835,
+      "median": -1.5823,
+      "win": 0.375,
+      "t": -1.51,
+      "lower": -1.1119,
+      "windows": [
+        -1.3994,
+        -0.8665,
+        1.0689
+      ],
+      "verdict": "THIN"
+    },
+    "UP/USD": {
+      "n": 12,
+      "mean": 2.7266,
+      "median": 0.8883,
+      "win": 0.667,
+      "t": 1.26,
+      "lower": -1.5303,
+      "windows": [
+        null,
+        -0.2245,
+        5.0649
+      ],
+      "verdict": "NO EVIDENCE"
+    },
+    "USELESS/USD": {
+      "n": 66,
+      "mean": 0.9956,
+      "median": 0.7555,
+      "win": 0.545,
+      "t": 1.62,
+      "lower": -0.2102,
+      "windows": [
+        1.8744,
+        -0.065,
+        3.1355
+      ],
+      "verdict": "THIN"
+    },
+    "VELO/USD": {
+      "n": 17,
+      "mean": -0.4775,
+      "median": -1.3119,
+      "win": 0.235,
+      "t": -1.27,
+      "lower": -1.2136,
+      "windows": [
+        null,
+        -0.7235,
+        -0.3168
+      ],
+      "verdict": "THIN"
+    },
+    "VET/USD": {
+      "n": 5,
+      "mean": -2.504,
+      "median": -2.4548,
+      "win": 0.0,
+      "t": -16.68,
+      "lower": -2.7982,
+      "windows": [
+        -2.504,
+        null,
+        null
+      ],
+      "verdict": "NO EVIDENCE"
+    },
+    "VIRTUAL/USD": {
+      "n": 59,
+      "mean": 0.4466,
+      "median": 0.3453,
+      "win": 0.627,
+      "t": 1.28,
+      "lower": -0.2399,
+      "windows": [
+        0.2723,
+        1.0467,
+        -0.2635
+      ],
+      "verdict": "THIN"
+    },
+    "VTHO/USD": {
+      "n": 14,
+      "mean": -0.3462,
+      "median": -1.0153,
+      "win": 0.286,
+      "t": -0.56,
+      "lower": -1.5639,
+      "windows": [
+        null,
+        -0.3462,
+        null
+      ],
+      "verdict": "NO EVIDENCE"
+    },
+    "VVV/USD": {
+      "n": 48,
+      "mean": 0.0893,
+      "median": -0.4216,
+      "win": 0.5,
+      "t": 0.15,
+      "lower": -1.0642,
+      "windows": [
+        4.3729,
+        -0.6467,
+        0.8673
+      ],
+      "verdict": "THIN"
+    },
+    "W/USD": {
+      "n": 57,
+      "mean": -0.2758,
+      "median": -1.6171,
+      "win": 0.333,
+      "t": -0.6,
+      "lower": -1.1777,
+      "windows": [
+        -0.8051,
+        -1.8283,
+        1.5356
+      ],
+      "verdict": "THIN"
+    },
+    "WIF/USD": {
+      "n": 52,
+      "mean": 0.338,
+      "median": 0.0617,
+      "win": 0.519,
+      "t": 0.78,
+      "lower": -0.5086,
+      "windows": [
+        2.979,
+        0.2056,
+        -1.0536
+      ],
+      "verdict": "THIN"
+    },
+    "WLD/USD": {
+      "n": 49,
+      "mean": 0.429,
+      "median": 0.0652,
+      "win": 0.51,
+      "t": 0.94,
+      "lower": -0.4641,
+      "windows": [
+        0.6078,
+        1.7409,
+        -1.2219
+      ],
+      "verdict": "THIN"
+    },
+    "XCN/USD": {
+      "n": 6,
+      "mean": 0.9462,
+      "median": 0.7208,
+      "win": 0.667,
+      "t": 1.36,
+      "lower": -0.4133,
+      "windows": [
+        0.8558,
+        1.3978,
+        null
+      ],
+      "verdict": "NO EVIDENCE"
+    },
+    "XLM/USD": {
+      "n": 16,
+      "mean": 0.6973,
+      "median": -0.1781,
+      "win": 0.438,
+      "t": 0.88,
+      "lower": -0.8489,
+      "windows": [
+        3.2205,
+        -0.4635,
+        -0.3117
+      ],
+      "verdict": "THIN"
+    },
+    "XMR/USD": {
+      "n": 2,
+      "mean": 1.6954,
+      "median": 1.6954,
+      "win": 1.0,
+      "t": 1.96,
+      "lower": -0.0036,
+      "windows": [
+        0.8286,
+        2.5621,
+        null
+      ],
+      "verdict": "NO EVIDENCE"
+    },
+    "XPL/USD": {
+      "n": 51,
+      "mean": -0.8088,
+      "median": -1.9408,
+      "win": 0.333,
+      "t": -1.58,
+      "lower": -1.8119,
+      "windows": [
+        -2.181,
+        -0.412,
+        -0.4355
+      ],
+      "verdict": "THIN"
+    },
+    "XRP/USD": {
+      "n": 24,
+      "mean": -0.2039,
+      "median": -1.2096,
+      "win": 0.333,
+      "t": -0.38,
+      "lower": -1.2539,
+      "windows": [
+        1.1729,
+        -0.5049,
+        -1.2957
+      ],
+      "verdict": "THIN"
+    },
+    "XTZ/USD": {
+      "n": 17,
+      "mean": -0.3476,
+      "median": -1.0852,
+      "win": 0.412,
+      "t": -0.84,
+      "lower": -1.1614,
+      "windows": [
+        null,
+        -0.2776,
+        -0.2938
+      ],
+      "verdict": "THIN"
+    },
+    "ZBCN/USD": {
+      "n": 39,
+      "mean": 0.1543,
+      "median": -1.0588,
+      "win": 0.487,
+      "t": 0.23,
+      "lower": -1.1373,
+      "windows": [
+        null,
+        0.4729,
+        -0.0411
+      ],
+      "verdict": "THIN"
+    },
+    "ZEC/USD": {
+      "n": 58,
+      "mean": 1.1107,
+      "median": 0.3438,
+      "win": 0.534,
+      "t": 1.59,
+      "lower": -0.2617,
+      "windows": [
+        8.9286,
+        1.9431,
+        0.5102
+      ],
+      "verdict": "THIN"
+    },
+    "ZEUS/USD": {
+      "n": 45,
+      "mean": -0.6475,
+      "median": -0.08,
+      "win": 0.467,
+      "t": -0.96,
+      "lower": -1.9724,
+      "windows": [
+        null,
+        0.8168,
+        -1.287
+      ],
+      "verdict": "THIN"
+    },
+    "ZORA/USD": {
+      "n": 3,
+      "mean": -1.7941,
+      "median": -2.3199,
+      "win": 0.0,
+      "t": -2.9,
+      "lower": -3.0068,
+      "windows": [
+        -1.7941,
+        null,
+        null
+      ],
+      "verdict": "NO EVIDENCE"
+    },
+    "ZRO/USD": {
+      "n": 32,
+      "mean": 0.5257,
+      "median": -1.7558,
+      "win": 0.406,
+      "t": 0.7,
+      "lower": -0.9465,
+      "windows": [
+        -0.1987,
+        0.9604,
+        null
+      ],
+      "verdict": "THIN"
+    }
+  },
+  "per_rotation": {
+    "00-04": {
+      "n": 0,
+      "mean": null,
+      "median": null,
+      "win": null,
+      "t": null,
+      "lower": null,
+      "windows": [
+        null,
+        null,
+        null
+      ],
+      "verdict": "MISSING"
+    },
+    "04-08": {
+      "n": 413,
+      "mean": -0.4106,
+      "median": -1.513,
+      "win": 0.361,
+      "t": -1.6,
+      "lower": -0.9127,
+      "windows": [
+        -0.4094,
+        0.7259,
+        -0.9575
+      ],
+      "verdict": "THIN"
+    },
+    "08-12": {
+      "n": 1717,
+      "mean": -0.2631,
+      "median": -1.3229,
+      "win": 0.423,
+      "t": -2.14,
+      "lower": -0.5044,
+      "windows": [
+        0.3983,
+        -0.1986,
+        -0.3604
+      ],
+      "verdict": "THIN"
+    },
+    "12-16": {
+      "n": 1855,
+      "mean": 0.2501,
+      "median": -0.0168,
+      "win": 0.498,
+      "t": 2.22,
+      "lower": 0.0292,
+      "windows": [
+        0.3229,
+        1.0191,
+        -0.8404
+      ],
+      "verdict": "THIN"
+    },
+    "16-20": {
+      "n": 885,
+      "mean": 0.4688,
+      "median": 0.0443,
+      "win": 0.506,
+      "t": 3.03,
+      "lower": 0.1656,
+      "windows": [
+        1.2246,
+        0.2773,
+        -0.2346
+      ],
+      "verdict": "THIN"
+    },
+    "20-24": {
+      "n": 0,
+      "mean": null,
+      "median": null,
+      "win": null,
+      "t": null,
+      "lower": null,
+      "windows": [
+        null,
+        null,
+        null
+      ],
+      "verdict": "MISSING"
+    }
+  },
+  "per_rotation_hour_any": {
+    "00-04": {
+      "n": 1488,
+      "mean": -0.1997,
+      "median": -1.2654,
+      "win": 0.421,
+      "t": -1.38,
+      "lower": -0.4836,
+      "windows": [
+        -0.624,
+        0.2263,
+        -0.3121
+      ],
+      "verdict": "THIN"
+    },
+    "04-08": {
+      "n": 1403,
+      "mean": -0.2416,
+      "median": -1.5325,
+      "win": 0.36,
+      "t": -1.3,
+      "lower": -0.6048,
+      "windows": [
+        -0.2734,
+        0.1339,
+        -0.2589
+      ],
+      "verdict": "THIN"
+    },
+    "08-12": {
+      "n": 1717,
+      "mean": -0.2631,
+      "median": -1.3229,
+      "win": 0.423,
+      "t": -2.14,
+      "lower": -0.5044,
+      "windows": [
+        0.3983,
+        -0.1986,
+        -0.3604
+      ],
+      "verdict": "THIN"
+    },
+    "12-16": {
+      "n": 1855,
+      "mean": 0.2501,
+      "median": -0.0168,
+      "win": 0.498,
+      "t": 2.22,
+      "lower": 0.0292,
+      "windows": [
+        0.3229,
+        1.0191,
+        -0.8404
+      ],
+      "verdict": "THIN"
+    },
+    "16-20": {
+      "n": 1886,
+      "mean": 0.6033,
+      "median": 0.2592,
+      "win": 0.539,
+      "t": 3.37,
+      "lower": 0.2528,
+      "windows": [
+        1.1301,
+        0.5579,
+        0.2851
+      ],
+      "verdict": "EDGE"
+    },
+    "20-24": {
+      "n": 1774,
+      "mean": 0.2223,
+      "median": -1.2718,
+      "win": 0.457,
+      "t": 1.32,
+      "lower": -0.1085,
+      "windows": [
+        0.0972,
+        -0.0132,
+        0.5617
+      ],
+      "verdict": "THIN"
+    }
+  },
+  "hour_gate_removed": {
+    "selected": 10123,
+    "chain": {
+      "tag": "hour gate ANY (all rotations)",
+      "trades": 98,
+      "final": 9574.98,
+      "passes": 0,
+      "died": true,
+      "w3_return_pct": -3.296,
+      "w3_trades": 23,
+      "windows": [
+        {
+          "window": "2026-08-17 -> 2026-09-18",
+          "trades": 41,
+          "return_pct": 0.615
+        },
+        {
+          "window": "2026-09-18 -> 2026-10-19",
+          "trades": 34,
+          "return_pct": -1.591
+        },
+        {
+          "window": "2026-10-19 -> 2026-11-10",
+          "trades": 23,
+          "return_pct": -3.296
+        }
+      ]
+    }
+  },
+  "w12_selection": {
+    "coin_allowed": [
+      "AAVE/USD",
+      "ADA/USD",
+      "AKE/USD",
+      "ALGO/USD",
+      "APE/USD",
+      "APT/USD",
+      "ARB/USD",
+      "AVA/USD",
+      "AVAX/USD",
+      "CRV/USD",
+      "CVX/USD",
+      "DOGE/USD",
+      "DOT/USD",
+      "DRV/USD",
+      "EIGEN/USD",
+      "ENA/USD",
+      "ETC/USD",
+      "ETHFI/USD",
+      "FARTCOIN/USD",
+      "FLUX/USD",
+      "FOLD/USD",
+      "FUN/USD",
+      "GRASS/USD",
+      "GWEI/USD",
+      "INJ/USD",
+      "JTO/USD",
+      "JUP/USD",
+      "KAITO/USD",
+      "KTA/USD",
+      "LDO/USD",
+      "LSK/USD",
+      "NEAR/USD",
+      "NIL/USD",
+      "NOS/USD",
+      "ONDO/USD",
+      "PENGU/USD",
+      "POL/USD",
+      "PONS/USD",
+      "POPCAT/USD",
+      "PYTH/USD",
+      "QNT/USD",
+      "RAY/USD",
+      "S/USD",
+      "SHX/USD",
+      "SUI/USD",
+      "TAO/USD",
+      "USELESS/USD",
+      "VIRTUAL/USD",
+      "WIF/USD",
+      "WLD/USD",
+      "XLM/USD",
+      "ZBCN/USD",
+      "ZEC/USD",
+      "ZRO/USD"
+    ],
+    "coin_rejected": [
+      "APR/USD",
+      "ATH/USD",
+      "ATOM/USD",
+      "AXS/USD",
+      "BCH/USD",
+      "DEEP/USD",
+      "DOG/USD",
+      "ESPORTS/USD",
+      "FIL/USD",
+      "HNT/USD",
+      "HYPE/USD",
+      "LIGHTER/USD",
+      "LINK/USD",
+      "MEGA/USD",
+      "MOODENG/USD",
+      "OP/USD",
+      "ORCA/USD",
+      "PNUT/USD",
+      "POND/USD",
+      "PUMP/USD",
+      "RENDER/USD",
+      "RLC/USD",
+      "RUNE/USD",
+      "SKR/USD",
+      "SPX/USD",
+      "STX/USD",
+      "TIA/USD",
+      "TOSHI/USD",
+      "TRUMP/USD",
+      "UAI/USD",
+      "UNI/USD",
+      "VVV/USD",
+      "W/USD",
+      "XPL/USD"
+    ],
+    "coins_with_w12_evidence": 180,
+    "rotation_allowed": [
+      "04-08",
+      "12-16",
+      "16-20"
+    ],
+    "rotation_rejected": [
+      "08-12"
+    ],
+    "rotation_w12": {
+      "04-08": {
+        "n": 215,
+        "mean": 0.2718,
+        "median": -1.329,
+        "win": 0.419,
+        "t": 0.81,
+        "lower": -0.3848
+      },
+      "08-12": {
+        "n": 987,
+        "mean": -0.0105,
+        "median": -1.3039,
+        "win": 0.427,
+        "t": -0.07,
+        "lower": -0.3153
+      },
+      "12-16": {
+        "n": 1162,
+        "mean": 0.8735,
+        "median": 0.3317,
+        "win": 0.552,
+        "t": 6.34,
+        "lower": 0.6034
+      },
+      "16-20": {
+        "n": 628,
+        "mean": 0.582,
+        "median": 0.0036,
+        "win": 0.5,
+        "t": 3.11,
+        "lower": 0.2157
+      }
+    }
+  },
+  "chains": [
+    {
+      "tag": "ALL cells (the shipped claim)",
+      "trades": 132,
+      "final": 10335.78,
+      "passes": 3,
+      "died": false,
+      "w3_return_pct": 0.923,
+      "w3_trades": 36,
+      "windows": [
+        {
+          "window": "2026-08-17 -> 2026-09-18",
+          "trades": 35,
+          "return_pct": 0.723
+        },
+        {
+          "window": "2026-09-18 -> 2026-10-19",
+          "trades": 61,
+          "return_pct": 1.677
+        },
+        {
+          "window": "2026-10-19 -> 2026-11-10",
+          "trades": 36,
+          "return_pct": 0.923
+        }
+      ]
+    },
+    {
+      "tag": "coins allowed on w1-2 (n=54)",
+      "trades": 98,
+      "final": 9888.91,
+      "passes": 2,
+      "died": true,
+      "w3_return_pct": -3.453,
+      "w3_trades": 19,
+      "windows": [
+        {
+          "window": "2026-08-17 -> 2026-09-18",
+          "trades": 23,
+          "return_pct": 1.336
+        },
+        {
+          "window": "2026-09-18 -> 2026-10-19",
+          "trades": 56,
+          "return_pct": 1.075
+        },
+        {
+          "window": "2026-10-19 -> 2026-11-10",
+          "trades": 19,
+          "return_pct": -3.453
+        }
+      ]
+    },
+    {
+      "tag": "coins REJECTED on w1-2 (n=34)",
+      "trades": 97,
+      "final": 9400.27,
+      "passes": 0,
+      "died": true,
+      "w3_return_pct": -2.266,
+      "w3_trades": 37,
+      "windows": [
+        {
+          "window": "2026-08-17 -> 2026-09-18",
+          "trades": 25,
+          "return_pct": -0.303
+        },
+        {
+          "window": "2026-09-18 -> 2026-10-19",
+          "trades": 35,
+          "return_pct": -3.525
+        },
+        {
+          "window": "2026-10-19 -> 2026-11-10",
+          "trades": 37,
+          "return_pct": -2.266
+        }
+      ]
+    },
+    {
+      "tag": "rotations allowed on w1-2 (['04-08', '12-16', '16-20'])",
+      "trades": 71,
+      "final": 9606.72,
+      "passes": 1,
+      "died": true,
+      "w3_return_pct": -0.739,
+      "w3_trades": 34,
+      "windows": [
+        {
+          "window": "2026-08-17 -> 2026-09-18",
+          "trades": 20,
+          "return_pct": 0.412
+        },
+        {
+          "window": "2026-09-18 -> 2026-10-19",
+          "trades": 17,
+          "return_pct": -3.615
+        },
+        {
+          "window": "2026-10-19 -> 2026-11-10",
+          "trades": 34,
+          "return_pct": -0.739
+        }
+      ]
+    },
+    {
+      "tag": "rotations rejected on w1-2 (['08-12'])",
+      "trades": 83,
+      "final": 9896.29,
+      "passes": 0,
+      "died": false,
+      "w3_return_pct": -0.365,
+      "w3_trades": 29,
+      "windows": [
+        {
+          "window": "2026-08-17 -> 2026-09-18",
+          "trades": 21,
+          "return_pct": -0.117
+        },
+        {
+          "window": "2026-09-18 -> 2026-10-19",
+          "trades": 33,
+          "return_pct": -0.558
+        },
+        {
+          "window": "2026-10-19 -> 2026-11-10",
+          "trades": 29,
+          "return_pct": -0.365
+        }
+      ]
+    }
+  ],
+  "coin_quality": {
+    "AVA/USD": {
+      "n": 31,
+      "drop_best_trade_mean": 1.93,
+      "top3_trades": [
+        {
+          "ts": "2026-09-16 15:00",
+          "net_pct": 29.37,
+          "dollar_vol_that_hour": 83.0
+        },
+        {
+          "ts": "2026-10-13 13:00",
+          "net_pct": 25.54,
+          "dollar_vol_that_hour": 1853.0
+        },
+        {
+          "ts": "2026-10-26 19:00",
+          "net_pct": 11.96,
+          "dollar_vol_that_hour": 794.0
+        }
+      ],
+      "trades": [
+        {
+          "ts": "2026-09-04 14:00",
+          "net": 2.11
+        },
+        {
+          "ts": "2026-09-04 15:00",
+          "net": 1.55
+        },
+        {
+          "ts": "2026-09-04 17:00",
+          "net": 1.87
+        },
+        {
+          "ts": "2026-09-04 20:00",
+          "net": -4.38
+        },
+        {
+          "ts": "2026-09-06 18:00",
+          "net": 0.24
+        },
+        {
+          "ts": "2026-09-06 20:00",
+          "net": 0.37
+        },
+        {
+          "ts": "2026-09-07 13:00",
+          "net": -1.58
+        },
+        {
+          "ts": "2026-09-07 16:00",
+          "net": 4.04
+        },
+        {
+          "ts": "2026-09-10 15:00",
+          "net": -1.63
+        },
+        {
+          "ts": "2026-09-10 16:00",
+          "net": -1.64
+        },
+        {
+          "ts": "2026-09-10 20:00",
+          "net": 0.19
+        },
+        {
+          "ts": "2026-09-10 22:00",
+          "net": -1.34
+        },
+        {
+          "ts": "2026-09-15 22:00",
+          "net": -0.21
+        },
+        {
+          "ts": "2026-09-16 15:00",
+          "net": 29.37
+        },
+        {
+          "ts": "2026-09-28 17:00",
+          "net": 3.25
+        },
+        {
+          "ts": "2026-10-05 21:00",
+          "net": -1.02
+        },
+        {
+          "ts": "2026-10-06 16:00",
+          "net": -0.51
+        },
+        {
+          "ts": "2026-10-06 19:00",
+          "net": -0.51
+        },
+        {
+          "ts": "2026-10-06 21:00",
+          "net": -0.38
+        },
+        {
+          "ts": "2026-10-06 22:00",
+          "net": -0.12
+        },
+        {
+          "ts": "2026-10-07 15:00",
+          "net": 1.33
+        },
+        {
+          "ts": "2026-10-13 13:00",
+          "net": 25.54
+        },
+        {
+          "ts": "2026-10-26 19:00",
+          "net": 11.96
+        },
+        {
+          "ts": "2026-10-26 22:00",
+          "net": 10.67
+        },
+        {
+          "ts": "2026-10-26 23:00",
+          "net": 7.35
+        },
+        {
+          "ts": "2026-10-28 15:00",
+          "net": 0.99
+        },
+        {
+          "ts": "2026-10-28 18:00",
+          "net": -2.44
+        },
+        {
+          "ts": "2026-10-28 20:00",
+          "net": -3.27
+        },
+        {
+          "ts": "2026-10-28 22:00",
+          "net": 1.3
+        },
+        {
+          "ts": "2026-10-28 23:00",
+          "net": 2.1
+        },
+        {
+          "ts": "2026-10-31 14:00",
+          "net": 2.05
+        }
+      ],
+      "first_trade": "2026-09-04",
+      "last_trade": "2026-10-31",
+      "trades_by_month": {
+        "2026-09": 15,
+        "2026-10": 16
+      },
+      "per_window": [
+        {
+          "n": 14,
+          "mean": 2.07,
+          "min": -4.38,
+          "max": 29.37
+        },
+        {
+          "n": 8,
+          "mean": 3.45,
+          "min": -1.02,
+          "max": 25.54
+        },
+        {
+          "n": 9,
+          "mean": 3.41,
+          "min": -3.27,
+          "max": 11.96
+        }
+      ],
+      "candles": 1677,
+      "tape_start": "2026-08-24",
+      "tape_end": "2026-11-02",
+      "stale_days_vs_tape": 14.2,
+      "dollar_vol_median_1h": 966.0,
+      "dollar_vol_median_on_trades": 1230.0,
+      "clip_share_of_hourly_vol": 0.488,
+      "zero_volume_hours_pct": 12.3,
+      "round_trip_pct_measured": 0.08,
+      "round_trip_pct_charged": 0.08
+    },
+    "INJ/USD": {
+      "n": 40,
+      "drop_best_trade_mean": 1.194,
+      "top3_trades": [
+        {
+          "ts": "2026-09-15 23:00",
+          "net_pct": 22.66,
+          "dollar_vol_that_hour": 746017.0
+        },
+        {
+          "ts": "2026-10-15 14:00",
+          "net_pct": 14.62,
+          "dollar_vol_that_hour": 64440.0
+        },
+        {
+          "ts": "2026-10-18 21:00",
+          "net_pct": 8.59,
+          "dollar_vol_that_hour": 138857.0
+        }
+      ],
+      "trades": [
+        {
+          "ts": "2026-09-04 15:00",
+          "net": 0.17
+        },
+        {
+          "ts": "2026-09-04 16:00",
+          "net": 2.83
+        },
+        {
+          "ts": "2026-09-04 17:00",
+          "net": 2.4
+        },
+        {
+          "ts": "2026-09-04 19:00",
+          "net": 2.3
+        },
+        {
+          "ts": "2026-09-15 15:00",
+          "net": -2.6
+        },
+        {
+          "ts": "2026-09-15 17:00",
+          "net": -2.93
+        },
+        {
+          "ts": "2026-09-15 22:00",
+          "net": 0.01
+        },
+        {
+          "ts": "2026-09-15 23:00",
+          "net": 22.66
+        },
+        {
+          "ts": "2026-09-16 16:00",
+          "net": 0.06
+        },
+        {
+          "ts": "2026-09-16 17:00",
+          "net": 0.01
+        },
+        {
+          "ts": "2026-09-26 19:00",
+          "net": -1.94
+        },
+        {
+          "ts": "2026-09-26 23:00",
+          "net": 1.05
+        },
+        {
+          "ts": "2026-09-28 16:00",
+          "net": 2.92
+        },
+        {
+          "ts": "2026-09-28 17:00",
+          "net": 3.1
+        },
+        {
+          "ts": "2026-09-28 18:00",
+          "net": 2.72
+        },
+        {
+          "ts": "2026-09-28 20:00",
+          "net": 3.09
+        },
+        {
+          "ts": "2026-09-28 22:00",
+          "net": 0.28
+        },
+        {
+          "ts": "2026-09-30 20:00",
+          "net": 2.94
+        },
+        {
+          "ts": "2026-10-07 13:00",
+          "net": -3.35
+        },
+        {
+          "ts": "2026-10-07 22:00",
+          "net": -2.55
+        },
+        {
+          "ts": "2026-10-08 16:00",
+          "net": -3.2
+        },
+        {
+          "ts": "2026-10-08 18:00",
+          "net": 5.67
+        },
+        {
+          "ts": "2026-10-08 19:00",
+          "net": 3.99
+        },
+        {
+          "ts": "2026-10-08 20:00",
+          "net": 2.64
+        },
+        {
+          "ts": "2026-10-08 23:00",
+          "net": 1.66
+        },
+        {
+          "ts": "2026-10-15 14:00",
+          "net": 14.62
+        },
+        {
+          "ts": "2026-10-18 21:00",
+          "net": 8.59
+        },
+        {
+          "ts": "2026-10-22 13:00",
+          "net": -2.32
+        },
+        {
+          "ts": "2026-10-22 16:00",
+          "net": 2.26
+        },
+        {
+          "ts": "2026-10-22 23:00",
+          "net": 3.24
+        },
+        {
+          "ts": "2026-10-30 19:00",
+          "net": 3.49
+        },
+        {
+          "ts": "2026-10-30 20:00",
+          "net": 3.03
+        },
+        {
+          "ts": "2026-11-01 16:00",
+          "net": -1.58
+        },
+        {
+          "ts": "2026-11-10 16:00",
+          "net": 2.69
+        },
+        {
+          "ts": "2026-11-10 18:00",
+          "net": 1.46
+        },
+        {
+          "ts": "2026-11-12 18:00",
+          "net": -2.44
+        },
+        {
+          "ts": "2026-11-12 19:00",
+          "net": -2.38
+        },
+        {
+          "ts": "2026-11-14 15:00",
+          "net": -2.83
+        },
+        {
+          "ts": "2026-11-14 17:00",
+          "net": -3.91
+        },
+        {
+          "ts": "2026-11-16 13:00",
+          "net": 1.38
+        }
+      ],
+      "first_trade": "2026-09-04",
+      "last_trade": "2026-11-16",
+      "trades_by_month": {
+        "2026-09": 18,
+        "2026-10": 14,
+        "2026-11": 8
+      },
+      "per_window": [
+        {
+          "n": 10,
+          "mean": 2.49,
+          "min": -2.93,
+          "max": 22.66
+        },
+        {
+          "n": 17,
+          "mean": 2.48,
+          "min": -3.35,
+          "max": 14.62
+        },
+        {
+          "n": 6,
+          "mean": 1.35,
+          "min": -2.32,
+          "max": 3.49
+        }
+      ],
+      "candles": 2017,
+      "tape_start": "2026-08-24",
+      "tape_end": "2026-11-16",
+      "stale_days_vs_tape": 0.0,
+      "dollar_vol_median_1h": 32334.0,
+      "dollar_vol_median_on_trades": 49011.0,
+      "clip_share_of_hourly_vol": 0.012,
+      "zero_volume_hours_pct": 1.0,
+      "round_trip_pct_measured": 0.043805,
+      "round_trip_pct_charged": 0.08
+    },
+    "ETC/USD": {
+      "n": 31,
+      "drop_best_trade_mean": 1.283,
+      "top3_trades": [
+        {
+          "ts": "2026-09-15 22:00",
+          "net_pct": 7.55,
+          "dollar_vol_that_hour": 372.0
+        },
+        {
+          "ts": "2026-10-08 18:00",
+          "net_pct": 5.79,
+          "dollar_vol_that_hour": 1037.0
+        },
+        {
+          "ts": "2026-09-04 15:00",
+          "net_pct": 4.51,
+          "dollar_vol_that_hour": 868.0
+        }
+      ],
+      "trades": [
+        {
+          "ts": "2026-09-04 15:00",
+          "net": 4.51
+        },
+        {
+          "ts": "2026-09-10 17:00",
+          "net": -1.72
+        },
+        {
+          "ts": "2026-09-15 22:00",
+          "net": 7.55
+        },
+        {
+          "ts": "2026-10-07 13:00",
+          "net": -1.44
+        },
+        {
+          "ts": "2026-10-07 15:00",
+          "net": 2.05
+        },
+        {
+          "ts": "2026-10-07 16:00",
+          "net": 1.13
+        },
+        {
+          "ts": "2026-10-07 18:00",
+          "net": 1.34
+        },
+        {
+          "ts": "2026-10-07 20:00",
+          "net": 0.73
+        },
+        {
+          "ts": "2026-10-08 16:00",
+          "net": -1.95
+        },
+        {
+          "ts": "2026-10-08 18:00",
+          "net": 5.79
+        },
+        {
+          "ts": "2026-10-08 20:00",
+          "net": 3.46
+        },
+        {
+          "ts": "2026-10-08 21:00",
+          "net": 3.48
+        },
+        {
+          "ts": "2026-10-08 22:00",
+          "net": 3.56
+        },
+        {
+          "ts": "2026-10-08 23:00",
+          "net": 2.88
+        },
+        {
+          "ts": "2026-10-15 13:00",
+          "net": 3.74
+        },
+        {
+          "ts": "2026-10-18 20:00",
+          "net": 3.52
+        },
+        {
+          "ts": "2026-10-18 21:00",
+          "net": 3.23
+        },
+        {
+          "ts": "2026-10-22 15:00",
+          "net": -1.0
+        },
+        {
+          "ts": "2026-10-22 17:00",
+          "net": 1.95
+        },
+        {
+          "ts": "2026-10-22 18:00",
+          "net": 2.19
+        },
+        {
+          "ts": "2026-10-22 19:00",
+          "net": 2.04
+        },
+        {
+          "ts": "2026-10-22 21:00",
+          "net": 1.86
+        },
+        {
+          "ts": "2026-10-22 23:00",
+          "net": 1.78
+        },
+        {
+          "ts": "2026-10-24 16:00",
+          "net": 1.42
+        },
+        {
+          "ts": "2026-10-24 17:00",
+          "net": 1.19
+        },
+        {
+          "ts": "2026-10-29 21:00",
+          "net": -1.97
+        },
+        {
+          "ts": "2026-10-29 22:00",
+          "net": -2.02
+        },
+        {
+          "ts": "2026-10-30 19:00",
+          "net": 0.04
+        },
+        {
+          "ts": "2026-11-05 16:00",
+          "net": -1.79
+        },
+        {
+          "ts": "2026-11-05 18:00",
+          "net": -0.02
+        },
+        {
+          "ts": "2026-11-14 17:00",
+          "net": -1.49
+        }
+      ],
+      "first_trade": "2026-09-04",
+      "last_trade": "2026-11-14",
+      "trades_by_month": {
+        "2026-09": 3,
+        "2026-10": 25,
+        "2026-11": 3
+      },
+      "per_window": [
+        {
+          "n": 3,
+          "mean": 3.44,
+          "min": -1.72,
+          "max": 7.55
+        },
+        {
+          "n": 14,
+          "mean": 2.25,
+          "min": -1.95,
+          "max": 5.79
+        },
+        {
+          "n": 13,
+          "mean": 0.44,
+          "min": -2.02,
+          "max": 2.19
+        }
+      ],
+      "candles": 2017,
+      "tape_start": "2026-08-24",
+      "tape_end": "2026-11-16",
+      "stale_days_vs_tape": 0.0,
+      "dollar_vol_median_1h": 976.0,
+      "dollar_vol_median_on_trades": 2433.0,
+      "clip_share_of_hourly_vol": 0.247,
+      "zero_volume_hours_pct": 11.7,
+      "round_trip_pct_measured": 0.100217,
+      "round_trip_pct_charged": 0.08
+    }
+  },
+  "permutation_test": {
+    "statistic": "window-3 chain return pct",
+    "n_perm": 2000,
+    "real_allow_list_w3_pct": -3.453,
+    "all_cells_w3_pct": 0.923,
+    "null_mean_pct": -2.5148,
+    "null_median_pct": -3.039,
+    "null_p10_pct": -3.409,
+    "null_p90_pct": -0.956,
+    "frac_null_beats_all_cells": 0.047,
+    "frac_null_at_or_worse_than_real": 0.084,
+    "real_allow_size": 54,
+    "null_allow_size_median": 60,
+    "seed": 20261116,
+    "coin_draw_null": {
+      "AVA/USD": {
+        "n": 31,
+        "mean": 2.815,
+        "fallback_pool_mean": 0.053,
+        "frac_blind_draws_at_least_as_good": 0.003,
+        "draw_mean": 0.056,
+        "draw_p95": 1.579
+      },
+      "INJ/USD": {
+        "n": 40,
+        "mean": 1.73,
+        "fallback_pool_mean": 0.053,
+        "frac_blind_draws_at_least_as_good": 0.021,
+        "draw_mean": 0.048,
+        "draw_p95": 1.398
+      },
+      "ETC/USD": {
+        "n": 31,
+        "mean": 1.485,
+        "fallback_pool_mean": 0.053,
+        "frac_blind_draws_at_least_as_good": 0.055,
+        "draw_mean": 0.058,
+        "draw_p95": 1.549
+      }
+    }
+  }
+}

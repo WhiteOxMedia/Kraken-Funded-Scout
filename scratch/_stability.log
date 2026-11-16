@@ -1,0 +1,15 @@
+rows=118243 promoted=6 draws=40
+  L.dip.risk_off.breakeven.6.any.us              stability 34/64
+  L.dip.risk_off.breakeven.9.any.us              stability 24/64
+  L.dip.risk_off.fixed.6.any.us                  stability 30/64
+  L.dip.risk_off.fixed.9.any.us                  stability 31/64
+  L.range_reclaim.trend.fixed.6.any.us           stability 43/64
+  L.range_reclaim.trend.fixed.9.any.us           stability 36/64
+
+rank policy                                           stab   gate  window  order    fee   base  worst-w
+   1 L.range_reclaim.trend.fixed.6.any.us              67%    20%    100%    57%   100% 3/3    +0.71
+   2 L.range_reclaim.trend.fixed.9.any.us              56%    20%    100%    40%   100% 3/3    +1.04
+   3 L.dip.risk_off.breakeven.6.any.us                 52%    20%     36%    57%   100% 3/3    +0.80
+   4 L.dip.risk_off.fixed.9.any.us                     48%    20%     43%    48%   100% 3/3    +0.68
+   5 L.dip.risk_off.fixed.6.any.us                     46%    20%     43%    45%   100% 3/3    +0.47
+   6 L.dip.risk_off.breakeven.9.any.us                 37%     0%     36%    35%   100% 3/3    +1.19
