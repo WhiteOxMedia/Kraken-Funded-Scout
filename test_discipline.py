@@ -668,30 +668,65 @@ check("6t a giveback-dominant LOSING rotation still hears the mandate's "
 
 lines.append(f"\nRESULT: {PASS} passed, {FAIL} failed")
 # ── 3b. LEFT ON THE TABLE NETS BOTH SIDES OF THE VETO COHORT ─────────
-class CloseExchange:
-    """Candles with real closes, so the dud counterfactual can be priced."""
+class BarExchange:
+    """OHLC candles: rows of (ts, open, high, low, close)."""
     def __init__(self, rows):
-        self.rows = rows          # list of (ts, close)
+        self.rows = rows
     def fetch_ohlcv(self, pair, timeframe="1h", since=None, limit=12):
-        return [[int(ts.timestamp() * 1000), 1, 1, 1, close, 100]
-                for ts, close in self.rows]
+        return [[int(ts.timestamp() * 1000), o, h, l, c, 100]
+                for ts, o, h, l, c in self.rows]
 
 _alert = datetime(2026, 11, 15, 10, 30, tzinfo=MST)
 _end = datetime(2026, 11, 15, 12, 0, tzinfo=MST)
-_fall = CloseExchange([(datetime(2026, 11, 15, 10, tzinfo=MST), 1.00),
-                       (datetime(2026, 11, 15, 11, tzinfo=MST), 0.97)])
-_rise = CloseExchange([(datetime(2026, 11, 15, 10, tzinfo=MST), 1.00),
-                       (datetime(2026, 11, 15, 11, tzinfo=MST), 1.01)])
+_H = lambda h, m: datetime(2026, 11, 15, h, m, tzinfo=MST)
+
+# entry candle closes 1.00; the next hour falls to 0.96 -> the SHIPPED hard stop
+# (2.5%) takes it at 0.975, so the dud books -2.58% instead of the -4.08% hold.
+_fall = BarExchange([(_H(10, 0), 1.0, 1.0, 1.0, 1.00),
+                     (_H(11, 0), 1.0, 1.0, 0.960, 0.96)])
+_walk = dc._dud_exit(_fall, "T/USD", _alert, _end, 1.5)
+check("a buried dud is priced on the shipped hard stop, not at the window close",
+      _walk is not None and _walk["reason"] == "hard stop", _walk)
+check("the hard stop caps the dud at -2.5% minus the round trip",
+      abs(_walk["pct"] - (-2.5 - 0.08)) < 0.02, _walk["pct"])
 _dud_loss = dc._dud_counterfactual(_fall, "T/USD", _alert, _end, 1000.0)
-check("a buried dud is priced at its own measured loss, not at zero",
-      _dud_loss is not None and -100.0 < _dud_loss < 0, _dud_loss)
-check("the dud price subtracts a round trip on top of the move",
-      _dud_loss is not None and _dud_loss < -30.0, _dud_loss)
+check("the dud price is that pct of the size (still a real loss, never zero)",
+      abs(_dud_loss - (-25.80)) < 0.5, _dud_loss)
+check("the hold-to-close loss is worse than the stop the machine ships",
+      _dud_loss > 1000.0 * ((0.96 / 1.00 - 1.0) * 100.0 - 0.08) / 100.0, _dud_loss)
+
+# a bar that reaches the goal without dipping under the armed net -> BANK
+goal_bar = BarExchange([(_H(10, 0), 1.0, 1.0, 1.0, 1.00),
+                        (_H(11, 0), 1.0, 1.020, 1.012, 1.018)])
+_g = dc._dud_exit(goal_bar, "T/USD", _alert, _end, 1.5)
+check("a dud that reaches the goal is booked at the goal, not the peak",
+      _g["reason"] == "goal bank" and abs(_g["pct"] - (1.5 - 0.08)) < 0.02, _g)
+
+# the armed trail: arms at half the goal, then the turn is taken at the net
+turn = BarExchange([(_H(10, 0), 1.0, 1.0, 1.0, 1.00),
+                    (_H(11, 0), 1.02, 1.030, 1.010, 1.012)])
+_t = dc._dud_exit(turn, "T/USD", _alert, _end, 1.5)
+check("a dud that ran and turned is booked on the armed trail",
+      _t["reason"] == "armed trail", _t)
+check("the armed trail exit keeps the locked gain (above entry + costs)",
+      _t["pct"] > 0.5, _t["pct"])
+check("the trail net is better than the window close for the same bar",
+      _t["pct"] > ((1.012 / 1.00 - 1.0) * 100.0 - 0.08), _t["pct"])
+
+_rise = BarExchange([(_H(10, 0), 1.0, 1.0, 1.0, 1.00),
+                     (_H(11, 0), 1.0, 1.010, 1.004, 1.010)])
 _dud_gain = dc._dud_counterfactual(_rise, "T/USD", _alert, _end, 1000.0)
 check("a dud that ROSE is booked as a gain (both sides, both directions)",
       _dud_gain is not None and 0 < _dud_gain < 10.0, _dud_gain)
 check("an unreadable dud is unpriced, never zero",
       dc._dud_counterfactual(BrokenExchange(), "T/USD", _alert, _end, 1000.0) is None)
+check("the exit ratchet matches the scanner's 3/2/1.5 widths",
+      (dc._dud_trail_pct(1.0, 1.005), dc._dud_trail_pct(1.0, 1.015),
+       dc._dud_trail_pct(1.0, 1.03)) == (3.0, 2.0, 1.5),
+      (dc._dud_trail_pct(1.0, 1.005), dc._dud_trail_pct(1.0, 1.015)))
+check("discipline keeps its own copy of the exit constants",
+      (dc.DUD_HARD_STOP_PCT, dc.DUD_GOAL_ARM_FRAC) == (2.5, 0.5),
+      (dc.DUD_HARD_STOP_PCT, dc.DUD_GOAL_ARM_FRAC))
 
 _net, _acct = dc._burial_net(
     [{"pair": "A", "usd": 100.0}, {"pair": "B", "usd": 50.0}],
@@ -706,6 +741,9 @@ check("all-unpriced duds leave the net at gross and say so", _g2 == 200.0
       and _a2["unpriced_duds"] == 2 and _a2["duds_priced"] == 0)
 _g3, _a3 = dc._burial_net([], [{"usd": -12.0}])
 check("a dud-only cohort nets negative", _g3 == -12.0 and _a3["payers"] == 0)
+check("the caveat names the shipped exit stack, not a window hold",
+      "SHIPPED exit stack" in _a3["caveat"] and "goal bank" in _a3["caveat"],
+      _a3["caveat"])
 
 scratch_space.report_temp('_discipline_check.txt').write_text("\n".join(lines), encoding="utf-8")
 

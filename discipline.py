@@ -923,23 +923,49 @@ def _coin_paid(exchange, pair: str, entry: float, goal_pct: float,
 
 
 DUD_TOLL_FALLBACK_PCT = 0.08     # round trip, the same basis as BREAKOUT_STUDY
+# ── THE SHIPPED EXIT (Nov 16) ────────────────────────────────────────────
+# The regrade (_veto_exit_regrade.py) showed the exit stack is what banks the
+# money: on the veto cohort it is worth about +0.4 pts/trade on the live rows
+# against a plain hold, and it caps the tail (-4.66% held vs -2.58% shipped).
+# A dud counterfactual priced at the window close was therefore pricing a trade
+# the machine never takes. These three constants mirror the scanner's own
+# numbers (background_scanner.HARD_STOP_MAX_PCT, GOAL_TRAIL_ARM_FRAC and the
+# CONTEST_TRAIL_PCT ratchet family); they are deliberately NOT imported, so the
+# ledger keeps its own copy and a scanner edit cannot silently reprice history.
+DUD_HARD_STOP_PCT = 2.5          # the hard stop on a healthy book
+DUD_GOAL_ARM_FRAC = 0.5          # the trail arms at half the goal
+DUD_GOAL_FALLBACK_PCT = 1.5      # _rotation_goal_pct's own default
 
 
-def _dud_counterfactual(exchange, pair: str, when: datetime, window_end: datetime,
-                        size_usd: float):
-    """What a buried DUD would have returned had it been taken.
+def _dud_trail_pct(entry: float, peak: float) -> float:
+    """The live ratchet: 3.0% base, 2.0% once the peak reached +1%, 1.5% at
+    +2% (background_scanner._ratchet_trail_pct, same thresholds)."""
+    peak_pct = (peak / entry - 1.0) * 100.0
+    if peak_pct >= 2.0:
+        return 1.5
+    if peak_pct >= 1.0:
+        return 2.0
+    return 3.0
 
-    The ledger used to count only the buried candidates that paid, so 'left on
-    the table' was the sum of the winners of a cohort and said nothing about the
-    losers beside them. This prices the other side on the same 1h candles the
-    coin test reads: entry at the burial close, exit at the last close still
-    inside the window, net of the pair's measured round trip (or the study's
-    0.08% where the table has no row).
 
-    Returns None when the candles cannot be read. An unmeasurable dud is
-    COUNTED and reported as unpriced, never priced at zero - a zero would
-    quietly flatter the net toward the old one-sided number.
+def _dud_exit(exchange, pair: str, when: datetime, window_end: datetime,
+              goal_pct: float | None = None) -> dict | None:
+    """Walk the window under the SHIPPED exit stack: (pct, reason, bars).
+
+    Three ways out, in the order the scanner judges them inside one candle
+    (stop first - the conservative ordering, so a bar that spikes and sinks
+    cannot be booked as a bank):
+
+      hard stop    -DUD_HARD_STOP_PCT of the position (the tail is capped)
+      armed trail  arms at half the goal, then sits min(ratchet,
+                   max(goal*0.5, 1.0))% under the running peak, never below
+                   entry + 2x the round trip (the scanner's price floor)
+      goal bank    the goal is a BANK: a high at/above it is taken at the goal
+      window end   nothing fired - the last in-window close (end-exclusive)
+
+    Returns None when the candles cannot be read.
     """
+    goal = float(goal_pct or DUD_GOAL_FALLBACK_PCT)
     try:
         since = int(when.timestamp() * 1000) - 3_600_000
         ohl = exchange.fetch_ohlcv(pair, timeframe="1h", since=since, limit=12)
@@ -947,27 +973,73 @@ def _dud_counterfactual(exchange, pair: str, when: datetime, window_end: datetim
         return None
     if not ohl:
         return None
-    entry, last = 0.0, 0.0
+    entry = 0.0
+    bars: list[tuple[float, float, float]] = []      # (high, low, close)
     for c in ohl:
         try:
             ct = datetime.fromtimestamp(c[0] / 1000, tz=MST)
-            close = float(c[4])
+            high, low, close = float(c[2]), float(c[3]), float(c[4])
         except (TypeError, ValueError, IndexError):
             continue
         if not close:
             continue
-        if ct <= when <= ct + timedelta(hours=1):
+        if ct <= when < ct + timedelta(hours=1):
             entry = close
-        if when <= ct < window_end:
-            last = close          # end-exclusive, the coin test's own standard
-    if not entry or not last:
+        elif when <= ct < window_end:      # end-exclusive, the coin test's own
+            bars.append((high, low, close))
+    if not entry or not bars:
         return None
     try:
         import spread_table as _st
         toll_pct = float(_st.roundtrip_pct(pair))
     except Exception:
         toll_pct = DUD_TOLL_FALLBACK_PCT
-    return size_usd * ((last / entry) - 1.0) - size_usd * (toll_pct / 100.0)
+    goal_px = entry * (1.0 + goal / 100.0)
+    hard_px = entry * (1.0 - DUD_HARD_STOP_PCT / 100.0)
+    lock_floor = entry * (1.0 + 2.0 * toll_pct / 100.0)
+    cap_pct = max(goal * DUD_GOAL_ARM_FRAC, 1.0)
+    peak, armed = entry, False
+    for high, low, close in bars:
+        bar_peak = max(peak, high)
+        if not armed and (bar_peak / entry - 1.0) * 100.0 >= goal * DUD_GOAL_ARM_FRAC:
+            armed = True
+        trail_px = None
+        if armed:
+            width = min(_dud_trail_pct(entry, bar_peak), cap_pct)
+            trail_px = max(bar_peak * (1.0 - width / 100.0), lock_floor)
+        for px, why in ((hard_px, "hard stop"), (trail_px, "armed trail")):
+            if px is not None and low <= px:
+                return {"pct": (px / entry - 1.0) * 100.0 - toll_pct,
+                        "reason": why, "entry": entry, "exit": px,
+                        "bars": len(bars)}
+        if high >= goal_px:
+            return {"pct": goal - toll_pct, "reason": "goal bank",
+                    "entry": entry, "exit": goal_px, "bars": len(bars)}
+        peak = bar_peak
+    return {"pct": (bars[-1][2] / entry - 1.0) * 100.0 - toll_pct,
+            "reason": "window end", "entry": entry, "exit": bars[-1][2],
+            "bars": len(bars)}
+
+
+def _dud_counterfactual(exchange, pair: str, when: datetime, window_end: datetime,
+                        size_usd: float, goal_pct: float | None = None):
+    """What a buried DUD would have returned had it been taken.
+
+    The ledger used to count only the buried candidates that paid, so 'left on
+    the table' was the sum of the winners of a cohort and said nothing about the
+    losers beside them. This prices the other side on the same 1h candles the
+    coin test reads - but on the EXIT THE MACHINE ACTUALLY TRADES (goal bank,
+    armed trail, hard stop; see _dud_exit), net of the pair's measured round
+    trip, at the size the burial would have used.
+
+    Returns None when the candles cannot be read. An unmeasurable dud is
+    COUNTED and reported as unpriced, never priced at zero - a zero would
+    quietly flatter the net toward the old one-sided number.
+    """
+    walk = _dud_exit(exchange, pair, when, window_end, goal_pct)
+    if walk is None:
+        return None
+    return size_usd * (float(walk["pct"]) / 100.0)
 
 
 def _burial_net(system_burial: list, system_duds: list) -> tuple[float, dict]:
@@ -991,8 +1063,9 @@ def _burial_net(system_burial: list, system_duds: list) -> tuple[float, dict]:
         "unpriced_duds": len(system_duds) - len(priced),
         "net_usd": round(gross + dud_usd, 2),
         "caveat": ("duds are priced on the same 1h candles and the same size as the "
-                   "payers: entry at the burial close, exit at the last in-window "
-                   "close, net of the measured round trip"),
+                   "payers, but on the SHIPPED exit stack - entry at the burial "
+                   "close, then hard stop / armed trail / goal bank, whichever "
+                   "fires first, net of the measured round trip"),
     }
     return gross + dud_usd, accounting
 
@@ -1111,10 +1184,12 @@ def evaluate_rotation(exchange, rot_key: str, when=None, speak=True,
             # at the same size the burial would have used, so the net is a
             # like-for-like counterfactual and not a sum of the winners.
             _dud_size = balance * goal / 100.0
-            _dud_pnl = _dud_counterfactual(exchange, pair, s["ts"], end, _dud_size)
+            _dud_walk = _dud_exit(exchange, pair, s["ts"], end, goal)
             system_duds.append({"pair": pair, "gate": s["gate"],
-                                "usd": None if _dud_pnl is None
-                                else round(float(_dud_pnl), 2)})
+                                "usd": None if _dud_walk is None
+                                else round(_dud_size * float(_dud_walk["pct"]) / 100.0, 2),
+                                "exit": None if _dud_walk is None
+                                else _dud_walk["reason"]})
     for t in sold:
         entry, exitp = float(t.get("entry") or 0), float(t.get("exit") or 0)
         size, realized = float(t.get("size") or 0), float(t.get("pnl_net") or 0)
@@ -1363,7 +1438,7 @@ def evaluate_rotation(exchange, rot_key: str, when=None, speak=True,
                           "usd": round(float(p.get("usd", 0)), 2)}
                          for p in system_burial],
         "system_duds": [{"pair": p["pair"], "gate": p.get("gate"),
-                         "usd": p.get("usd")}
+                         "usd": p.get("usd"), "exit": p.get("exit")}
                         for p in system_duds],
         "system_pending": system_pending,
         "empty_pending": empty_pending,
