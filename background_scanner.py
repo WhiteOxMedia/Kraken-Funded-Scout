@@ -7535,7 +7535,8 @@ def contest_light(exchange, cfg):
             if _pgf is not None:
                 _cap = round(_cap * _pgf, 3)
             try:
-                from contest_account import COST_ROUNDTRIP_PCT as _rt_pct
+                import spread_table as _st_sp
+                _rt_pct = _st_sp.roundtrip_pct(pair)
                 _lock_w = max(0.0, (1.0 - entry * (1.0 + 2.0 * _rt_pct / 100.0)
                                     / high) * 100.0)
                 if _lock_w > 0:
@@ -8267,7 +8268,8 @@ def contest_light(exchange, cfg):
             _trail_now = _ratchet_trail_pct(entry, high, size)
             _cap_now = _armed_cap_base(_goal)
             try:
-                from contest_account import COST_ROUNDTRIP_PCT as _rt_pct
+                import spread_table as _st_sp
+                _rt_pct = _st_sp.roundtrip_pct(pair)
                 _lock_wv = max(0.0, (1.0 - entry * (1.0 + 2.0 * _rt_pct / 100.0)
                                      / high) * 100.0)
                 if _lock_wv > 0:

@@ -1208,15 +1208,20 @@ def realized_pnl_today(state: dict | None = None, now=None) -> float:
         return 0.0
 
 
-def pnl_net_usd(entry_price: float, exit_price: float, size_usd: float) -> tuple[float, float, float]:
+def pnl_net_usd(entry_price: float, exit_price: float, size_usd: float,
+                pair: str | None = None) -> tuple[float, float, float]:
     """(pnl_gross, cost_rt, pnl_net) for one closed contest round trip.
-    The platform's only cost is the 0.04% spread each side — 0.08% round
-    trip — and it counts toward BOTH the target and the death line, so
-    the net is what the balance actually moved. Used by the SOLD button's
+
+    The cost is the PAIR'S OWN measured round trip (spread_table), falling
+    back to the platform's 0.08% only when the pair has never been sampled.
+    A flat constant overcharged BTC by 27x and undercharged WLD — and the
+    undercharge is the direction that kills an account, since it counts
+    toward BOTH the target and the death line. Used by the SOLD button's
     auto-balance (user rule, Sep 2: "auto calculate the PnL... auto fill
     when the button is pushed")."""
+    import spread_table as _st
     gross = float(size_usd) * (float(exit_price) / float(entry_price) - 1.0)
-    cost = float(size_usd) * COST_ROUNDTRIP_PCT / 100.0
+    cost = float(size_usd) * _st.roundtrip_pct(pair) / 100.0
     return gross, cost, gross - cost
 
 
@@ -1466,7 +1471,8 @@ def go_big_plan(current_balance: float, start_balance: float, *,
 
 def hard_death_entry_usd(current_balance: float, start_balance: float,
                          stop_pct: float, size_frac: float = 1.0, *,
-                         fee_pct: float = COST_ROUNDTRIP_PCT,
+                         fee_pct: float | None = None,
+                         pair: str | None = None,
                          risk_frac: float = RISK_PER_TRADE_FRAC,
                          window_dd_pct: float | None = None,
                          min_buffer_usd: float = 0.0,
@@ -1494,7 +1500,14 @@ def hard_death_entry_usd(current_balance: float, start_balance: float,
 
     `window_dd_pct` optionally adds the scanner's existing profiled-drawdown
     ceiling, so the loop never sizes above what the live path allows.
+
+    `fee_pct` is the round trip the worst case must pay. Left None it is the
+    PAIR'S measured spread (spread_table), so a thin pair is sized smaller
+    than a major on the same stop — the flat 0.08% treated them alike.
     """
+    import spread_table as _st
+    if fee_pct is None:
+        fee_pct = _st.roundtrip_pct(pair)
     bal = float(current_balance or 0.0)
     start = float(start_balance or 0.0)
     if halted or bal <= 0.0 or start <= 0.0:

@@ -342,12 +342,14 @@ def _count_today(st: dict, now: datetime) -> int:
 # loses only the power to hold a book PAST its own locked floor.
 # Below the line it is the same triangle as the study's floor guard:
 # a verified or corrupt stamp both revert to the machinery.
-def _lock_level(entry: float) -> float:
+def _lock_level(entry: float, pair: str | None = None) -> float:
     """entry + 2x the round-trip cost — the net-positive floor the
-    goal-armed trail prices its stops against (the scanner's own
-    shape; the constant is the platform's)."""
-    from contest_account import COST_ROUNDTRIP_PCT as _rt
-    return entry * (1.0 + 2.0 * _rt / 100.0)
+    goal-armed trail prices its stops against (the scanner's own shape).
+    The cost is the PAIR's measured spread, not the platform's flat
+    0.08%: on BTC the floor sat 25x too high, on WLD it sat BELOW the
+    real cost — a stop that claims to lock profit while booking a loss."""
+    import spread_table as _st
+    return entry * (1.0 + 2.0 * _st.roundtrip_pct(pair) / 100.0)
 
 
 def _hard_stop_live(w: dict, live: float | None) -> tuple[bool, float]:
@@ -439,7 +441,8 @@ def exit_verdict(pair: str, w: dict, reason: str,
                     try:
                         entry = float(w.get("entry"))
                         if 0.0 < entry < float("inf") \
-                                and _pk / 100.0 >= _lock_level(entry) / entry - 1.0:
+                                and _pk / 100.0 >= _lock_level(
+                                    entry, str(w.get("pair") or pair)) / entry - 1.0:
                             _clear_stamp(w)
                             return "exit", (
                                 "trail breach below the locked floor — the "
@@ -610,7 +613,8 @@ def expire_sweep(watch: dict, now: datetime | None = None) -> int:
 # ── trail parity (proof shims — the scanner keeps its own math) ──────
 def extension_trail_pct(entry: float, high: float, goal_pct: float,
                         armed: bool, gf: float | None = None,
-                        endgame: float | None = None) -> float:
+                        endgame: float | None = None,
+                        pair: str | None = None) -> float:
     """The width the EXTENDED book is guarded with — asserted equal to
     the incumbent ENFORCED shape (the scanner's trail block, not the
     bare shape): the ratchet SCALED BY THE FINALIZED GUARD FACTOR (and
@@ -646,8 +650,8 @@ def extension_trail_pct(entry: float, high: float, goal_pct: float,
     # — exactly like background_scanner's goal-armed trail does.
     if high > entry:
         try:
-            from contest_account import COST_ROUNDTRIP_PCT as _rt
-            _lock_w = max(0.0, (1.0 - entry * (1.0 + 2.0 * _rt / 100.0)
+            import spread_table as _st
+            _lock_w = max(0.0, (1.0 - entry * (1.0 + 2.0 * _st.roundtrip_pct(pair) / 100.0)
                                 / high) * 100.0)
             if _lock_w > 0:
                 half_goal_cap = min(half_goal_cap, round(_lock_w, 3))
