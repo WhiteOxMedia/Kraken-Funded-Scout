@@ -561,6 +561,17 @@ def check_scout_signals(kraken, config) -> dict | None:
 
     Returns None if no pending signals.
     """
+    # ── THE TREND-RIDE ENGINE, ON THIS SAME CLIENT ────────────────────────
+    # timing_live never creates a Kraken client: it trades the one it is given,
+    # through execution_tiers, and it checks the halt line and the buffer floor
+    # in front of every single entry. Inert until overwatch_timing.ARMED is True,
+    # so this line cannot place anything today.
+    try:
+        import timing_live
+        timing_live.tick(kraken, config)
+    except Exception:
+        logger.exception("timing_live tick failed — signal path continues")
+
     init_db()
 
     # ── GHOST SWEEP: bridge 'filled' records the bot doesn't actually hold ──
