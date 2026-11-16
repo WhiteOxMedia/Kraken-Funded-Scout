@@ -1,0 +1,211 @@
+{
+ "A_gate_log": {
+  "log_rows": 458,
+  "fires": 215,
+  "pairs": 25,
+  "window": [
+   "2026-11-15T07:22:39.158718-07:00",
+   "2026-11-15T16:59:11.170124-07:00"
+  ],
+  "resolved": 176,
+  "unresolved": 25,
+  "failed_pairs": {
+   "LTC": "kraken does not have market symbol LTC",
+   "BCH": "kraken does not have market symbol BCH",
+   "AVAX": "kraken does not have market symbol AVAX",
+   "ETH": "kraken does not have market symbol ETH",
+   "UNI": "kraken does not have market symbol UNI",
+   "RENDER": "kraken does not have market symbol RENDER",
+   "HYPE": "kraken does not have market symbol HYPE",
+   "ATOM": "kraken does not have market symbol ATOM",
+   "FIL": "kraken does not have market symbol FIL",
+   "DOGE": "kraken does not have market symbol DOGE",
+   "AAVE": "kraken does not have market symbol AAVE"
+  },
+  "all": {
+   "n": 176,
+   "win_pct": 65.3,
+   "mean_net_pct": -0.2339,
+   "total_net_pct": -41.2,
+   "median_hold_h": null,
+   "t": -2.23
+  },
+  "median_hold_min": 45,
+  "range": [
+   -2.08,
+   1.768
+  ],
+  "fires_per_pair": [
+   [
+    "AAVE/USD",
+    45
+   ],
+   [
+    "ASTER/USD",
+    27
+   ],
+   [
+    "XPL/USD",
+    23
+   ],
+   [
+    "SUI/USD",
+    15
+   ],
+   [
+    "DOGE/USD",
+    12
+   ],
+   [
+    "LDO/USD",
+    10
+   ],
+   [
+    "ONDO/USD",
+    9
+   ],
+   [
+    "VIRTUAL/USD",
+    9
+   ],
+   [
+    "NEAR/USD",
+    8
+   ],
+   [
+    "UNI/USD",
+    7
+   ],
+   [
+    "HYPE/USD",
+    6
+   ],
+   [
+    "HBAR/USD",
+    3
+   ],
+   [
+    "ATOM/USD",
+    1
+   ],
+   [
+    "ETH/USD",
+    1
+   ]
+  ],
+  "pairs_scored": {
+   "AAVE/USD": {
+    "n": 45,
+    "win_pct": 100.0,
+    "mean_net_pct": 0.719
+   },
+   "ASTER/USD": {
+    "n": 27,
+    "win_pct": 100.0,
+    "mean_net_pct": 1.238
+   },
+   "ATOM/USD": {
+    "n": 1,
+    "win_pct": 0.0,
+    "mean_net_pct": -2.08
+   },
+   "DOGE/USD": {
+    "n": 12,
+    "win_pct": 16.7,
+    "mean_net_pct": -1.605
+   },
+   "ETH/USD": {
+    "n": 1,
+    "win_pct": 100.0,
+    "mean_net_pct": 0.203
+   },
+   "HBAR/USD": {
+    "n": 3,
+    "win_pct": 100.0,
+    "mean_net_pct": 0.242
+   },
+   "HYPE/USD": {
+    "n": 6,
+    "win_pct": 0.0,
+    "mean_net_pct": -2.08
+   },
+   "LDO/USD": {
+    "n": 10,
+    "win_pct": 80.0,
+    "mean_net_pct": -0.025
+   },
+   "NEAR/USD": {
+    "n": 8,
+    "win_pct": 12.5,
+    "mean_net_pct": -1.799
+   },
+   "ONDO/USD": {
+    "n": 9,
+    "win_pct": 0.0,
+    "mean_net_pct": -2.08
+   },
+   "SUI/USD": {
+    "n": 15,
+    "win_pct": 33.3,
+    "mean_net_pct": -1.229
+   },
+   "UNI/USD": {
+    "n": 7,
+    "win_pct": 28.6,
+    "mean_net_pct": -1.389
+   },
+   "VIRTUAL/USD": {
+    "n": 9,
+    "win_pct": 44.4,
+    "mean_net_pct": -1.009
+   },
+   "XPL/USD": {
+    "n": 23,
+    "win_pct": 73.9,
+    "mean_net_pct": -0.15
+   }
+  },
+  "pairs_positive": 4,
+  "pairs_with_trades": 14
+ },
+ "B_journal": {
+  "rows": 2709,
+  "used": 1127,
+  "skipped": 1582,
+  "all": {
+   "n": 1127,
+   "win_pct": 81.4,
+   "mean_net_pct": -0.0107,
+   "total_net_pct": -12.0,
+   "median_hold_h": null,
+   "t": -0.34
+  },
+  "train": {
+   "n": 840,
+   "win_pct": 82.6,
+   "mean_net_pct": 0.0086,
+   "total_net_pct": 7.2,
+   "median_hold_h": null,
+   "t": 0.25
+  },
+  "november": {
+   "n": 287,
+   "win_pct": 77.7,
+   "mean_net_pct": -0.0672,
+   "total_net_pct": -19.3,
+   "median_hold_h": null,
+   "t": -1.0
+  },
+  "realized": {
+   "n": 1127,
+   "win_pct": 48.2,
+   "mean_net_pct": -0.0368,
+   "total_net_pct": -41.4,
+   "median_hold_h": null,
+   "t": -1.31
+  },
+  "median_hold_min": 40,
+  "worst_pct": -2.08,
+  "best_pct": 3.584
+ }
+}
