@@ -47,6 +47,20 @@ except Exception:                      # standalone use (a bare checkout, a test
 TABLE_FILE = Path(__file__).parent / "spread_table.json"
 DEFAULT_RT_PCT = 0.08                  # the platform's published round trip
 MAX_PLAUSIBLE_PCT = 5.0                # beyond this the quote is broken, not the pair
+
+# ── THE COST GATE ──────────────────────────────────────────────────────
+# A measured cost is not a sizing dial to be turned down quietly. Once the
+# round trip exceeds the edge the trade was entered for, the trade is not
+# a smaller version of itself — it is a donation with a smaller number on
+# it. Sizing must never express that as "a bit less, then zero": the entry
+# is refused BY NAME, with the two numbers that decided it.
+#
+# GROSS_EDGE_PCT is the measured per-trade gross of the engine on the cheap
+# pairs (ticket gross 0.0714% at the tight trail + ~0.02% of toll it was
+# charged; 0.09% rounds it up, deliberately generous to the pair).
+GROSS_EDGE_PCT = 0.09
+MAX_RT_PCT = 1.0                       # 11x the edge: a book, not a spread
+MIN_DAY_N = 3                          # quotes before a day mean may set a gate
 MIN_PLAUSIBLE_PCT = 0.0
 
 
@@ -104,6 +118,56 @@ def roundtrip_pct(pair: str | None = None, table: dict | None = None) -> float:
 def half_spread_pct(pair: str | None = None, table: dict | None = None) -> float:
     """One side of the crossing — the cost of paying the spread once."""
     return roundtrip_pct(pair, table) / 2.0
+
+
+def cost_gate(pair: str | None, edge_pct: float | None = None,
+              table: dict | None = None) -> dict:
+    """Can this pair pay for its own spread? (verdict, the two numbers, why).
+
+    `refuse` is a NAMED refusal, never a silent shrunk size: the caller must
+    skip the entry and say which numbers refused it. `thin` still trades —
+    the edge is positive but a quarter of it or less survives the toll, so
+    the caller should say so and the size should be the conservative one.
+
+    Three ways to fail the gate:
+      * the table has no measurement (a threshold on a guess is worse than a
+        refusal — the fallback 0.08% is a placeholder, not evidence);
+      * the measured round trip is at or above the edge;
+      * the measured round trip is beyond MAX_RT_PCT (a broken book or a
+        5%-wide quote that no fill would have paid).
+    """
+    edge = float(edge_pct if edge_pct is not None else GROSS_EDGE_PCT)
+    t = table if table is not None else load_table()
+    row = (t.get("pairs") or {}).get(_clean(pair)) if pair else None
+    if not isinstance(row, dict):
+        return {"pair": _clean(pair), "measured": False, "rt_pct": DEFAULT_RT_PCT,
+                "edge_pct": edge, "net_edge_pct": round(edge - DEFAULT_RT_PCT, 6),
+                "verdict": "unmeasured", "why":
+                f"no measured spread for {_clean(pair) or 'this pair'} — pricing the "
+                f"platform's {DEFAULT_RT_PCT}% placeholder"}
+    rt = roundtrip_pct(pair, t)
+    n_day = int(row.get("day_n") or 0)
+    net = edge - rt
+    base = {"pair": _clean(pair), "measured": True, "rt_pct": round(rt, 6),
+            "edge_pct": edge, "net_edge_pct": round(net, 6),
+            "days": int(row.get("days") or 0), "day_n": n_day,
+            "thin_sample": n_day < MIN_DAY_N}
+    if rt >= MAX_RT_PCT:
+        base.update(verdict="refuse", why=
+                    f"measured round trip {rt:.3f}% is past the {MAX_RT_PCT:g}% "
+                    "sanity ceiling — a book, not a spread")
+    elif net <= 0:
+        base.update(verdict="refuse", why=
+                    f"measured round trip {rt:.3f}% equals or exceeds the "
+                    f"{edge:.3f}% edge it must clear")
+    elif net <= 0.25 * edge:
+        base.update(verdict="thin", why=
+                    f"only {net:.3f}% of the {edge:.3f}% edge survives the "
+                    f"{rt:.3f}% toll")
+    else:
+        base.update(verdict="ok", why=
+                    f"{net:.3f}% of the {edge:.3f}% edge survives the {rt:.3f}% toll")
+    return base
 
 
 def _fold_day(table: dict, row: dict) -> None:

@@ -113,5 +113,43 @@ check("an explicit fee still wins over the table",
       abs(ca.hard_death_entry_usd(10000.0, 10000.0, 2.0, 1.0, fee_pct=0.08) - flat) < 1e-9)
 
 print("\n".join(lines))
+
+# ── 7. THE COST GATE: a refusal by name, never a silent shrink ─────────
+st.save_table(seed({"BTC": 0.0002, "MID": 0.085, "COSTLY": 0.30, "AIXBT": 2.18, "ABSURD": 1.5}), TABLE)
+g_btc = st.cost_gate("BTC/USD")
+g_mid = st.cost_gate("MID/USD")
+g_aix = st.cost_gate("AIXBT/USD")
+g_abs = st.cost_gate("ABSURD/USD")
+g_new = st.cost_gate("NEVER-SEEN/USD")
+check("a cheap pair passes the gate", g_btc["verdict"] == "ok" and g_btc["net_edge_pct"] > 0.05)
+check("a pair eating most of the edge is THIN, not refused",
+      g_mid["verdict"] == "thin" and 0 < g_mid["net_edge_pct"] <= 0.025)
+g_costly = st.cost_gate("COSTLY/USD")
+check("2.18% against a 0.09% edge is REFUSED by name",
+      g_aix["verdict"] == "refuse" and "AIXBT" in g_aix["pair"]
+      and ("exceeds" in g_aix["why"] or "ceiling" in g_aix["why"]))
+check("a cost that clears the ceiling but not the edge says SKEW EXCEEDS",
+      g_costly["verdict"] == "refuse" and "exceeds" in g_costly["why"])
+check("past the sanity ceiling is REFUSED on that ground",
+      g_abs["verdict"] == "refuse" and "ceiling" in g_abs["why"])
+check("an unmeasured pair is named, not silently priced",
+      g_new["verdict"] == "unmeasured" and g_new["measured"] is False)
+
+# ── 8. the loop says WHICH pair and WHY ────────────────────────────────
+import contest_loop as cl
+loop = cl.ContestLoop(state_path=Path(_tmpdir) / "loop_state.json",
+                      report_path=Path(_tmpdir) / "loop_report.json")
+loop.reset(10000.0, "2026-11-16")
+rep = loop.run_day({"date": "2026-11-16", "fills": [
+    cl._fill("2026-11-16", 1, "AIXBT/USD", 0.30, 2.0, None, "test"),
+    cl._fill("2026-11-16", 2, "BTC/USD", 0.30, 2.0, None, "test"),
+]})
+_sk = [(str(s.get("pair")), str(s.get("why")))
+       for s in (rep.get("risk_skips") or [])]
+check("the refused pair is skipped with the gate's own words",
+      any("AIXBT" in k and "cost gate" in v for k, v in _sk))
+check("the clean pair is not refused by the gate",
+      not any("BTC" in k and "cost gate" in v for k, v in _sk))
+
 print(f"\n{PASS} passed, {FAIL} failed")
 sys.exit(1 if FAIL else 0)

@@ -1,0 +1,326 @@
+{
+ "balance": 9981.95855906339,
+ "refuse": [
+  "AIXBT",
+  "KAITO",
+  "LDO",
+  "POPCAT",
+  "PNUT",
+  "S",
+  "XPL",
+  "TRUMP",
+  "FIL",
+  "DRV",
+  "WIF",
+  "MOODENG",
+  "JUP",
+  "RENDER",
+  "PENGU",
+  "VIRTUAL",
+  "GRASS",
+  "OP",
+  "CRV",
+  "JTO",
+  "FARTCOIN",
+  "ETC",
+  "ONDO"
+ ],
+ "thin": [
+  "VVV",
+  "TAO",
+  "ALGO",
+  "STX",
+  "ARB",
+  "ATOM",
+  "PUMP",
+  "HBAR"
+ ],
+ "under_1_usd": [],
+ "pairs": {
+  "AIXBT": {
+   "rt": 2.349375,
+   "verdict": "refuse",
+   "spend": 898.3763
+  },
+  "KAITO": {
+   "rt": 0.628392,
+   "verdict": "refuse",
+   "spend": 898.3763
+  },
+  "LDO": {
+   "rt": 0.357782,
+   "verdict": "refuse",
+   "spend": 898.3763
+  },
+  "POPCAT": {
+   "rt": 0.356506,
+   "verdict": "refuse",
+   "spend": 898.3763
+  },
+  "PNUT": {
+   "rt": 0.343053,
+   "verdict": "refuse",
+   "spend": 898.3763
+  },
+  "S": {
+   "rt": 0.298063,
+   "verdict": "refuse",
+   "spend": 898.3763
+  },
+  "XPL": {
+   "rt": 0.229621,
+   "verdict": "refuse",
+   "spend": 898.3763
+  },
+  "TRUMP": {
+   "rt": 0.212314,
+   "verdict": "refuse",
+   "spend": 898.3763
+  },
+  "FIL": {
+   "rt": 0.164339,
+   "verdict": "refuse",
+   "spend": 898.3763
+  },
+  "DRV": {
+   "rt": 0.151337,
+   "verdict": "refuse",
+   "spend": 898.3763
+  },
+  "WIF": {
+   "rt": 0.151172,
+   "verdict": "refuse",
+   "spend": 898.3763
+  },
+  "MOODENG": {
+   "rt": 0.147221,
+   "verdict": "refuse",
+   "spend": 898.3763
+  },
+  "JUP": {
+   "rt": 0.144624,
+   "verdict": "refuse",
+   "spend": 898.3763
+  },
+  "RENDER": {
+   "rt": 0.144404,
+   "verdict": "refuse",
+   "spend": 898.3763
+  },
+  "PENGU": {
+   "rt": 0.141457,
+   "verdict": "refuse",
+   "spend": 898.3763
+  },
+  "VIRTUAL": {
+   "rt": 0.133363,
+   "verdict": "refuse",
+   "spend": 898.3763
+  },
+  "GRASS": {
+   "rt": 0.124766,
+   "verdict": "refuse",
+   "spend": 898.3763
+  },
+  "OP": {
+   "rt": 0.123229,
+   "verdict": "refuse",
+   "spend": 898.3763
+  },
+  "CRV": {
+   "rt": 0.112632,
+   "verdict": "refuse",
+   "spend": 898.3763
+  },
+  "JTO": {
+   "rt": 0.107302,
+   "verdict": "refuse",
+   "spend": 898.3763
+  },
+  "FARTCOIN": {
+   "rt": 0.105208,
+   "verdict": "refuse",
+   "spend": 898.3763
+  },
+  "ETC": {
+   "rt": 0.100217,
+   "verdict": "refuse",
+   "spend": 898.3763
+  },
+  "ONDO": {
+   "rt": 0.09117,
+   "verdict": "refuse",
+   "spend": 898.3763
+  },
+  "VVV": {
+   "rt": 0.089951,
+   "verdict": "thin",
+   "spend": 898.3763
+  },
+  "TAO": {
+   "rt": 0.083063,
+   "verdict": "thin",
+   "spend": 898.3763
+  },
+  "ALGO": {
+   "rt": 0.0757,
+   "verdict": "thin",
+   "spend": 898.3763
+  },
+  "STX": {
+   "rt": 0.075103,
+   "verdict": "thin",
+   "spend": 898.3763
+  },
+  "ARB": {
+   "rt": 0.074322,
+   "verdict": "thin",
+   "spend": 898.3763
+  },
+  "ATOM": {
+   "rt": 0.069042,
+   "verdict": "thin",
+   "spend": 898.3763
+  },
+  "PUMP": {
+   "rt": 0.068966,
+   "verdict": "thin",
+   "spend": 898.3763
+  },
+  "HBAR": {
+   "rt": 0.067808,
+   "verdict": "thin",
+   "spend": 898.3763
+  },
+  "LINK": {
+   "rt": 0.062452,
+   "verdict": "ok",
+   "spend": 898.3763
+  },
+  "ASTER": {
+   "rt": 0.05888,
+   "verdict": "ok",
+   "spend": 898.3763
+  },
+  "DOT": {
+   "rt": 0.054817,
+   "verdict": "ok",
+   "spend": 898.3763
+  },
+  "BCH": {
+   "rt": 0.052736,
+   "verdict": "ok",
+   "spend": 898.3763
+  },
+  "AAVE": {
+   "rt": 0.045836,
+   "verdict": "ok",
+   "spend": 898.3763
+  },
+  "LTC": {
+   "rt": 0.044573,
+   "verdict": "ok",
+   "spend": 898.3763
+  },
+  "INJ": {
+   "rt": 0.043805,
+   "verdict": "ok",
+   "spend": 898.3763
+  },
+  "APT": {
+   "rt": 0.043764,
+   "verdict": "ok",
+   "spend": 898.3763
+  },
+  "UNI": {
+   "rt": 0.042469,
+   "verdict": "ok",
+   "spend": 898.3763
+  },
+  "AVAX": {
+   "rt": 0.041786,
+   "verdict": "ok",
+   "spend": 898.3763
+  },
+  "ADA": {
+   "rt": 0.039637,
+   "verdict": "ok",
+   "spend": 898.3763
+  },
+  "WLD": {
+   "rt": 0.037376,
+   "verdict": "ok",
+   "spend": 898.3763
+  },
+  "POL": {
+   "rt": 0.037372,
+   "verdict": "ok",
+   "spend": 898.3763
+  },
+  "NEAR": {
+   "rt": 0.031367,
+   "verdict": "ok",
+   "spend": 898.3763
+  },
+  "TIA": {
+   "rt": 0.027992,
+   "verdict": "ok",
+   "spend": 898.3763
+  },
+  "PEPE": {
+   "rt": 0.02625,
+   "verdict": "ok",
+   "spend": 898.3763
+  },
+  "BNB": {
+   "rt": 0.022005,
+   "verdict": "ok",
+   "spend": 898.3763
+  },
+  "HYPE": {
+   "rt": 0.015068,
+   "verdict": "ok",
+   "spend": 898.3763
+  },
+  "DOGE": {
+   "rt": 0.014944,
+   "verdict": "ok",
+   "spend": 898.3763
+  },
+  "SOL": {
+   "rt": 0.013938,
+   "verdict": "ok",
+   "spend": 898.3763
+  },
+  "SUI": {
+   "rt": 0.013747,
+   "verdict": "ok",
+   "spend": 898.3763
+  },
+  "XRP": {
+   "rt": 0.010394,
+   "verdict": "ok",
+   "spend": 898.3763
+  },
+  "TRX": {
+   "rt": 0.008888,
+   "verdict": "ok",
+   "spend": 898.3763
+  },
+  "ZEC": {
+   "rt": 0.00112,
+   "verdict": "ok",
+   "spend": 898.3763
+  },
+  "ETH": {
+   "rt": 0.000549,
+   "verdict": "ok",
+   "spend": 898.3763
+  },
+  "BTC": {
+   "rt": 0.000154,
+   "verdict": "ok",
+   "spend": 898.3763
+  }
+ }
+}

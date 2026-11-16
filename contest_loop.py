@@ -368,6 +368,17 @@ class ContestLoop:
             stop = max(float(f.get("stop_pct") or DEFAULT_STOP_PCT),
                        DEFAULT_STOP_PCT)
             go_big = bool(f.get("go_big"))
+            # THE COST GATE (Nov 16): a measured round trip above the edge is
+            # a NAMED refusal, decided before any sizing runs. Left to the
+            # sizing formula it would have surfaced as "death cap" or a
+            # sub-$1 spend — true statements that hide the actual reason, so
+            # the pair looked blocked by the buffer instead of by its own cost.
+            import spread_table as _st_cg
+            _cost_gate = _st_cg.cost_gate(f.get("pair"))
+            if _cost_gate["verdict"] == "refuse":
+                skipped.append({"pair": f.get("pair"),
+                                "why": f"cost gate: {_cost_gate['why']}"})
+                continue
             _gb_stop, _gb_take = ca.go_big_marks(start)
             gb = {"spend_usd": 0.0, "stop_usd": _gb_stop,
                   "take_usd": _gb_take}
@@ -392,7 +403,10 @@ class ContestLoop:
                     min_buffer_usd=safety,
                     halted=bool(state.get("halted")))
             if spend < MIN_FILL_USD:
-                skipped.append({"pair": f.get("pair"), "why": "death cap"})
+                _why = "death cap"
+                if _cost_gate["verdict"] == "thin":
+                    _why = f"death cap (cost gate thin: {_cost_gate['why']})"
+                skipped.append({"pair": f.get("pair"), "why": _why})
                 continue
             if go_big:
                 worst = float(gb["stop_usd"])
