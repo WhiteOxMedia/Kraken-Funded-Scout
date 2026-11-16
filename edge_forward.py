@@ -47,6 +47,16 @@ START = 10_000.0
 WIN = 1.12
 DEATH = 0.97
 MAX_HOLD = 24 * 14
+# A breakeven stop exits at the entry price, so the trade books a fee-sized
+# loss and lands in the loss column.  Counted as failures, they read a 24%-hit
+# design as a broken lane.  The band is the round-trip cost (0.08%) with room
+# for a fill on the wrong side of the touch.
+SCRATCH_BAND_PCT = 0.15
+# A pair that stops printing can never trigger a stop, a target or the time
+# exit, so its position would hold the candidate's single slot forever
+# (DOG/USD stopped printing 2026-10-14).  After this much silence the pair is
+# treated as delisted and the position is closed at its last printed close.
+STALE_AFTER_HOURS = 12
 ELIGIBLE = ("promoted", "watch", "research")
 
 
@@ -275,22 +285,42 @@ def _collect_new(pairs: dict, state: dict, cfg) -> tuple[dict, dict]:
     return found, cursor
 
 
+def _book_exit(cs: dict, pos: dict, px: float, why: str, ts, pair: str) -> None:
+    """Book one open position out at `px` and free the candidate's slot."""
+    fee = float(pos["size"]) * FEE_RT_PCT / 100.0
+    if pos.get("side", "long") == "long":
+        pnl = float(pos["qty"]) * (px - float(pos["entry"])) - fee
+    else:
+        pnl = float(pos["qty"]) * (float(pos["entry"]) - px) - fee
+    _book(cs, pnl, px, why, ts, pair, float(pos["entry"]), float(pos["size"]))
+    del cs["open"][pair]
+
+
 def _advance_open(pairs: dict, state: dict, events: list) -> None:
-    """Mark every open paper trade against bars it has not seen yet."""
+    """Mark every open paper trade against bars it has not seen yet.
+
+    A stopped pair is the exception: no bar can ever trigger its stop, target
+    or time exit, so the position would hold the candidate's one slot for good.
+    Once a pair sits `STALE_AFTER_HOURS` behind the tape, its position is closed
+    at the pair's last printed close with `why="stale"` instead.
+    """
+    newest = max((df.index[-1] for df in pairs.values() if len(df)), default=None)
+    stale_before = (newest - pd.Timedelta(hours=STALE_AFTER_HOURS)
+                    if newest is not None else None)
     for cs in (state.get("candidates") or {}).values():
         if cs.get("retired"):
             continue
         for pair in list(cs.get("open") or {}):
             pos = cs["open"][pair]
             df = pairs.get(pair)
-            if df is None:
+            if df is None or not len(df):
                 continue
             try:
-                start = df.index.get_loc(pd.Timestamp(pos["entry_ts"])) + 1
+                ent = df.index.get_loc(pd.Timestamp(pos["entry_ts"]))
             except (KeyError, ValueError):
-                start = 0
-            for j in range(max(0, start), len(df) - 1):
-                bars = j - df.index.get_loc(pd.Timestamp(pos["entry_ts"]))
+                ent = None
+            for j in range(ent + 1 if ent is not None else 0, len(df) - 1):
+                bars = j - (ent or 0)
                 fill = exit_fill_policy(
                     pos, float(df["open"].iloc[j]),
                     float(df["high"].iloc[j]),
@@ -299,15 +329,13 @@ def _advance_open(pairs: dict, state: dict, events: list) -> None:
                 if fill is None:
                     continue
                 px, why, _peak = fill
-                fee = float(pos["size"]) * FEE_RT_PCT / 100.0
-                if pos.get("side", "long") == "long":
-                    pnl = float(pos["qty"]) * (px - float(pos["entry"])) - fee
-                else:
-                    pnl = float(pos["qty"]) * (float(pos["entry"]) - px) - fee
-                _book(cs, pnl, px, why, df.index[j], pair,
-                      float(pos["entry"]), float(pos["size"]))
-                del cs["open"][pair]
+                _book_exit(cs, pos, px, why, df.index[j], pair)
                 break
+            if pair not in cs["open"]:
+                continue
+            if stale_before is not None and df.index[-1] < stale_before:
+                _book_exit(cs, pos, float(df["close"].iloc[-1]), "stale",
+                           df.index[-1], pair)
 
 
 def _open_new(events: dict, state: dict, candidates: dict, cfg) -> None:
@@ -380,8 +408,18 @@ def run_once(reset: bool = False) -> dict:
     state["last_bar"].update(cursor)
     state["updated_at"] = _now()
     _write_json(STATE, state)
+    facts = _trade_facts()
+    rows = [_summary(cs, facts.get(cid), (candidates.get(cid) or {}).get("spec"))
+            for cid, cs in state["candidates"].items()]
+    rows.sort(key=lambda r: (r["windows"]["deaths"], -r["windows"]["passes"],
+                             -r["equity"]))
     report = {"generated_at": state["updated_at"],
               "data_through": str(max(d.index.max() for d in pairs.values())),
+              "read_me": ("money and window status lead.  A breakeven stop "
+                          "exits at the entry price, so its fee-sized losses "
+                          "are counted as 'scratch' next to the win rate; "
+                          "'decided_win_rate' excludes them."),
+              "rows": rows,
               "candidates": state["candidates"]}
     _write_json(REPORT, report)
     return report
@@ -392,17 +430,96 @@ def status() -> dict:
     return doc or {"candidates": {}, "note": "no forward run yet"}
 
 
-def _summary(cs: dict) -> dict:
-    n = int(cs.get("trades") or 0)
+def _trade_facts() -> dict:
+    """Per-candidate trade counts, read from the append-only trade log.
+
+    `state.wins` only counts pnl > 0, which hides breakeven exits: they land at
+    the entry price and book a fee-sized loss.  Reading the log also classifies
+    trades booked before this accounting existed.
+    """
+    out: dict = {}
+    try:
+        lines = TRADES.read_text(encoding="utf-8").splitlines()
+    except OSError:
+        return out
+    for line in lines:
+        try:
+            t = json.loads(line)
+        except ValueError:
+            continue
+        cid, entry, px = t.get("id"), t.get("entry"), t.get("exit")
+        if not cid or not entry or px is None:
+            continue
+        f = out.setdefault(cid, {"trades": 0, "wins": 0, "scratch": 0,
+                                 "losses": 0, "exits": {}})
+        f["trades"] += 1
+        why = str(t.get("why") or "?")
+        pnl = float(t.get("pnl") or 0.0)
+        gross = abs(float(px) / float(entry) - 1.0) * 100.0
+        f["exits"][why] = f["exits"].get(why, 0) + 1
+        if pnl > 0:
+            f["wins"] += 1
+        elif gross <= SCRATCH_BAND_PCT:
+            f["scratch"] += 1
+            f["exits"]["scratch"] = f["exits"].get("scratch", 0) + 1
+        else:
+            f["losses"] += 1
+    return out
+
+
+def _summary(cs: dict, facts: dict | None = None, pol=None) -> dict:
+    """One candidate's forward line, money first.
+
+    Equity and the 12%/3% window status lead, then the trade counts: wins,
+    scratch exits and losses sit side by side, with the win rate also given
+    over decided trades only, so a breakeven design's by-construction scratches
+    cannot be mistaken for a lane that stopped working.
+    """
+    facts = facts or {}
+    n = int(facts.get("trades") or 0)
+    wins = int(facts.get("wins") or 0)
+    scratch = int(facts.get("scratch") or 0)
+    losses = int(facts.get("losses") or 0)
+    decided = wins + losses
+    equity = round(float(cs.get("equity") or 0), 2)
+    start = float(cs.get("start") or 0) or START
+    passes = int(cs.get("passes") or 0)
+    deaths = int(cs.get("deaths") or 0)
+    retired = bool(cs.get("retired"))
+    mode = getattr(pol, "exit_mode", None)
+    if mode is None:
+        # a candidate that has dropped out of the eligible set no longer parses
+        # to a Policy; the label still names the exit the trades were run with
+        label = cs.get("label") or ""
+        mode = next((m for m in ("breakeven", "chandelier", "fixed")
+                     if f"/ {m} /" in label), None)
+    if retired:
+        status_text = f"retired after {deaths} death line(s)"
+    else:
+        status_text = (f"live: {passes} pass(es), {deaths} death(s), "
+                       f"{(equity / start - 1.0) * 100.0:+.2f}% vs window")
+    note = None
+    if mode == "breakeven" and scratch:
+        note = (f"breakeven stop exits at entry: {scratch}/{n} trades are "
+                "scratches by design, not failures")
     return {
         "id": cs.get("id"), "label": cs.get("label"),
-        "equity": round(float(cs.get("equity") or 0), 2),
-        "start": round(float(cs.get("start") or 0), 2),
-        "passes": int(cs.get("passes") or 0),
-        "deaths": int(cs.get("deaths") or 0),
-        "trades": n, "wins": int(cs.get("wins") or 0),
+        "equity": equity,
         "net": round(float(cs.get("net") or 0), 2),
-        "retired": bool(cs.get("retired")),
+        "windows": {
+            "status": status_text, "passes": passes, "deaths": deaths,
+            "retired": retired, "start": round(start, 2),
+            "pass_line": round(start * WIN, 2),
+            "death_line": round(start * DEATH, 2),
+        },
+        "trades": n, "wins": wins, "scratch": scratch, "losses": losses,
+        "win_rate": round(wins / n, 3) if n else None,
+        "decided_win_rate": round(wins / decided, 3) if decided else None,
+        "scratch_share": round(scratch / n, 3) if n else None,
+        "scratch_band_pct": SCRATCH_BAND_PCT,
+        "exit_mode": mode,
+        "exits": dict(sorted((facts.get("exits") or {}).items())),
+        "note": note,
         "open": list((cs.get("open") or {}).keys()),
     }
 
@@ -425,9 +542,7 @@ def main(argv=None) -> int:
         try:
             rep = run_once(reset=args.reset)
             args.reset = False
-            rows = [_summary(c) for c in rep["candidates"].values()]
-            rows.sort(key=lambda r: (r["deaths"], -r["passes"], -r["equity"]))
-            print(json.dumps(rows, indent=1), flush=True)
+            print(json.dumps(rep["rows"], indent=1), flush=True)
         except Exception:
             if not args.watch:
                 raise
