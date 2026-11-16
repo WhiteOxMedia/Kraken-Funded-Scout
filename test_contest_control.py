@@ -108,5 +108,76 @@ check("death is netted out of the completion rate",
       cc.completion_rate(dies) == cc.completion_rate(fast) / 2)
 
 print("\n".join(lines))
+
+# ── the LIVE controller: the four decisions and the arming contract ───
+import json
+import tempfile
+from datetime import datetime, timedelta, timezone
+
+_tmp = Path(tempfile.mkdtemp(prefix="_cctl_"))
+_series = _tmp / "series.json"
+_verdict = _tmp / "verdict.json"
+_cstate = _tmp / "state.json"
+
+
+def _write_series(mean, tail_mean=None, n=3000, seed=4):
+    rng = np.random.default_rng(seed)
+    nets = rng.normal(mean, 0.5, n)
+    if tail_mean is not None:
+        nets[-500:] = rng.normal(tail_mean, 0.5, 500)
+    nets = np.round(nets, 4).tolist()
+    ts = [1_790_000_000_000 + 60_000 * i for i in range(n)]
+    _series.write_text(json.dumps({"pace": 47.4, "tolls": {"BTC": 0.0002},
+                                   "configs": {"wide": {"cfg": [3.0, 0.4, 0.1, 0.0],
+                                                        "nets": nets, "ts": ts}}}),
+                       encoding="utf-8")
+
+
+def _ctl():
+    return cc.ContestController(series_path=str(_series), verdict_path=str(_verdict),
+                                state_path=str(_cstate))
+
+
+_write_series(0.07, tail_mean=-0.30)   # the tape's own shape: good months, bad tail
+if _cstate.exists():
+    _cstate.unlink()
+_real_armed = cc.armed
+cc.armed = lambda: False
+c = _ctl()
+ok, why, frac = c.allow("BTC/USD")
+check("disarmed: every entry is allowed", ok is True)
+check("disarmed: no size override is handed out", frac is None)
+check("disarmed: the reason says advisory", "ADVISORY" in why)
+check("disarmed: no halt is latched to disk", not _cstate.exists())
+check("disarmed: the cycle still reports its computed stop",
+      c.snapshot(force=True)["trade"] is False)
+check("disarmed: sizing passes the ticket through untouched",
+      c.size_usd(500.0, "BTC/USD")[0] == 500.0)
+
+cc.armed = lambda: True
+c = _ctl()
+ok, why, frac = c.allow("BTC/USD")
+check("armed: a significantly negative edge refuses the entry", ok is False)
+check("armed: the refusal names the edge", "no new entries" in why or "stop" in why)
+check("armed: the halt is persisted", _cstate.exists() and json.loads(
+    _cstate.read_text(encoding="utf-8"))["halted"] is True)
+
+_write_series(0.07, tail_mean=0.30)   # the tail recovers
+c = _ctl()
+ok, why, frac = c.allow("BTC/USD")
+check("armed: a fresh halt is NOT lifted by one good window", ok is False)
+st = json.loads(_cstate.read_text(encoding="utf-8"))
+st["halted_at"] = (datetime.now(timezone.utc) - timedelta(hours=4)).isoformat()
+_cstate.write_text(json.dumps(st), encoding="utf-8")
+c = _ctl()
+ok, why, frac = c.allow("BTC/USD")
+check("armed: the halt lifts after the hold with a recovered edge", ok is True and bool(frac))
+check("armed: the resumed size is inside the schedule bounds",
+      frac is not None and 0.05 <= frac <= cc.SIZE_CEIL)
+check("armed: the resume is recorded", json.loads(
+    _cstate.read_text(encoding="utf-8"))["halted"] is False)
+
+cc.armed = _real_armed
+
 print(f"\n{PASS} passed, {FAIL} failed")
 sys.exit(1 if FAIL else 0)

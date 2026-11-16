@@ -28,6 +28,7 @@ import math
 import os
 import statistics
 import sys
+import time
 from datetime import datetime, timezone
 
 import numpy as np
@@ -688,6 +689,197 @@ def print_verdict(v, detail=False):
     print(f"  refused ({len(c['refused'])}): {', '.join(c['refused'][:12])}")
     print(f"  thin ({len(c['thin'])}): {', '.join(c['thin'])}")
     print(f"  spread shocks >=1.5x today: {', '.join(c['shocks']) or 'none'}")
+
+
+# ─────────────────────────────────────────────────────────────────────
+# THE LIVE CONTROLLER — the Overwatch's four decisions, per scanner cycle
+# ─────────────────────────────────────────────────────────────────────
+CTL_STATE_FILE = os.path.join(HERE, "contest_control_state.json")
+CTL_TTL_S = 900.0            # how long a computed snapshot is reused
+STOP_T = -1.96               # short-window t below this: the edge is NEGATIVE
+RESUME_T = 0.0               # short-window t above this: restart is allowed
+RESUME_HOLD_S = 3 * 3600.0   # ...and not before this much time has passed
+SIZE_FLOOR, SIZE_CEIL = 0.25, 2.0
+
+
+def _ctl_state():
+    return _load_json(CTL_STATE_FILE, {})
+
+
+def _write_ctl_state(doc, path=None):
+    target = str(path or CTL_STATE_FILE)
+    tmp = target + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as fh:
+        json.dump(doc, fh, indent=1)
+    os.replace(tmp, target)
+
+
+def armed() -> bool:
+    """The single arming flag. False means ADVISORY: every decision is computed
+    and logged, and none of them is allowed to change what the scanner does."""
+    try:
+        import overwatch_timing as ot
+        return bool(getattr(ot, "ARMED", False))
+    except Exception:
+        return False
+
+
+class ContestController:
+    """Decides trade / size / stop / restart for the running scanner.
+
+    The controller is a READER of evidence and a WRITER of one small state file:
+    it never places, sizes or cancels an order itself. Its four answers are:
+
+      trade?    cost gate + edge sign + the halt flag
+      size      a schedule of the state (theta proxy, pass proxy), not a constant
+      stop      the short-window edge is significantly NEGATIVE (t < -1.96)
+      restart   the halt was taken, the short window has turned non-negative, and
+                a minimum hold has elapsed (hysteresis: no flapping)
+
+    Inertia is the contract: with overwatch_timing.ARMED False every method still
+    computes and logs, and `allow` stays True / `size_frac` stays None.
+    """
+
+    def __init__(self, series_path=None, verdict_path=None, state_path=None):
+        self.series_path = series_path or SERIES_FILE
+        self.verdict_path = verdict_path or VERDICT_FILE
+        self.state_path = state_path or CTL_STATE_FILE
+        self._snap = None
+        self._at = 0.0
+
+    # -- evidence -----------------------------------------------------
+    def _series(self):
+        d = _load_json(self.series_path, {})
+        v = _load_json(self.verdict_path, {})
+        best = ((v.get("1_best_config") or {}).get("name")) or "wide"
+        got = (d.get("configs") or {}).get(best)
+        if not got:
+            for name in ("wide", "shipped", "mid", "tight"):
+                got = (d.get("configs") or {}).get(name)
+                if got:
+                    best = name
+                    break
+        if not got:
+            return None, best, d
+        return (np.asarray(got["nets"], float), np.asarray(got["ts"], float)), best, d
+
+    def snapshot(self, force=False):
+        now = time.time()
+        if self._snap is not None and not force and (now - self._at) < CTL_TTL_S:
+            return self._snap
+        got, name, data = self._series()
+        st = _load_json(self.state_path, {})
+        snap = {"at": now, "config": name, "armed": armed(),
+                "halted": bool(st.get("halted")), "halted_at": st.get("halted_at"),
+                "halt_why": st.get("why"),
+                "trade": True, "size_mult": 1.0, "why": "no series — advisory only",
+                "short_t": None, "short_mu": None, "mid_t": None}
+        if got is None:
+            self._snap, self._at = snap, now
+            return snap
+        nets, ts = got
+        mon = edge_monitor(nets, ts, float(data.get("pace") or 47.4),
+                           windows=(500, 2000, None))
+        short, mid = mon["500"], mon["2000"]
+        snap.update({"short_t": short["t"], "short_mu": short["mu"],
+                     "mid_t": mid["t"], "mid_mu": mid["mu"],
+                     "all_mu": mon["all"]["mu"],
+                     "theta": mon["all"]["theta"],
+                     "edge_zero": short["zero_indistinguishable"]})
+
+        # STOP: the short window is significantly negative, not merely soft
+        if short["t"] <= STOP_T and not snap["halted"]:
+            st.update({"halted": True,
+                       "halted_at": datetime.now(timezone.utc).isoformat(),
+                       "why": f"short-window edge t={short['t']:+.2f} "
+                              f"(mu {short['mu']:+.4f}%/trade) — stop trading"})
+            if snap["armed"]:
+                _write_ctl_state(st, self.state_path)   # inert while disarmed
+            snap.update({"halted": True, "halted_at": st["halted_at"],
+                        "halt_why": st["why"]})
+        # RESTART: turned non-negative, and held out long enough to trust it
+        elif snap["halted"]:
+            since = 0.0
+            try:
+                since = now - datetime.fromisoformat(str(st.get("halted_at"))).timestamp()
+            except (TypeError, ValueError):
+                since = RESUME_HOLD_S
+            if short["t"] > RESUME_T and since >= RESUME_HOLD_S:
+                st.update({"halted": False, "resumed_at": datetime.now(timezone.utc).isoformat(),
+                           "why": f"short-window edge recovered t={short['t']:+.2f} "
+                                  f"— resume trading"})
+                if snap["armed"]:
+                    _write_ctl_state(st, self.state_path)
+                snap.update({"halted": False, "halt_why": st["why"]})
+
+        # SIZE: a schedule of the state, never a constant
+        ref = abs(float(snap.get("all_mu") or 0.0)) or 1e-9
+        mult = float(np.clip(float(mid["mu"]) / ref, SIZE_FLOOR, SIZE_CEIL))
+        if snap["halted"]:
+            mult = 0.0
+        snap["size_mult"] = round(mult, 3)
+        if snap["halted"]:
+            snap.update({"trade": False, "why": snap["halt_why"] or "halted"})
+        elif short["t"] <= STOP_T:
+            snap.update({"trade": False,
+                         "why": f"short-window edge t={short['t']:+.2f} — no new entries"})
+        else:
+            snap.update({"trade": True,
+                         "why": f"mid-window mu {mid['mu']:+.4f}%, "
+                                f"short t {short['t']:+.2f}, size x{mult:.2f}"})
+        self._snap, self._at = snap, now
+        return snap
+
+    # -- decisions ----------------------------------------------------
+    def allow(self, pair):
+        """(allow, why, size_frac|None). Advisory (and permissive) unless ARMED."""
+        snap = self.snapshot()
+        try:
+            import spread_table as _stg
+            gate = _stg.cost_gate(pair)
+        except Exception:
+            gate = {"verdict": "unmeasured", "why": "cost table unavailable"}
+        why_extra = "" if gate["verdict"] in ("ok", "thin", "unmeasured") else gate["why"]
+        if not snap["armed"]:
+            return True, f"ADVISORY (ARMED=False): {snap['why']}" + (
+                f" | {why_extra}" if why_extra else ""), None
+        if gate["verdict"] == "refuse":
+            return False, f"cost gate: {gate['why']}", 0.0
+        if not snap["trade"]:
+            return False, snap["why"], 0.0
+        frac = snap["size_mult"] * (0.5 if gate["verdict"] == "thin" else 1.0)
+        return True, snap["why"], round(max(frac, 0.05), 3)
+
+    def size_usd(self, usd, pair=None):
+        """Scale a base ticket by the schedule; never below 5% or above 2x."""
+        ok, _why, frac = self.allow(pair)
+        if not ok or frac is None:
+            return float(usd), "unchanged"
+        return round(max(0.0, float(usd)) * float(frac), 2), f"x{frac:g}"
+
+
+_CTL = None
+
+
+def controller() -> ContestController:
+    global _CTL
+    if _CTL is None:
+        _CTL = ContestController()
+    return _CTL
+
+
+def scanner_gate(pair):
+    """The scanner's one call: {allow, why, size_frac, armed}."""
+    c = controller()
+    allow, why, frac = c.allow(pair)
+    return {"allow": bool(allow), "why": why, "size_frac": frac,
+            "armed": armed()}
+
+
+def scanner_cycle():
+    """Per-cycle refresh + the one line the scanner logs."""
+    snap = controller().snapshot(force=True)
+    return snap
 
 
 def main(argv=None):

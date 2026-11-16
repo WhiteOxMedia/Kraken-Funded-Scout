@@ -8775,6 +8775,37 @@ def main():
                 _edge_plan = {"active": False, "allow": True,
                               "size_frac": None}
 
+        # ── THE CONTEST CONTROLLER (Nov 16): the Overwatch's OWN decision.
+        #    The controller answers trade / size / stop / restart from measured
+        #    edge and live costs; this is its one veto point, beside the edge
+        #    registry, so a fire cannot bypass it. INERT while
+        #    overwatch_timing.ARMED is False: `allow` is then always True and
+        #    `size_frac` is None, so the run is identical and only the log line
+        #    is new. Fail-open on its own faults: a broken controller must not
+        #    silently disable the scanner.
+        if is_buy:
+            try:
+                import contest_control as _cc_live
+                _cc_gate = _cc_live.scanner_gate(pair)
+                if _cc_gate.get("size_frac") is not None:
+                    _prev = _edge_plan.get("size_frac")
+                    _edge_plan["size_frac"] = (
+                        round(float(_prev) * float(_cc_gate["size_frac"]), 3)
+                        if _prev is not None else float(_cc_gate["size_frac"]))
+                logger.info("  CONTEST CONTROL: %s%s | size x%s",
+                            "ALLOW" if _cc_gate["allow"] else "REFUSE",
+                            " (advisory)" if not _cc_gate.get("armed") else "",
+                            "—" if _cc_gate.get("size_frac") is None
+                            else f"{_cc_gate['size_frac']:g}")
+                if not _cc_gate["allow"]:
+                    _log_suppression(pair, "contest-control",
+                                     _cc_gate.get("why") or "controller refused",
+                                     quick=float(signal.confidence))
+                    return
+            except Exception as _cc_exc:
+                logger.warning("contest controller unavailable for %s (%s) — "
+                               "the normal scanner path continues", pair, _cc_exc)
+
         # ── ROTATION MEMORY (user rule, Aug 30) ─────────────────────────
         # 1. LOCKOUT — RETIRED (user rule, Sep 10: "delete the rule"): the
         #    one-green-per-rotation cap is OFF; a coin can fire again the
@@ -12501,6 +12532,23 @@ def main():
             # that happens between two cycles is never lost to a fall-back.
             import contest_account as _ca
             _ca.capture_peak()
+            # THE CONTROLLER'S CYCLE (Nov 16): refresh the edge read and say
+            # what it decides. Advisory while ARMED is False.
+            try:
+                import contest_control as _cc_cyc
+                _cc_snap = _cc_cyc.scanner_cycle()
+                logger.info("  CONTEST CONTROL: %s | edge t %s (mu %s%%) | "
+                            "size x%s | %s",
+                            "TRADE" if _cc_snap["trade"] else "STOP",
+                            f"{_cc_snap['short_t']:+.2f}"
+                            if _cc_snap.get("short_t") is not None else "n/a",
+                            f"{_cc_snap['short_mu']:+.4f}"
+                            if _cc_snap.get("short_mu") is not None else "n/a",
+                            _cc_snap["size_mult"],
+                            ("ADVISORY" if not _cc_snap["armed"]
+                             else _cc_snap["why"]))
+            except Exception as _cc_cyc_exc:
+                logger.debug("contest controller cycle failed: %s", _cc_cyc_exc)
             logger.info("  %s", contest_standing_text())
             contest_paycheck_check()
             death_floor_cycle()
