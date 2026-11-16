@@ -172,6 +172,8 @@ def load_state() -> dict:
         "tier": DEFAULT_TIER,
         "start_balance": TIERS[DEFAULT_TIER]["start"],
         "current_balance": TIERS[DEFAULT_TIER]["start"],
+        "peak_balance": TIERS[DEFAULT_TIER]["start"],
+        "peak_at": datetime.now(MST).isoformat(),
         "contest_id": datetime.now(MST).isoformat(),
         "updated_at": datetime.now(MST).isoformat(),
     }
@@ -215,6 +217,64 @@ def assert_state_on_boot(context: str = "boot") -> dict:
                   "updated_at": datetime.now(MST).isoformat()})
 
 
+def _peak_of(s: dict) -> float:
+    """The high-water mark recorded in a state dict, never below its balance.
+
+    `max_balance` is read as well: it is the name the missing field was asked
+    for, and an older writer that stamped it must not be silently ignored.
+    """
+    cur = float(s.get("current_balance") or 0.0)
+    try:
+        peak = max(float(s.get("peak_balance") or 0.0),
+                   float(s.get("max_balance") or 0.0))
+    except (TypeError, ValueError):
+        peak = 0.0
+    return max(peak, cur)
+
+
+def peak_balance(state: dict | None = None) -> float:
+    """THE HIGH-WATER MARK of this contest window (never moves down).
+
+    The pass condition is a TOUCH, not a resting balance: +12% reached at any
+    instant wins even if the money steps back before the next read. Comparing
+    only `current_balance` to the win line cannot see that touch, so every
+    cycle and every close rolls this mark forward and the crossing checks read
+    it instead of the spot balance.
+    """
+    return _peak_of(state or load_state())
+
+
+def capture_peak(state: dict | None = None, at: str | None = None,
+                 persist: bool = True) -> dict:
+    """Roll the high-water mark forward to the current balance.
+
+    Called every cycle and on every close. A balance that has not advanced
+    writes nothing (the disk is not touched on a flat tick), and a contended
+    lock returns the loaded state unpersisted rather than raising -- a missed
+    capture is repaired by the next cycle, which is the whole reason the mark
+    is captured every cycle.
+    """
+    s = state or load_state()
+    cur = float(s.get("current_balance") or 0.0)
+    if cur <= _peak_of(s) + 1e-9:
+        return s
+    if not persist:
+        out = dict(s)
+        out["peak_balance"] = cur
+        out["peak_at"] = at or _now_iso()
+        return out
+    with _StateLock() as _lk:
+        if not _lk.held:
+            return s                      # next cycle retries the capture
+        s = load_state()
+        cur = float(s.get("current_balance") or 0.0)
+        if cur > _peak_of(s) + 1e-9:
+            s["peak_balance"] = cur
+            s["peak_at"] = at or _now_iso()
+            _write_state(s)
+        return s
+
+
 def save_state(tier: int, current_balance: float) -> dict:
     """Write the account state (the console owns this — the user sets the
     tier and updates the balance as the contest account moves). The daily
@@ -234,6 +294,13 @@ def save_state(tier: int, current_balance: float) -> dict:
                "hail_mary_count", "hail_mary_mode", "contest_id"):
         if prev.get(_k) is not None:
             s[_k] = prev[_k]
+    # THE HIGH-WATER MARK SURVIVES A CONSOLE BALANCE EDIT: a hand-entered
+    # figure is a new observation, never a history rewrite -- a peak already
+    # touched stays touched (the pass it records cannot be undone by typing).
+    s["peak_balance"] = max(_peak_of(prev), s["current_balance"])
+    s["peak_at"] = (prev.get("peak_at")
+                     if s["peak_balance"] <= _peak_of(prev) + 1e-9
+                     else datetime.now(MST).isoformat())
     # a USER action never drops silently (Sep 9, the phantom-1k lesson):
     # a busy lock must RAISE so the caller can say "try again" -- the
     # silent skip returned a state that was never written, and the UI
@@ -252,9 +319,14 @@ def win_line(state: dict | None = None) -> float:
 
 
 def contest_won(state: dict | None = None) -> bool:
-    """True once the balance has reached the +12% win line."""
+    """True once the +12% win line has been TOUCHED, not merely rested on.
+
+    Reads the high-water mark: a balance that crosses the line and falls back
+    between two reads still wins. Falls back to the spot balance so a state
+    dict from before the mark existed grades exactly as it used to.
+    """
     s = state or load_state()
-    return float(s["current_balance"]) >= win_line(s)
+    return _peak_of(s) >= win_line(s)
 
 
 def standing(state: dict | None = None) -> dict:
@@ -271,9 +343,12 @@ def standing(state: dict | None = None) -> dict:
     win = round(start * (1.0 + PROFIT_TARGET_PCT / 100.0), 2)
     dead = round(start * (1.0 - MAX_LOSS_PCT / 100.0), 2)
     prog = ((now / start - 1.0) * 100.0) if start > 0 else 0.0
+    peak = _peak_of(s)
     return {
         "start_balance": round(start, 2),
         "current_balance": round(now, 2),
+        "peak_balance": round(peak, 2),
+        "peak_at": s.get("peak_at"),
         "win_line": win,
         "death_line": dead,
         "target_pct": PROFIT_TARGET_PCT,
@@ -282,7 +357,9 @@ def standing(state: dict | None = None) -> dict:
                            if PROFIT_TARGET_PCT else 0.0),
         "to_go_usd": round(max(win - now, 0.0), 2),
         "buffer_usd": round(now - dead, 2),
-        "won": now >= win,
+        "won": peak >= win,
+        # the touch-and-fall-back tell: the line was crossed, the money is back
+        "won_on_touch": peak >= win and now < win,
         "contest_id": s.get("contest_id"),
     }
 
@@ -519,6 +596,7 @@ def score_and_restart(tier: int | None = None) -> dict:
         "tier": s.get("tier"),
         "start_balance": float(s["start_balance"]),
         "final_balance": float(s["current_balance"]),
+        "peak_balance": round(_peak_of(s), 2),
         "win_line": round(win_line(s), 2),
         "result": "won",
         "scored_at": _now_iso(),
@@ -542,15 +620,21 @@ def reanchor_after_win(state: dict | None = None) -> dict:
     tracking. Refuses below the win line, so it can never re-anchor early.
     """
     s = dict(state) if state else load_state()
-    if float(s["current_balance"]) < win_line(s):
+    # the TOUCH is the win: read the high-water mark, not the spot balance, so
+    # a line crossed and given back still re-anchors instead of being refused
+    if _peak_of(s) < win_line(s):
         raise ValueError(
-            f"contest not won yet: balance {float(s['current_balance']):,.2f} "
-            f"is below the win line {win_line(s):,.2f}")
+            f"contest not won yet: peak {_peak_of(s):,.2f} (balance "
+            f"{float(s['current_balance']):,.2f}) is below the win line "
+            f"{win_line(s):,.2f}")
+    peak = _peak_of(s)
     record = {
         "contest_id": s.get("contest_id"),
         "tier": s.get("tier"),
         "start_balance": float(s["start_balance"]),
         "final_balance": float(s["current_balance"]),
+        "peak_balance": round(peak, 2),
+        "won_on_touch": peak >= win_line(s) and float(s["current_balance"]) < win_line(s),
         "win_line": round(win_line(s), 2),
         "result": "won",
         "scored_at": _now_iso(),
@@ -559,6 +643,12 @@ def reanchor_after_win(state: dict | None = None) -> dict:
         fh.write(json.dumps(record) + "\n")
     out = dict(s)
     out["start_balance"] = float(s["current_balance"])
+    # THE MARK RESETS WITH THE WINDOW: the new contest starts at the balance
+    # the win left behind, so its own high-water mark starts there too -- a
+    # peak carried across windows would make the NEXT +12% a comparison
+    # against the old contest's money.
+    out["peak_balance"] = float(s["current_balance"])
+    out["peak_at"] = datetime.now(MST).isoformat()
     out["contest_id"] = datetime.now(MST).isoformat()
     out["updated_at"] = datetime.now(MST).isoformat()
     with _StateLock() as _lk:
@@ -593,6 +683,8 @@ def new_contest(tier: int, start_balance: float | None = None) -> dict:
         "tier": tier,
         "start_balance": start,
         "current_balance": start,
+        "peak_balance": start,
+        "peak_at": datetime.now(MST).isoformat(),
         "contest_id": datetime.now(MST).isoformat(),
         "updated_at": datetime.now(MST).isoformat(),
     }
@@ -772,6 +864,14 @@ def _apply_pnl(net, contest_id, dedupe_key, journal):
             return _settle((False, float(s["current_balance"]),
                             "trade already applied (replayed SOLD)"))
         nb = max(float(s["current_balance"]) + float(net or 0), 0.0)
+        # EVERY CLOSE ROLLS THE HIGH-WATER MARK (Nov 16): a close is the one
+        # moment the balance is known to have moved, and a crossing that
+        # happens here must be recorded here -- a later read of a fallen-back
+        # balance would erase it. Inside the lock: the mark moves with the
+        # balance it was measured from, never on a concurrent writer's figure.
+        if nb > _peak_of(s) + 1e-9:
+            s["peak_balance"] = nb
+            s["peak_at"] = _now_iso()
         # THE RECEIPT FIRST (Nov 6). It runs inside the lock so no other
         # writer can move the balance between the receipt and its commit;
         # a raise here aborts before any state is written.

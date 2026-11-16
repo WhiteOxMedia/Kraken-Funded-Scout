@@ -1158,7 +1158,9 @@ def contest_paycheck_check(acct=None) -> dict:
     """
     import json as _json          # the scanner's own json import is aliased
     import contest_account as _ca
-    s = acct or _ca.load_state()
+    # the crossing check reads the MARK, so roll it first: a touch that came
+    # and went between the last cycle and this one still counts as won
+    s = _ca.capture_peak(acct) if acct is not None else _ca.capture_peak()
     st = _ca.standing(s)
     if not st["won"]:
         return {"prompted": False, "won": False, "standing": st}
@@ -1172,11 +1174,15 @@ def contest_paycheck_check(acct=None) -> dict:
         return {"prompted": False, "won": True, "duplicate": True,
                 "standing": st}
     new = _ca.reanchor_after_win(s)
-    logger.info("💰 PAYCHECK: CONTEST WON — $%s reached the win line $%s "
-                "(+%.0f%% of the $%s contest start). TAKE A PAYCHECK and "
+    logger.info("💰 PAYCHECK: CONTEST WON — peak $%s reached the win line $%s "
+                "(+%.0f%% of the $%s contest start)%s. TAKE A PAYCHECK and "
                 "start the next contest.",
-                f"{st['current_balance']:,.2f}", f"{st['win_line']:,.2f}",
-                st["target_pct"], f"{st['start_balance']:,.2f}")
+                f"{st.get('peak_balance', st['current_balance']):,.2f}",
+                f"{st['win_line']:,.2f}",
+                st["target_pct"], f"{st['start_balance']:,.2f}",
+                (f" and the balance has since stepped back to "
+                 f"${st['current_balance']:,.2f} — the touch is the win"
+                 if st.get("won_on_touch") else ""))
     nst = _ca.standing(new)
     logger.info("  CONTEST RE-ANCHORED: new start $%s | new win $%s (+%.0f%%) "
                 "| new death $%s (-%.0f%%, anchored) — the profit is the buffer",
@@ -1194,7 +1200,7 @@ def contest_paycheck_check(acct=None) -> dict:
         # called directly, because a crossed win line is exactly the alert
         # that must reach the phone.
         _send_ntfy(
-            f"CONTEST WON — ${st['current_balance']:,.2f} crossed the "
+            f"CONTEST WON — peak ${st.get('peak_balance', st['current_balance']):,.2f} crossed the "
             f"+{st['target_pct']:.0f}% win line (${st['win_line']:,.2f}). "
             f"TAKE A PAYCHECK now — the next contest starts at "
             f"${nst['start_balance']:,.2f} (win ${nst['win_line']:,.2f}, "
@@ -8407,6 +8413,8 @@ def main():
         logger.debug("  boot SIZE banner skipped: %s", exc)
 
     try:
+        import contest_account as _ca
+        _ca.capture_peak()
         logger.info("  %s", contest_standing_text())
         contest_paycheck_check()
     except Exception as _cs_boot_exc:
@@ -12486,6 +12494,11 @@ def main():
         # THE CONTEST STANDING, every cycle, against the FIXED baseline --
         # and the paycheck prompt the cycle the win line is first reached.
         try:
+            # THE HIGH-WATER MARK, EVERY CYCLE (Nov 16): the pass is a touch,
+            # so the mark is rolled before the standing reads it -- a crossing
+            # that happens between two cycles is never lost to a fall-back.
+            import contest_account as _ca
+            _ca.capture_peak()
             logger.info("  %s", contest_standing_text())
             contest_paycheck_check()
             death_floor_cycle()

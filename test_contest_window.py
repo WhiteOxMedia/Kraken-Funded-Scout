@@ -221,12 +221,12 @@ check("the SOLD pass dedupes on pair + added stamp (replay-safe)",
 check("the old rerun-reset block is GONE (no 'if tier != _cs.get' reset)",
       'if tier != _cs.get("tier"):' not in app_src)
 check("the SOLD path routes through the window-aware apply_pnl seam",
-      "_ca_s.apply_pnl(\n" in app_src.replace("\r\n", "\n")
-      or "apply_pnl(" in app_src)
+      "_ca_s.apply_pnl_journaled(\n" in app_src.replace("\r\n", "\n")
+      or "apply_pnl" in app_src)
 check("the SOLD pass carries the trade's own window stamp",
       '_sw.get("contest_id")' in app_src)
 check("the ledger row records whether the balance actually moved",
-      '"applied": bool(_applied)' in app_src)
+      '"applied": bool(_applied_j)' in app_src)
 check("the watch-add site stamps the contest window",
       app_src.count('"contest_id": _ca.current_contest_id()') == 1)
 # Sep 22: popups are the only writer, so the SCANNER's auto-track add
@@ -247,8 +247,22 @@ check("the watch wipe resolves beside the CURRENT state file (no repo-root hardc
 # ── 10. THE STATE LOCK (Copilot round 3, Sep 9) ───────────────────────
 
 ca_src = (BASE / "contest_account.py").read_text(encoding="utf-8")
-check("all three writers run under the state lock (save/new_contest/apply)",
-      ca_src.count("with _StateLock() as _lk:") == 3)
+
+
+def _fn_src(name):
+    """The source of one top-level function (to the next `def `)."""
+    i = ca_src.index(f"def {name}(")
+    j = ca_src.find("\ndef ", i + 1)
+    return ca_src[i:j if j > 0 else len(ca_src)]
+
+
+# every function that WRITES the account file must hold the lock. Named, not
+# counted: the count went stale the moment a fourth writer landed (Nov 16's
+# capture_peak), and a bare number cannot tell a new writer from a deleted one.
+check("every balance writer runs under the state lock",
+      all("with _StateLock() as _lk:" in _fn_src(n) for n in
+          ("save_state", "new_contest", "reanchor_after_win",
+           "_apply_pnl", "capture_peak")))
 
 # BUSY: a fresh LIVE holder's lock survives the retries -> honest skip
 # (the fixture carries OUR pid: a dead writer's lock would be taken over
