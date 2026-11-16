@@ -1,0 +1,438 @@
+{
+ "pace": 47.44,
+ "entries": 8682,
+ "exits": {
+  "tight 1.0/0.2/0.08": {
+   "n": 8682,
+   "win_pct": 83.8,
+   "mean": 0.0714,
+   "sd": 0.5227,
+   "worst_loss_run": 16,
+   "capped": 14,
+   "theta_iid": 0.5,
+   "theta_trade": 0.2614,
+   "cells": {
+    "1%|180d": {
+     "iid": {
+      "pass": 0.0,
+      "death": 0.0,
+      "worst_logpath": -0.0013
+     },
+     "block20": {
+      "pass": 0.0,
+      "death": 0.0,
+      "worst_logpath": -0.0059
+     },
+     "block50": {
+      "pass": 0.0,
+      "death": 0.0,
+      "worst_logpath": -0.0057
+     },
+     "block200": {
+      "pass": 0.0,
+      "death": 0.0,
+      "worst_logpath": -0.0093
+     }
+    },
+    "1%|365d": {
+     "iid": {
+      "pass": 0.934,
+      "death": 0.0,
+      "worst_logpath": -0.0021
+     },
+     "block20": {
+      "pass": 0.8467,
+      "death": 0.0,
+      "worst_logpath": -0.0079
+     },
+     "block50": {
+      "pass": 0.8167,
+      "death": 0.0,
+      "worst_logpath": -0.0067
+     },
+     "block200": {
+      "pass": 0.832,
+      "death": 0.0,
+      "worst_logpath": -0.0059
+     }
+    },
+    "2%|180d": {
+     "iid": {
+      "pass": 0.83,
+      "death": 0.0,
+      "worst_logpath": -0.0026
+     },
+     "block20": {
+      "pass": 0.7173,
+      "death": 0.0,
+      "worst_logpath": -0.0117
+     },
+     "block50": {
+      "pass": 0.7367,
+      "death": 0.0,
+      "worst_logpath": -0.0113
+     },
+     "block200": {
+      "pass": 0.7287,
+      "death": 0.0,
+      "worst_logpath": -0.0187
+     }
+    },
+    "2%|365d": {
+     "iid": {
+      "pass": 1.0,
+      "death": 0.0,
+      "worst_logpath": -0.0042
+     },
+     "block20": {
+      "pass": 1.0,
+      "death": 0.0,
+      "worst_logpath": -0.0157
+     },
+     "block50": {
+      "pass": 1.0,
+      "death": 0.0,
+      "worst_logpath": -0.0135
+     },
+     "block200": {
+      "pass": 1.0,
+      "death": 0.0,
+      "worst_logpath": -0.0118
+     }
+    },
+    "5%|180d": {
+     "iid": {
+      "pass": 1.0,
+      "death": 0.0,
+      "worst_logpath": -0.0065
+     },
+     "block20": {
+      "pass": 1.0,
+      "death": 0.0,
+      "worst_logpath": -0.0293
+     },
+     "block50": {
+      "pass": 1.0,
+      "death": 0.0,
+      "worst_logpath": -0.0283
+     },
+     "block200": {
+      "pass": 0.9973,
+      "death": 0.0027,
+      "worst_logpath": -0.0468
+     }
+    },
+    "5%|365d": {
+     "iid": {
+      "pass": 1.0,
+      "death": 0.0,
+      "worst_logpath": -0.0104
+     },
+     "block20": {
+      "pass": 0.9993,
+      "death": 0.0007,
+      "worst_logpath": -0.0394
+     },
+     "block50": {
+      "pass": 0.9987,
+      "death": 0.0013,
+      "worst_logpath": -0.0337
+     },
+     "block200": {
+      "pass": 1.0,
+      "death": 0.0,
+      "worst_logpath": -0.0294
+     }
+    }
+   }
+  },
+  "mid   1.5/0.2/0.08": {
+   "n": 8682,
+   "win_pct": 88.6,
+   "mean": 0.0824,
+   "sd": 0.6066,
+   "worst_loss_run": 12,
+   "capped": 31,
+   "theta_iid": 0.4,
+   "theta_trade": 0.2239,
+   "cells": {
+    "1%|180d": {
+     "iid": {
+      "pass": 0.0,
+      "death": 0.0,
+      "worst_logpath": -0.0014
+     },
+     "block20": {
+      "pass": 0.0,
+      "death": 0.0,
+      "worst_logpath": -0.0081
+     },
+     "block50": {
+      "pass": 0.0,
+      "death": 0.0,
+      "worst_logpath": -0.0107
+     },
+     "block200": {
+      "pass": 0.0,
+      "death": 0.0,
+      "worst_logpath": -0.011
+     }
+    },
+    "1%|365d": {
+     "iid": {
+      "pass": 1.0,
+      "death": 0.0,
+      "worst_logpath": -0.0022
+     },
+     "block20": {
+      "pass": 0.9893,
+      "death": 0.0,
+      "worst_logpath": -0.008
+     },
+     "block50": {
+      "pass": 0.974,
+      "death": 0.0,
+      "worst_logpath": -0.0074
+     },
+     "block200": {
+      "pass": 0.964,
+      "death": 0.0,
+      "worst_logpath": -0.0088
+     }
+    },
+    "2%|180d": {
+     "iid": {
+      "pass": 0.986,
+      "death": 0.0,
+      "worst_logpath": -0.0028
+     },
+     "block20": {
+      "pass": 0.9247,
+      "death": 0.0,
+      "worst_logpath": -0.0163
+     },
+     "block50": {
+      "pass": 0.912,
+      "death": 0.0,
+      "worst_logpath": -0.0215
+     },
+     "block200": {
+      "pass": 0.9053,
+      "death": 0.0,
+      "worst_logpath": -0.022
+     }
+    },
+    "2%|365d": {
+     "iid": {
+      "pass": 1.0,
+      "death": 0.0,
+      "worst_logpath": -0.0044
+     },
+     "block20": {
+      "pass": 1.0,
+      "death": 0.0,
+      "worst_logpath": -0.0159
+     },
+     "block50": {
+      "pass": 1.0,
+      "death": 0.0,
+      "worst_logpath": -0.0148
+     },
+     "block200": {
+      "pass": 1.0,
+      "death": 0.0,
+      "worst_logpath": -0.0176
+     }
+    },
+    "5%|180d": {
+     "iid": {
+      "pass": 1.0,
+      "death": 0.0,
+      "worst_logpath": -0.007
+     },
+     "block20": {
+      "pass": 0.9987,
+      "death": 0.0013,
+      "worst_logpath": -0.0407
+     },
+     "block50": {
+      "pass": 0.9947,
+      "death": 0.0053,
+      "worst_logpath": -0.0538
+     },
+     "block200": {
+      "pass": 0.986,
+      "death": 0.014,
+      "worst_logpath": -0.0549
+     }
+    },
+    "5%|365d": {
+     "iid": {
+      "pass": 1.0,
+      "death": 0.0,
+      "worst_logpath": -0.0111
+     },
+     "block20": {
+      "pass": 0.9973,
+      "death": 0.0027,
+      "worst_logpath": -0.0399
+     },
+     "block50": {
+      "pass": 0.9953,
+      "death": 0.0047,
+      "worst_logpath": -0.0371
+     },
+     "block200": {
+      "pass": 0.9893,
+      "death": 0.0107,
+      "worst_logpath": -0.044
+     }
+    }
+   }
+  },
+  "ship  2.0/0.4/0.15": {
+   "n": 8682,
+   "win_pct": 84.1,
+   "mean": 0.09,
+   "sd": 0.9207,
+   "worst_loss_run": 15,
+   "capped": 124,
+   "theta_iid": 0.2,
+   "theta_trade": 0.1062,
+   "cells": {
+    "1%|180d": {
+     "iid": {
+      "pass": 0.0,
+      "death": 0.0,
+      "worst_logpath": -0.0039
+     },
+     "block20": {
+      "pass": 0.024,
+      "death": 0.0,
+      "worst_logpath": -0.0167
+     },
+     "block50": {
+      "pass": 0.0607,
+      "death": 0.0,
+      "worst_logpath": -0.0245
+     },
+     "block200": {
+      "pass": 0.0687,
+      "death": 0.0,
+      "worst_logpath": -0.0238
+     }
+    },
+    "1%|365d": {
+     "iid": {
+      "pass": 1.0,
+      "death": 0.0,
+      "worst_logpath": -0.0035
+     },
+     "block20": {
+      "pass": 0.9733,
+      "death": 0.0,
+      "worst_logpath": -0.015
+     },
+     "block50": {
+      "pass": 0.948,
+      "death": 0.0,
+      "worst_logpath": -0.0222
+     },
+     "block200": {
+      "pass": 0.956,
+      "death": 0.0,
+      "worst_logpath": -0.0209
+     }
+    },
+    "2%|180d": {
+     "iid": {
+      "pass": 0.9913,
+      "death": 0.0,
+      "worst_logpath": -0.0079
+     },
+     "block20": {
+      "pass": 0.916,
+      "death": 0.0013,
+      "worst_logpath": -0.0334
+     },
+     "block50": {
+      "pass": 0.9013,
+      "death": 0.006,
+      "worst_logpath": -0.049
+     },
+     "block200": {
+      "pass": 0.8913,
+      "death": 0.006,
+      "worst_logpath": -0.0475
+     }
+    },
+    "2%|365d": {
+     "iid": {
+      "pass": 1.0,
+      "death": 0.0,
+      "worst_logpath": -0.0069
+     },
+     "block20": {
+      "pass": 1.0,
+      "death": 0.0,
+      "worst_logpath": -0.03
+     },
+     "block50": {
+      "pass": 0.996,
+      "death": 0.004,
+      "worst_logpath": -0.0445
+     },
+     "block200": {
+      "pass": 0.996,
+      "death": 0.004,
+      "worst_logpath": -0.0417
+     }
+    },
+    "5%|180d": {
+     "iid": {
+      "pass": 1.0,
+      "death": 0.0,
+      "worst_logpath": -0.0197
+     },
+     "block20": {
+      "pass": 0.9307,
+      "death": 0.0693,
+      "worst_logpath": -0.0838
+     },
+     "block50": {
+      "pass": 0.8927,
+      "death": 0.1073,
+      "worst_logpath": -0.1228
+     },
+     "block200": {
+      "pass": 0.8647,
+      "death": 0.1353,
+      "worst_logpath": -0.1191
+     }
+    },
+    "5%|365d": {
+     "iid": {
+      "pass": 1.0,
+      "death": 0.0,
+      "worst_logpath": -0.0173
+     },
+     "block20": {
+      "pass": 0.9427,
+      "death": 0.0573,
+      "worst_logpath": -0.075
+     },
+     "block50": {
+      "pass": 0.8687,
+      "death": 0.1313,
+      "worst_logpath": -0.1114
+     },
+     "block200": {
+      "pass": 0.898,
+      "death": 0.102,
+      "worst_logpath": -0.1045
+     }
+    }
+   }
+  }
+ }
+}

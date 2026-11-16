@@ -1,0 +1,71 @@
+{
+ "tight": {
+  "1%": {
+   "maxlog": 0.062,
+   "maxtrough": -0.0007,
+   "pass_at": -1,
+   "death_at": -1,
+   "verdict": "ALIVE"
+  },
+  "2%": {
+   "maxlog": 0.1239,
+   "maxtrough": -0.0013,
+   "pass_at": 6680,
+   "death_at": -1,
+   "verdict": "PASS"
+  },
+  "5%": {
+   "maxlog": 0.3097,
+   "maxtrough": -0.0033,
+   "pass_at": 3455,
+   "death_at": -1,
+   "verdict": "PASS"
+  }
+ },
+ "mid": {
+  "1%": {
+   "maxlog": 0.0715,
+   "maxtrough": -0.0008,
+   "pass_at": -1,
+   "death_at": -1,
+   "verdict": "ALIVE"
+  },
+  "2%": {
+   "maxlog": 0.143,
+   "maxtrough": -0.0016,
+   "pass_at": 6171,
+   "death_at": -1,
+   "verdict": "PASS"
+  },
+  "5%": {
+   "maxlog": 0.3572,
+   "maxtrough": -0.004,
+   "pass_at": 3167,
+   "death_at": -1,
+   "verdict": "PASS"
+  }
+ },
+ "ship": {
+  "1%": {
+   "maxlog": 0.0781,
+   "maxtrough": -0.0017,
+   "pass_at": -1,
+   "death_at": -1,
+   "verdict": "ALIVE"
+  },
+  "2%": {
+   "maxlog": 0.1561,
+   "maxtrough": -0.0033,
+   "pass_at": 5601,
+   "death_at": -1,
+   "verdict": "PASS"
+  },
+  "5%": {
+   "maxlog": 0.3897,
+   "maxtrough": -0.0083,
+   "pass_at": 3203,
+   "death_at": -1,
+   "verdict": "PASS"
+  }
+ }
+}

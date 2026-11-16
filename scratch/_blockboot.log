@@ -1,0 +1,27 @@
+cheap pairs 15  entries 8,682  pace 47.4/day  (15s)
+
+tight 1.0/0.2/0.08: n=8,682 win 83.8% e +0.0714% sd 0.5227% worst loss run 16 | capped 14 | 15s
+    1% 180d  pass/death%  iid:   0.0/ 0.0  block20:   0.0/ 0.0  block50:   0.0/ 0.0  block200:   0.0/ 0.0
+    1% 365d  pass/death%  iid:  93.4/ 0.0  block20:  84.7/ 0.0  block50:  81.7/ 0.0  block200:  83.2/ 0.0
+    2% 180d  pass/death%  iid:  83.0/ 0.0  block20:  71.7/ 0.0  block50:  73.7/ 0.0  block200:  72.9/ 0.0
+    2% 365d  pass/death%  iid: 100.0/ 0.0  block20: 100.0/ 0.0  block50: 100.0/ 0.0  block200: 100.0/ 0.0
+    5% 180d  pass/death%  iid: 100.0/ 0.0  block20: 100.0/ 0.0  block50: 100.0/ 0.0  block200:  99.7/ 0.3
+    5% 365d  pass/death%  iid: 100.0/ 0.0  block20:  99.9/ 0.1  block50:  99.9/ 0.1  block200: 100.0/ 0.0
+
+mid   1.5/0.2/0.08: n=8,682 win 88.6% e +0.0824% sd 0.6066% worst loss run 12 | capped 31 | 47s
+    1% 180d  pass/death%  iid:   0.0/ 0.0  block20:   0.0/ 0.0  block50:   0.0/ 0.0  block200:   0.0/ 0.0
+    1% 365d  pass/death%  iid: 100.0/ 0.0  block20:  98.9/ 0.0  block50:  97.4/ 0.0  block200:  96.4/ 0.0
+    2% 180d  pass/death%  iid:  98.6/ 0.0  block20:  92.5/ 0.0  block50:  91.2/ 0.0  block200:  90.5/ 0.0
+    2% 365d  pass/death%  iid: 100.0/ 0.0  block20: 100.0/ 0.0  block50: 100.0/ 0.0  block200: 100.0/ 0.0
+    5% 180d  pass/death%  iid: 100.0/ 0.0  block20:  99.9/ 0.1  block50:  99.5/ 0.5  block200:  98.6/ 1.4
+    5% 365d  pass/death%  iid: 100.0/ 0.0  block20:  99.7/ 0.3  block50:  99.5/ 0.5  block200:  98.9/ 1.1
+
+ship  2.0/0.4/0.15: n=8,682 win 84.1% e +0.0900% sd 0.9207% worst loss run 15 | capped 124 | 80s
+    1% 180d  pass/death%  iid:   0.0/ 0.0  block20:   2.4/ 0.0  block50:   6.1/ 0.0  block200:   6.9/ 0.0
+    1% 365d  pass/death%  iid: 100.0/ 0.0  block20:  97.3/ 0.0  block50:  94.8/ 0.0  block200:  95.6/ 0.0
+    2% 180d  pass/death%  iid:  99.1/ 0.0  block20:  91.6/ 0.1  block50:  90.1/ 0.6  block200:  89.1/ 0.6
+    2% 365d  pass/death%  iid: 100.0/ 0.0  block20: 100.0/ 0.0  block50:  99.6/ 0.4  block200:  99.6/ 0.4
+    5% 180d  pass/death%  iid: 100.0/ 0.0  block20:  93.1/ 6.9  block50:  89.3/10.7  block200:  86.5/13.5
+    5% 365d  pass/death%  iid: 100.0/ 0.0  block20:  94.3/ 5.7  block50:  86.9/13.1  block200:  89.8/10.2
+
+wrote C:\Users\birds\Workspace\kraken_scout\scratch\_block_bootstrap.json (113s)
