@@ -667,7 +667,48 @@ check("6t a giveback-dominant LOSING rotation still hears the mandate's "
       and "no - not a misaligned SUCCESS until " in src)
 
 lines.append(f"\nRESULT: {PASS} passed, {FAIL} failed")
+# ── 3b. LEFT ON THE TABLE NETS BOTH SIDES OF THE VETO COHORT ─────────
+class CloseExchange:
+    """Candles with real closes, so the dud counterfactual can be priced."""
+    def __init__(self, rows):
+        self.rows = rows          # list of (ts, close)
+    def fetch_ohlcv(self, pair, timeframe="1h", since=None, limit=12):
+        return [[int(ts.timestamp() * 1000), 1, 1, 1, close, 100]
+                for ts, close in self.rows]
+
+_alert = datetime(2026, 11, 15, 10, 30, tzinfo=MST)
+_end = datetime(2026, 11, 15, 12, 0, tzinfo=MST)
+_fall = CloseExchange([(datetime(2026, 11, 15, 10, tzinfo=MST), 1.00),
+                       (datetime(2026, 11, 15, 11, tzinfo=MST), 0.97)])
+_rise = CloseExchange([(datetime(2026, 11, 15, 10, tzinfo=MST), 1.00),
+                       (datetime(2026, 11, 15, 11, tzinfo=MST), 1.01)])
+_dud_loss = dc._dud_counterfactual(_fall, "T/USD", _alert, _end, 1000.0)
+check("a buried dud is priced at its own measured loss, not at zero",
+      _dud_loss is not None and -100.0 < _dud_loss < 0, _dud_loss)
+check("the dud price subtracts a round trip on top of the move",
+      _dud_loss is not None and _dud_loss < -30.0, _dud_loss)
+_dud_gain = dc._dud_counterfactual(_rise, "T/USD", _alert, _end, 1000.0)
+check("a dud that ROSE is booked as a gain (both sides, both directions)",
+      _dud_gain is not None and 0 < _dud_gain < 10.0, _dud_gain)
+check("an unreadable dud is unpriced, never zero",
+      dc._dud_counterfactual(BrokenExchange(), "T/USD", _alert, _end, 1000.0) is None)
+
+_net, _acct = dc._burial_net(
+    [{"pair": "A", "usd": 100.0}, {"pair": "B", "usd": 50.0}],
+    [{"pair": "C", "usd": -30.0}, {"pair": "D", "usd": None}])
+check("the net is payers minus duds", abs(_net - 120.0) < 1e-9, _net)
+check("the ledger says how many duds are in the net", _acct["duds"] == 2)
+check("the ledger says how many duds it could not price", _acct["unpriced_duds"] == 1)
+check("the gross side is still reported beside the net", _acct["payers_usd"] == 150.0)
+check("the net is NOT the survivors-only sum", _acct["net_usd"] != _acct["payers_usd"])
+_g2, _a2 = dc._burial_net([{"usd": 200.0}], [{"usd": None}, {"usd": None}])
+check("all-unpriced duds leave the net at gross and say so", _g2 == 200.0
+      and _a2["unpriced_duds"] == 2 and _a2["duds_priced"] == 0)
+_g3, _a3 = dc._burial_net([], [{"usd": -12.0}])
+check("a dud-only cohort nets negative", _g3 == -12.0 and _a3["payers"] == 0)
+
 scratch_space.report_temp('_discipline_check.txt').write_text("\n".join(lines), encoding="utf-8")
+
 
 print(f"RESULT: {PASS} passed, {FAIL} failed")
 

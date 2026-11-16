@@ -355,6 +355,369 @@ def _rotation_goal_pct(pair: str, rot_key: str, sched: str) -> float:
     return 1.5
 
 
+# --- THE PROFIT ALIGNMENT SCORE (PAS) - THE SECOND SCORECARD ----------
+# (user spec, Oct 16): SNIPER answers "did I leave money on the table?".
+# PAS answers the other question the single number could not: "did the
+# market DO what the model expected?" Two facts are compared - the
+# window's EXPECTATION (the Volatility Engine's own calibrated cell for
+# this rotation and schedule: the very numbers the scanner's expected-
+# move gate is built from) and the window's REALIZATION (the pairs the
+# rotation touched, measured open-to-close over the same 4h window from
+# the engine's own 1h candle cache - the same math the expectation is
+# derived with). PAS changes NOTHING the discipline score owns: not a
+# weight, not a gate, not a ladder cell, not a reconciler verdict. It is
+# computed beside the score, persisted on the same rotation row, and
+# read by the plate and the QC lesson as an ADDITIONAL interpretation.
+PAS_DRIFT_WEIGHT = 0.4     # did the market move the way the model projected?
+PAS_VOL_WEIGHT = 0.3       # was the window's movement the size it sized?
+PAS_PROFIT_WEIGHT = 0.3    # did the money follow the expected drift?
+PAS_MEASURE_PAIRS = 12     # the cache read stays bounded whatever fired
+# THE QC TREE'S BANDS (user spec, section 4 - the exact thresholds the
+# two-scorecard read is judged by; here so ONE line tunes them)
+PAS_ALIGNED_MIN = 70       # >= this WITH money realized = the strong shape
+PAS_MISS_MAX = 30          # <= this with $0 realized = the drift never came
+
+
+def _num(v, *alts):
+    """The PAS components' shared coercion: a float, or None for a
+    missing/None/unparseable field - never a raise on a row the history
+    never carried (rows written before PAS have none of its inputs)."""
+    for cand in (v,) + alts:
+        if cand is None:
+            continue
+        try:
+            return float(cand)
+        except (TypeError, ValueError):
+            continue
+    return None
+
+
+def _expected_cell(rot_key: str, sched: str):
+    """The engine's calibrated cell for this rotation and schedule (the
+    universe MEDIAN - the same fallback the gates use for a pair with no
+    reliable history). None when the engine has never run."""
+    try:
+        from volatility_engine import load_rotation_thresholds
+        doc = load_rotation_thresholds(max_age_s=900) or {}
+        return (doc.get("median", {}).get(sched, {}) or {}).get(rot_key)
+    except Exception:
+        return None
+
+
+def _rotation_expectation(rot_key: str, sched: str, goals=None):
+    """(expected_drift %, expected_volatility %) for the window: the
+    engine's median cell first; when the engine is silent the candidates'
+    own goals stand in for the drift (the goal IS the projection the gate
+    fired on) with the engine's std - or the goal itself - as the
+    volatility. (None, None) when neither exists: an alignment that
+    cannot be measured is never invented."""
+    cell = _expected_cell(rot_key, sched) or {}
+    exp_vol = _num(cell.get("std"))
+    exp_drift = _num(cell.get("avg_move"))
+    if exp_drift is not None:
+        return exp_drift, (exp_vol if exp_vol is not None else exp_drift)
+    gs = [g for g in (_num(x) for x in (goals or [])) if g]
+    if gs:
+        mean = sum(gs) / len(gs)
+        return mean, (exp_vol if exp_vol is not None else mean)
+    return None, None
+
+
+def _window_realized_moves(pairs, start, end) -> list[float]:
+    """The window's REALIZED move (%) per pair, measured open-to-close
+    over the rotation's own 1h candles in the Volatility Engine's cache
+    (ohlcv_cache.db) - the same _sessions() math the engine derives the
+    expectation with. `pairs` empty/None measures the WHOLE cached
+    universe for the window (the calibration read: the engine's median
+    cell is itself a universe statistic, so the realized side is
+    measured the same way, and every rotation gets a number); a pair
+    list measures just those (the rotation's own footprint).
+
+    A window needs at least 3 of its 4 hourly candles to be read: the
+    boundary evaluation can run before the engine's next hourly refresh
+    banks the last one, and a 4h window judged on fewer candles is
+    censored evidence, not a measurement (the burials' own rule).
+    Read-only, fail-soft: any break returns []."""
+    moves: list[float] = []
+    try:
+        import sqlite3
+        _db = Path(__file__).parent / "ohlcv_cache.db"
+        if not _db.exists():
+            return []
+        conn = sqlite3.connect("file:{}?mode=ro".format(_db), uri=True,
+                               timeout=5)
+
+        def _add(open_px, close_px, n_candles) -> None:
+            """One pair's window move, or nothing when the candles are
+            too few to judge or the open is unusable."""
+            if n_candles < 3 or not open_px:
+                return
+            try:
+                _o, _c = float(open_px), float(close_px)
+            except (TypeError, ValueError):
+                return
+            if _o > 0:
+                moves.append((_c / _o - 1.0) * 100.0)
+
+        try:
+            _t0 = int(start.timestamp() * 1000)
+            _t1 = int(end.timestamp() * 1000)
+            if pairs:
+                for pair in list(pairs)[:PAS_MEASURE_PAIRS]:
+                    try:
+                        rows = conn.execute(
+                            "SELECT open, close FROM ohlcv WHERE pair=? "
+                            "AND ts>=? AND ts<? ORDER BY ts",
+                            (pair, _t0, _t1)).fetchall()
+                    except Exception:
+                        continue
+                    if rows:
+                        _add(rows[0][0], rows[-1][1], len(rows))
+            else:
+                rows = conn.execute(
+                    "SELECT pair, open, close FROM ohlcv WHERE ts>=? AND "
+                    "ts<? ORDER BY pair, ts", (_t0, _t1)).fetchall()
+                _cur, _first, _last, _n = None, None, None, 0
+                for _pair, _op, _cl in rows:
+                    if _pair != _cur:
+                        _add(_first, _last, _n)
+                        _cur, _first, _last, _n = _pair, _op, _cl, 1
+                    else:
+                        _last, _n = _cl, _n + 1
+                _add(_first, _last, _n)
+        finally:
+            conn.close()
+    except Exception:
+        return []
+    return moves
+
+
+def _median(xs: list[float]) -> float:
+    """The robust centre (the engine's own universe statistic): one 20%
+    pumper in the tape can never drag the window's realized drift."""
+    _s = sorted(xs)
+    _n = len(_s)
+    if not _n:
+        return 0.0
+    return _s[_n // 2] if _n % 2 else (_s[_n // 2 - 1] + _s[_n // 2]) / 2.0
+
+
+def _drift_alignment(expected, actual) -> int:
+    """0-100: the direction AND the magnitude together. The expectation
+    is the projected (upward) move the gate fired on, so a realized move
+    that went the other way scores 0 whatever its size, and a flat tape
+    realizes nothing to align (0) - the "perfect discipline, flat market"
+    shape the two scorecards exist to explain."""
+    if expected is None or actual is None:
+        return 0
+    if expected <= 0:
+        return 100 if actual >= 0 else 0
+    if actual <= 0:
+        return 0
+    ratio = actual / expected
+    if ratio < 0.25:
+        return 30
+    if ratio < 0.5:
+        return 60
+    if ratio <= 1.5:
+        return 100
+    if ratio <= 2.0:
+        return 80
+    return 50
+
+
+def _vol_alignment(expected, actual) -> int:
+    """0-100: the realized movement against the window's own sigma. Zero
+    realized movement is nothing to grade (0), never a match."""
+    if expected is None or actual is None:
+        return 0
+    if expected <= 0:
+        return 100 if actual <= 0 else 0
+    if actual <= 0:
+        return 0
+    ratio = actual / expected
+    if 0.7 <= ratio <= 1.4:
+        return 100
+    if 0.5 <= ratio < 0.7:
+        return 80
+    if 1.4 < ratio <= 2.0:
+        return 80
+    if 0.3 <= ratio < 0.5:
+        return 60
+    if 2.0 < ratio <= 3.0:
+        return 60
+    return 40
+
+
+def _profit_alignment(realized, pace_share, expected_drift) -> int:
+    """0-100: the realized money against what the window's own pace share
+    says a productive rotation pays (the same pace share every discipline
+    deduction scales against). Losing money is 0 - the money did not
+    follow the drift at all."""
+    if realized is None or realized <= 0:
+        return 0
+    pace = _num(pace_share) or 1.0
+    if pace <= 0 or (_num(expected_drift) or 0.0) <= 0:
+        return 0
+    ratio = realized / pace
+    if ratio >= 0.9:
+        return 100
+    if ratio >= 0.6:
+        return 85
+    if ratio >= 0.3:
+        return 70
+    return 50
+
+
+def compute_profit_alignment_score(rotation: dict):
+    """THE PROFIT ALIGNMENT SCORE (PAS), 0-100 (user spec, Oct 16).
+
+        drift  x 0.4   did the market move the way the model projected?
+        vol    x 0.3   was the window's movement the size it sized?
+        profit x 0.3   did the money follow the expected drift?
+        -> the weighted blend, rounded
+
+    Reads expected_drift / actual_drift / expected_volatility /
+    actual_volatility / the realized money off the rotation row. Returns
+    None when the row carries no expectation or no realization to
+    compare (a historical row, or an engine-less boot): the plate renders
+    a dash rather than inventing alignment. Purely additive - it never
+    writes a weight, a gate, a ladder cell or a reconciler verdict."""
+    exp_drift = _num(rotation.get("expected_drift"))
+    act_drift = _num(rotation.get("actual_drift"))
+    exp_vol = _num(rotation.get("expected_volatility"))
+    act_vol = _num(rotation.get("actual_volatility"))
+    realized = _num(rotation.get("realized_profit"),
+                    rotation.get("realized_pnl"))
+    if exp_drift is None or act_drift is None:
+        return None
+    if exp_vol is None or act_vol is None:
+        return None
+    blend = (PAS_DRIFT_WEIGHT * _drift_alignment(exp_drift, act_drift)
+             + PAS_VOL_WEIGHT * _vol_alignment(exp_vol, act_vol)
+             + PAS_PROFIT_WEIGHT * _profit_alignment(
+                 realized, rotation.get("pace_share"), exp_drift))
+    return int(round(blend))
+
+
+def _pas_note(result: dict) -> str:
+    """THE TWO-SCORECARD READ (user spec, section 4): what the PAIR of
+    numbers means together - the shapes one score could not explain.
+    Additive QC only: the discipline branches own their wording and any
+    weight they earned; this appends the interpretation and returns ""
+    for a row with no PAS (older rows, the DAY aggregate)."""
+    pas = result.get("profit_alignment_score")
+    if pas is None:
+        return ""
+    try:
+        pas = int(pas)
+    except (TypeError, ValueError):
+        return ""
+    score = float(result.get("score") or 0.0)
+    pnl = float(result.get("realized_pnl") or 0.0)
+    if score == 100.0 and pas == 0 and abs(pnl) <= ZZ_CRUMB:
+        return (" PERFECT DISCIPLINE, FLAT MARKET - profit alignment 0 "
+                "(zero realized, zero drift): the rotation behaved "
+                "correctly; nothing was offered to realize, so the "
+                "calibration stays unproven, never disproven.")
+    if (score >= 70.0 and pas > PAS_MISS_MAX and abs(pnl) <= ZZ_CRUMB):
+        # THE UNDEFINED MIDDLE (the live shape the spec's three cases do
+        # not name): the window's drift reached the market read (PAS in
+        # the middle - the median moved, so the drift leg earned points)
+        # but THIS rotation's own fills realized nothing the console will
+        # not round to $0. The money leg of alignment is 0, so no branch
+        # may claim the money confirmed the score - the confusion the
+        # two-scorecard read exists to remove. Checked BEFORE the aligned
+        # shape: a $0.07 "realization" is a rounding crumb, never the
+        # agreement the aligned wording asserts.
+        return (" PROFIT UNCONFIRMED - profit alignment {} (score {:.0f}, "
+                "realized ${:+.0f}): the window's drift reached the market "
+                "read, but this rotation's own fills realized nothing "
+                "material, so the money leg of alignment contributed 0 - "
+                "the score stands, the money stays unproven."
+                .format(pas, score, pnl))
+    if score == 100.0 and pas >= PAS_ALIGNED_MIN and pnl > 0:
+        return (" DISCIPLINE AND PROFIT ALIGNED - profit alignment {} "
+                "(score 100, realized ${:+.0f}): the market followed the "
+                "expected drift and the money confirms the score. A "
+                "strong rotation.".format(pas, pnl))
+    if score >= 70.0 and pas <= PAS_MISS_MAX and abs(pnl) <= ZZ_CRUMB:
+        return (" DISCIPLINE HELD, THE MARKET DID NOT FOLLOW - profit "
+                "alignment {} (score {:.0f}, realized ${:+.0f}): the "
+                "expected drift never arrived, so this is no-trade "
+                "evidence, not a scoring failure.".format(pas, score, pnl))
+    return ""
+
+
+def backfill_pas(state: dict, dry_run: bool = False,
+                 force: bool = False) -> dict:
+    """Recompute PAS for the PERSISTED rows that predate it (user spec,
+    section 6: "historical rotations can show PAS if recomputed"). Each
+    row's own window (date + rot) is reconstructed, the pairs the row
+    ITSELF recorded (its popups and its system burials) are measured in
+    the engine's 1h cache, and profit_alignment_score + the four
+    breakdown fields are filled. Idempotent: a row that already carries
+    a PAS is left exactly as it is. Honest: a row whose window has aged
+    out of the cache, or whose pairs have no candles, stays null - the
+    plate renders the dash rather than an invented 0. Returns
+    {"filled": n, "skipped": n}."""
+    filled = skipped = 0
+    for row in state.get("history") or []:
+        if not isinstance(row, dict):
+            skipped += 1
+            continue
+        if (not force and row.get("profit_alignment_score") is not None) \
+                or str(row.get("rot")) in ("None", "DAY"):
+            skipped += 1
+            continue
+        try:
+            _day = datetime.strptime(str(row.get("date")), "%Y-%m-%d")
+        except Exception:
+            skipped += 1
+            continue
+        _s0, _s1 = _rot_window(str(row.get("rot")),
+                               _day.replace(hour=12, tzinfo=MST))
+        if _s0 is None:
+            skipped += 1
+            continue
+        _sched = "weekend" if _s0.weekday() >= 5 else "weekday"
+        _pairs = [p.get("pair") for p in (row.get("popups") or [])
+                  if isinstance(p, dict)]
+        _pairs += [p.get("pair") for p in (row.get("system_pairs") or [])
+                   if isinstance(p, dict)]
+        _pairs = [p for p in _pairs if p]
+        _moves = _window_realized_moves(None, _s0, _s1)
+        if not _moves:
+            _moves = _window_realized_moves(_pairs, _s0, _s1)
+        if not _moves:
+            skipped += 1      # aged out or censored - never an invented 0
+            continue
+        _exp_drift, _exp_vol = _rotation_expectation(str(row.get("rot")),
+                                                    _sched)
+        _act = _median(_moves)
+        _avol = sum(abs(m) for m in _moves) / len(_moves)
+        _fields = {
+            "expected_drift": (None if _exp_drift is None
+                               else round(_exp_drift, 3)),
+            "actual_drift": round(_act, 3),
+            "expected_volatility": (None if _exp_vol is None
+                                    else round(_exp_vol, 3)),
+            "actual_volatility": round(_avol, 3),
+        }
+        _score = compute_profit_alignment_score(
+            dict(_fields, realized_profit=row.get("realized_pnl"),
+                 pace_share=row.get("pace_share")))
+        if _score is None:
+            skipped += 1
+            continue
+        if not dry_run:
+            row.update(_fields)
+            row["profit_alignment_score"] = _score
+            row["pas_backfilled"] = True
+        filled += 1
+    return {"filled": filled, "skipped": skipped}
+
+
 def _popups_in_rotation(start, end) -> list[dict]:
     """The candidate popups in the window: the winners table filtered to
     the rotation's popup rail, best per pair (v2: candidates — the
@@ -559,6 +922,81 @@ def _coin_paid(exchange, pair: str, entry: float, goal_pct: float,
         return False
 
 
+DUD_TOLL_FALLBACK_PCT = 0.08     # round trip, the same basis as BREAKOUT_STUDY
+
+
+def _dud_counterfactual(exchange, pair: str, when: datetime, window_end: datetime,
+                        size_usd: float):
+    """What a buried DUD would have returned had it been taken.
+
+    The ledger used to count only the buried candidates that paid, so 'left on
+    the table' was the sum of the winners of a cohort and said nothing about the
+    losers beside them. This prices the other side on the same 1h candles the
+    coin test reads: entry at the burial close, exit at the last close still
+    inside the window, net of the pair's measured round trip (or the study's
+    0.08% where the table has no row).
+
+    Returns None when the candles cannot be read. An unmeasurable dud is
+    COUNTED and reported as unpriced, never priced at zero - a zero would
+    quietly flatter the net toward the old one-sided number.
+    """
+    try:
+        since = int(when.timestamp() * 1000) - 3_600_000
+        ohl = exchange.fetch_ohlcv(pair, timeframe="1h", since=since, limit=12)
+    except Exception:
+        return None
+    if not ohl:
+        return None
+    entry, last = 0.0, 0.0
+    for c in ohl:
+        try:
+            ct = datetime.fromtimestamp(c[0] / 1000, tz=MST)
+            close = float(c[4])
+        except (TypeError, ValueError, IndexError):
+            continue
+        if not close:
+            continue
+        if ct <= when <= ct + timedelta(hours=1):
+            entry = close
+        if when <= ct < window_end:
+            last = close          # end-exclusive, the coin test's own standard
+    if not entry or not last:
+        return None
+    try:
+        import spread_table as _st
+        toll_pct = float(_st.roundtrip_pct(pair))
+    except Exception:
+        toll_pct = DUD_TOLL_FALLBACK_PCT
+    return size_usd * ((last / entry) - 1.0) - size_usd * (toll_pct / 100.0)
+
+
+def _burial_net(system_burial: list, system_duds: list) -> tuple[float, dict]:
+    """LEFT ON THE TABLE, both sides of the cohort (Nov 16).
+
+    The payers are what the funnel cost; the duds are what taking them would
+    have cost. Returns (net_usd, accounting) where accounting names the counts,
+    the two sides and how many duds could not be priced at all - an unpriced
+    dud is COUNTED, never priced at zero, because a zero would quietly restore
+    the old one-sided figure.
+    """
+    gross = sum(float(p.get("usd", 0) or 0) for p in system_burial)
+    priced = [d for d in system_duds if d.get("usd") is not None]
+    dud_usd = sum(float(d["usd"]) for d in priced)
+    accounting = {
+        "payers": len(system_burial),
+        "payers_usd": round(gross, 2),
+        "duds": len(system_duds),
+        "duds_priced": len(priced),
+        "duds_usd": round(dud_usd, 2),
+        "unpriced_duds": len(system_duds) - len(priced),
+        "net_usd": round(gross + dud_usd, 2),
+        "caveat": ("duds are priced on the same 1h candles and the same size as the "
+                   "payers: entry at the burial close, exit at the last in-window "
+                   "close, net of the measured round trip"),
+    }
+    return gross + dud_usd, accounting
+
+
 def evaluate_rotation(exchange, rot_key: str, when=None, speak=True,
                       watch_file=None) -> dict:
     """The full per-rotation evaluation. Returns the structured result
@@ -669,7 +1107,14 @@ def evaluate_rotation(exchange, rot_key: str, when=None, speak=True,
                  "horizon_left_h": round((end - s["ts"]).total_seconds()
                                          / 3600.0, 2)})
         else:
-            system_duds.append({"pair": pair, "gate": s["gate"]})
+            # THE OTHER SIDE OF THE COHORT (Nov 16): a dud is not free. Priced
+            # at the same size the burial would have used, so the net is a
+            # like-for-like counterfactual and not a sum of the winners.
+            _dud_size = balance * goal / 100.0
+            _dud_pnl = _dud_counterfactual(exchange, pair, s["ts"], end, _dud_size)
+            system_duds.append({"pair": pair, "gate": s["gate"],
+                                "usd": None if _dud_pnl is None
+                                else round(float(_dud_pnl), 2)})
     for t in sold:
         entry, exitp = float(t.get("entry") or 0), float(t.get("exit") or 0)
         size, realized = float(t.get("size") or 0), float(t.get("pnl_net") or 0)
@@ -740,11 +1185,13 @@ def evaluate_rotation(exchange, rot_key: str, when=None, speak=True,
     except Exception:
         pass
 
+    # ── LEFT ON THE TABLE, NETTED (Nov 16): see _burial_net.
+    _burial_net_usd, burial_accounting = _burial_net(system_burial, system_duds)
     usd = {"missed": sum(p.get("usd", 0) for p in missed),
            "giveback": sum(t.get("_left", 0) for t in giveback),
            "missed_exit": sum(t.get("_left", 0) for t in missed_exit),
            "early_exit": sum(t.get("_left", 0) for t in early_exit),
-           "system_burial": sum(p.get("usd", 0) for p in system_burial)}
+           "system_burial": _burial_net_usd}
 
     # the gate that buried the most theoretical money (the insight names it)
     _gate_usd: dict[str, float] = {}
@@ -849,6 +1296,60 @@ def evaluate_rotation(exchange, rot_key: str, when=None, speak=True,
     # round(score, 1), so the flags are computed from THAT number, not
     # the raw pre-slice one — an 84.98 raw grading 85.0 on the row can
     # never disagree with its own misaligned_success flag.
+    # --- THE PROFIT ALIGNMENT SCORE (user spec, Oct 16): computed for
+    # EVERY rotation the discipline score is computed for, BESIDE it -
+    # the expectation from the engine's own cell, the realization from
+    # the pairs this rotation touched (the engine's 1h cache; the closed
+    # trades' own moves when the cache is silent). Fail-soft: a rotation
+    # with nothing measurable persists None and the plate renders a
+    # dash. No weight, gate, ladder or reconciler read is touched here.
+    _pas_pairs: list[str] = []
+    for _cand in list(popups) + list(sold) + [{"pair": k} for k in supp]:
+        _pp = _cand.get("pair")
+        if _pp and _pp not in _pas_pairs:
+            _pas_pairs.append(_pp)
+    _exp_drift, _exp_vol = _rotation_expectation(
+        rot_key, sched, goals=[p.get("goal_pct") for p in popups])
+    # THE MEASUREMENT CHAIN, in order of authority: the whole cached
+    # universe over this window (the engine's own median cell is a
+    # universe statistic - the realized side is measured the same way,
+    # so every rotation gets a number); failing that the rotation's own
+    # footprint; failing that the closed trades' realized moves.
+    _moves = _window_realized_moves(None, start, end)
+    if not _moves:
+        _moves = _window_realized_moves(_pas_pairs, start, end)
+    if not _moves:
+        _moves = [((float(t.get("exit") or 0) / float(t.get("entry") or 0))
+                   - 1.0) * 100.0
+                  for t in sold
+                  if float(t.get("entry") or 0) > 0
+                  and float(t.get("exit") or 0) > 0]
+    if _moves:
+        # the robust centre for the drift (one pumper can't drag the
+        # window) and the mean |move| for the size - the same pair of
+        # statistics the engine's avg_move/std cells are built from
+        _act_drift = _median(_moves)
+        _act_vol = sum(abs(m) for m in _moves) / len(_moves)
+    elif _pas_pairs:
+        # candidates existed and nothing moved to a close: the flat
+        # realization the two-scorecard read exists to name (never an
+        # invented move, never a borrowed one)
+        _act_drift = _act_vol = 0.0
+    else:
+        _act_drift = _act_vol = None    # nothing touched - nothing to grade
+    _pas_fields = {
+        "expected_drift": (None if _exp_drift is None
+                           else round(_exp_drift, 3)),
+        "actual_drift": (None if _act_drift is None
+                         else round(_act_drift, 3)),
+        "expected_volatility": (None if _exp_vol is None
+                                else round(_exp_vol, 3)),
+        "actual_volatility": (None if _act_vol is None
+                              else round(_act_vol, 3)),
+    }
+    _pas = compute_profit_alignment_score(
+        dict(_pas_fields, realized_profit=round(realized_pnl, 2),
+             pace_share=round(pace_share, 2)))
     _row_score = round(score, 1)
     result = {
         "date": start.strftime("%Y-%m-%d"), "rot": rot_key,
@@ -856,11 +1357,13 @@ def evaluate_rotation(exchange, rot_key: str, when=None, speak=True,
         "usd_left": {k: round(v, 2) for k, v in usd.items()},
         "total_left": round(sum(usd.values()), 2),
         "system_left": round(usd["system_burial"], 2),
+        "burial_accounting": burial_accounting,
         "top_gate": top_gate,
         "system_pairs": [{"pair": p["pair"], "gate": p.get("gate"),
                           "usd": round(float(p.get("usd", 0)), 2)}
                          for p in system_burial],
-        "system_duds": [{"pair": p["pair"], "gate": p.get("gate")}
+        "system_duds": [{"pair": p["pair"], "gate": p.get("gate"),
+                         "usd": p.get("usd")}
                         for p in system_duds],
         "system_pending": system_pending,
         "empty_pending": empty_pending,
@@ -871,6 +1374,11 @@ def evaluate_rotation(exchange, rot_key: str, when=None, speak=True,
         "balance_after": balance,
         "empty_fire": empty_fire,
         "capped_zero_zero": _capped_zz,
+        # THE SECOND SCORECARD rides the same row (user spec, Oct 16):
+        # PAS + the breakdown that produced it, so the plate renders it
+        # and a later read can recompute or explain it.
+        "profit_alignment_score": _pas,
+        **_pas_fields,
         # THE PnL-FIRST FLAGS ride the result row (the mandate, Oct 13):
         # the lesson, the voice, the plate and the persisted row all
         # read the same money truth — profit-negative, misaligned
@@ -908,6 +1416,11 @@ def evaluate_rotation(exchange, rot_key: str, when=None, speak=True,
                "system_pending", "empty_pending",
                "empty_fire", "capped_zero_zero",
                "profit_negative", "misaligned_success",
+               # THE SECOND SCORECARD persists with the row (user spec,
+               # section 6): the console reads the ROW - a PAS that lived
+               # only in memory would render as a dash forever.
+               "profit_alignment_score", "expected_drift", "actual_drift",
+               "expected_volatility", "actual_volatility",
                "score_confidence")}   # the per-pair burials
     # THE PLATE'S FLAGS RIDE THE ROW (the 12:00-verification catch, Oct
     # 7): the plate grades from _last.get("empty_fire") / "capped_zero_zero"
@@ -1325,8 +1838,15 @@ def _learn(state: dict, result: dict) -> str:
         # prices these gates from the journal's own payer/dud ratio -
         # no weight write, no rise lesson against a saturated cap.
         _gates = sorted({str(p.get("gate") or "?") for p in result["system_pairs"]})
-        lesson = (f"The funnel buried {len(result['system_pairs'])} paying candidates "
-                  f"(${usd['system_burial']:,.0f} theoretical; gates: {', '.join(_gates)}) - "
+        _ba = result.get("burial_accounting") or {}
+        _duds_txt = (f"net of {_ba.get('duds', 0)} buried duds "
+                     f"(${_ba.get('duds_usd', 0):+,.0f})"
+                     + (f", {_ba['unpriced_duds']} unpriced"
+                        if _ba.get("unpriced_duds") else ""))
+        lesson = (f"The funnel buried {_ba.get('payers', len(result['system_pairs']))} "
+                  f"paying candidates (${_ba.get('payers_usd', 0):,.0f} gross, "
+                  f"{_duds_txt} = ${usd['system_burial']:,.0f} net; "
+                  f"gates: {', '.join(_gates)}) - "
                   f"the dial prices these gates from the journal's own payer/dud ratio "
                   f"(relief = n x sens, band 0.5..2.0): the journal opens the gates "
                   f"where they keep burying payers, and dud-heavy gates damp themselves.")
@@ -1377,7 +1897,9 @@ def _learn(state: dict, result: dict) -> str:
                       f"the rotation lost ${abs(pnl):.0f} — profit is the metric, the "
                       f"score's confidence is discounted. And the "
                       f"'{result.get('top_gate') or '?'}' gate buried paying candidates "
-                      f"(theoretical ${usd.get('system_burial', 0):.0f}). The dial prices "
+                      f"(${usd.get('system_burial', 0):.0f} net of "
+                      f"{((result.get('burial_accounting') or {}).get('duds', 0))} duds). "
+                      f"The dial prices "
                       f"that gate from its own payer/dud ratio - dud-heavy gates damp "
                       f"themselves; the learned scalar retires.")
         else:
@@ -1458,6 +1980,14 @@ def _learn(state: dict, result: dict) -> str:
                       f"not agreement. Weights hold unproven — the "
                       f"calibration stands only when the leave realizes "
                       f"and the money left on the table becomes $0.")
+    # THE SECOND SCORECARD RIDES THE LESSON (user spec, section 4): the
+    # PAS interpretation is appended AFTER the discipline branch has
+    # spoken - the branch owns its wording and any weight it earned; PAS
+    # adds the context one score could not explain ("" for a row with no
+    # PAS: older rows, the DAY aggregate).
+    _pas_txt = _pas_note(result)
+    if _pas_txt:
+        lesson += _pas_txt
     state.setdefault("lessons", []).append(
         {"ts": result["ts"], "lesson": lesson})
     state["lessons"] = state["lessons"][-30:]
@@ -2409,6 +2939,38 @@ def _worth_ladder_ingest(result: dict) -> None:
         pass
 
 
+def _pas_cli() -> None:
+    """The store's small CLI (inert on import): `--backfill-pas` fills the
+    rows that predate the second scorecard, `--dry-run` reports without
+    writing, and a write always lands a .bak beside the store first."""
+    import argparse
+    _ap = argparse.ArgumentParser(
+        description="Kraken Scout discipline store tools")
+    _ap.add_argument("--backfill-pas", action="store_true",
+                     help="recompute PAS for history rows that predate it")
+    _ap.add_argument("--dry-run", action="store_true",
+                     help="report what the backfill would fill, write nothing")
+    _ap.add_argument("--force", action="store_true",
+                     help="recompute rows that already carry a PAS too "
+                          "(the measurement definition moved)")
+    _a = _ap.parse_args()
+    if not _a.backfill_pas:
+        _ap.print_help()
+        return
+    _st = load_state()
+    _res = backfill_pas(_st, dry_run=_a.dry_run, force=_a.force)
+    if not _a.dry_run and _res["filled"]:
+        try:
+            Path(str(STATE_FILE) + ".bak").write_text(
+                STATE_FILE.read_text(encoding="utf-8"), encoding="utf-8")
+        except Exception:
+            pass
+        save_state(_st)
+    print("PAS backfill: {} filled, {} skipped{}".format(
+        _res["filled"], _res["skipped"],
+        " (dry run - nothing written)" if _a.dry_run else ""))
+
+
 def _worth_ladder_reconcile(state: dict) -> None:
     """THE RECONCILER PASS AT COOLDOWN (hard rule 5): every history
     entry the money has since proven flips to Proven once - audit row
@@ -2430,3 +2992,7 @@ def _worth_ladder_reconcile(state: dict) -> None:
                 current_floor=_floor)
     except Exception:
         pass
+
+
+if __name__ == "__main__":
+    _pas_cli()

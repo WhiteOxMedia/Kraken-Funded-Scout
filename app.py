@@ -43,6 +43,22 @@ try:
 except Exception:
     _HAS_DB = False
 
+# THE ACCOUNT-STATE BOOT GUARD (Nov 5, the phantom-10k lesson): the
+# console refuses to render when the account state file is lost — a
+# loud error page, no phantom full balance, and every streamlit rerun
+# re-checks it, so a mid-session loss also screams instead of quietly
+# re-arming the sizing gates.
+def _account_state_boot_guard():
+    try:
+        import contest_account as _ca_boot
+        _ca_boot.assert_state_on_boot("console")
+    except Exception as _exc:
+        st.error(
+            "☠ THE ACCOUNT STATE FILE IS GONE — the console refuses to "
+            f"fake a fresh full balance. {str(_exc)}")
+        st.stop()
+_account_state_boot_guard()
+
 MST = ZoneInfo("America/Denver")
 
 logging.basicConfig(level=logging.WARNING)
@@ -985,8 +1001,9 @@ def _save_watch(watch: dict):
 def _derive_goal(pair: str, kraken=None) -> tuple[float, float]:
     """(goal_pct, window_min) for THIS coin — the same derivation the
     green light uses. Shared by every entry path (green light, WATCH-
-    anyway, unified entry control) so a manual entry carries a real goal
-    instead of the 1.5% fallback.
+    anyway, unified entry control) so a manual entry carries a real goal.
+    A failed derivation resolves through _operative_goal_pct, never a
+    hardcoded 1.5% (Nov 6: WATCH-anyway stamped a goal no rule managed).
     (Sep 4, user rule: "target each market separately — what were those
     assets doing at this time all week? use 24 hour candles, scan 1
     week; the goal should reach before the rotation happens ideally"):
@@ -995,7 +1012,7 @@ def _derive_goal(pair: str, kraken=None) -> tuple[float, float]:
     is bounded by the NEXT ROTATION BOUNDARY — crossing it is the
     exception the scanner's boundary warning + forced full exit scan
     cover."""
-    goal = 1.5
+    goal = 0.0
     try:
         import background_scanner as _bs
         if not hasattr(_bs, "_market_goal_pct"):
@@ -1008,7 +1025,11 @@ def _derive_goal(pair: str, kraken=None) -> tuple[float, float]:
         if g:
             goal = float(g)
     except (AttributeError, ImportError, KeyError, TypeError, ValueError) as exc:
-        logger.debug("goal derivation fell back to 1.5%% for %s: %s", pair, exc)
+        logger.debug("goal derivation unavailable for %s: %s", pair, exc)
+    # THE STAMP IS THE OPERATIVE GOAL (Nov 6): WATCH-anyway used to fall back
+    # to a hardcoded default here — the same defect the fire path carried. The
+    # row now stamps the goal the exit logic actually manages the pair to.
+    goal = _operative_goal_pct(goal, pair)
     window = 180.0
     try:
         import background_scanner as _bs2
@@ -1018,6 +1039,102 @@ def _derive_goal(pair: str, kraken=None) -> tuple[float, float]:
         window = float(max(60.0, min(180.0, goal * 60.0)))
     return float(goal), float(window)
 
+
+def _operative_goal_pct(goal, pair: str) -> float:
+    """The goal this entry STAMPS: the derived goal when it is a real goal,
+    else the goal the exit logic actually manages the pair to right now.
+
+    The fire path used to fall back to a hardcoded 1.5 when the derivation
+    failed. That stamped a goal no rule was working to: the light's clock and
+    the close's capture then read two different goals off one entry, and the
+    clip classified the trade against a number the engine never used.
+
+    Delegates to background_scanner's own resolver, so the console and the
+    engine cannot drift apart; a console whose cached module predates the
+    resolver falls back to that module's window goal — the very value the
+    resolver would have returned. Nothing here invents a number.
+    """
+    try:
+        g = float(goal or 0.0)
+    except (TypeError, ValueError):
+        g = 0.0
+    if g > 0:
+        return g
+    try:
+        import background_scanner as _bs
+        fn = getattr(_bs, "_operative_goal_pct", None)
+        if fn is not None:
+            return float(fn(None, pair))
+        win = getattr(_bs, "_window_goal_pct", None)
+        if win is not None:
+            return float(win(pair) or 0.0)
+        # no resolver and no window read (a module too old to have either):
+        # its own declared default, never a literal of ours — and never a
+        # reload, which would re-execute the scanner inside the console
+        return float(getattr(_bs, "GOAL_DEFAULT_PCT", 0.0) or 0.0)
+    except Exception as exc:
+        logger.debug("operative goal unavailable for %s: %s", pair, exc)
+        return 0.0
+
+
+def _watch_goal_usd(w: dict, size: float, goal: float) -> float:
+    """The DOLLARS this open row takes — the target the exit check fires on.
+
+    Display only, and it never invents a number the engine would not act on:
+    the fire's own `goal_usd` stamp is the truth, and a row that predates the
+    stamp (or whose stamp failed) is priced by the SAME rule the stamp uses —
+    `contest_account.row_goal_usd`, floored at the row's own 1R (live's
+    `_hard_stop_usd`) and raised by the plan's % goal. If any read fails the
+    answer is 0.0 and the caller simply shows no dollar line, so a broken
+    stamp can never print a target nobody is managing the trade to.
+    """
+    try:
+        stamped = float(w.get("goal_usd") or 0.0)
+    except (TypeError, ValueError):
+        stamped = 0.0
+    if stamped > 0.0:
+        return stamped
+    try:
+        import contest_account as _ca_g
+        import background_scanner as _bs_g
+        risk = float(_bs_g._hard_stop_usd(float(w.get("entry") or 0.0),
+                                          float(size or 0.0),
+                                          float(_ca_g.buffer())))
+        priced = _ca_g.row_goal_usd(float(size or 0.0),
+                                    goal_pct=float(goal or 0.0),
+                                    risk_usd=risk)
+        return float(priced.get("goal_usd") or 0.0)
+    except Exception as exc:
+        logger.debug("watch goal (dollars) unavailable: %s", exc)
+        return 0.0
+
+
+def _read_goal_pct(recorded, pair: str) -> float:
+    """The goal a READER shows for a row that may predate the stamp.
+
+    The display side kept its own 1.5 fallback (Nov 7): a watch row with no
+    goal stamp was graded and printed against a number the engine was not
+    working that pair to, while the same row's close — which resolves through
+    _close_goal_pct — was graded against the operative one. The console's
+    GOAL HIT, the take-level toasts, HER WORDS and the Quick Check card could
+    therefore disagree with the ledger about whether a trade reached goal.
+
+    Reads now resolve like the writers do: the recorded goal, else the goal
+    the exit logic actually manages the pair to. The engine's own declared
+    default is the floor when the resolver cannot name one at all — that is
+    what _window_goal_pct itself returns on a failed read — so a read never
+    divides by a zero goal and never quotes a percentage no rule declared.
+    Nothing here invents a number of its own.
+    """
+    g = _operative_goal_pct(recorded, pair)
+    if g > 0:
+        return float(g)
+    try:
+        import background_scanner as _bs
+        g = float(getattr(_bs, "GOAL_DEFAULT_PCT", 0.0) or 0.0)
+    except Exception:
+        g = 0.0
+    return float(g)
 
 
 # ── Console state (survives refreshes): challenge tier + auto-watch on/off ──
@@ -2012,10 +2129,9 @@ def _pick_card(cfg: TradingConfig, kraken):
                 continue
             usd = (px / entry - 1.0) * size
             pct = (px / entry - 1.0) * 100
-            try:
-                goal = float(w.get("goal_pct") or 0) or 1.5
-            except Exception:
-                goal = 1.5
+            # the read resolves like the writers do: a row with no stamp
+            # shows the goal the exit logic actually manages this pair to
+            goal = _read_goal_pct(w.get("goal_pct"), pair)
             try:
                 added = datetime.fromisoformat(w["added"])
             except Exception:
@@ -2026,11 +2142,12 @@ def _pick_card(cfg: TradingConfig, kraken):
                 _win = 90.0
             overdue = _now_mst() > added + timedelta(minutes=_win)
             color = "#4be38a" if usd >= 0 else "#ff6b5e"
-            _goal_col = "#4be38a" if pct >= goal else "#ffc36b"
+            _goal_col = "#4be38a" if goal > 0 and pct >= goal else "#ffc36b"
             rows = [
                 f"<span style='color:{color};font-size:34px;font-family:Audiowide;'>"
                 f"{_asset(pair)} {'+' if usd >= 0 else '-'}${abs(usd):,.0f}</span>"
-                + (f"  <span style='color:{_goal_col};'>· GOAL HIT</span>" if pct >= goal else ""),
+                + (f"  <span style='color:{_goal_col};'>· GOAL HIT</span>"
+                   if goal > 0 and pct >= goal else ""),
                 f"WHY <span class='dim'>............</span> you're in it — entered at {_fmt_price(entry)}. "
                 f"She's watching it the whole time.",
             ]
@@ -2055,6 +2172,17 @@ def _pick_card(cfg: TradingConfig, kraken):
                             f"{'s' if _age < 60 else 'm'} ago</span> "
                             + ("" if _age <= 180 else
                                "<span style='color:#ff6b5e;'>— SILENT, the scanner may be down</span>"))
+            # THE DOLLAR GOAL (Nov 10): the target in dollars next to the
+            # percent goal, because the exit check fires on dollars.
+            _goal_usd_c = _watch_goal_usd(w, size, goal)
+            if _goal_usd_c > 0:
+                _left_c = _goal_usd_c - usd
+                rows.append(
+                    f"GOAL <span class='dim'>.............</span> +{goal:.1f}% "
+                    f"= <span style='color:#4be38a;'>${_goal_usd_c:,.2f}</span> "
+                    f"on this ${size:,.0f} row — now ${usd:+,.2f} "
+                    + ("<span style='color:#4be38a;'>· REACHED — TAKE IT: the watch clears</span>"
+                       if _left_c <= 0 else f"· ${_left_c:,.2f} to go"))
             if overdue:
                 rows.append(f"<span style='color:#ff6b5e;'>HOW LONG <span class='dim'>.........</span> "
                             f"PAST THE WINDOW — it hasn't paid its {goal:.1f}% yet. "
@@ -2200,7 +2328,7 @@ def _pick_card(cfg: TradingConfig, kraken):
             else:
                 _card_goal = _bsg._window_goal_pct(f"{h['asset']}/USD")
         except Exception:
-            _card_goal = 1.5
+            _card_goal = _read_goal_pct(None, f"{h['asset']}/USD")
         rows = [
             f"<span style='color:#4be38a;font-size:40px;font-family:Audiowide;'>⚡ {h['asset']}</span>",
             f"WHY <span class='dim'>............</span> the engine expects +{_card_goal:.1f}% in this "
@@ -2449,6 +2577,53 @@ def _render_jackpot_plate():
                f"refreshes every minute; this clock never freezes")
 
 
+def _render_watchdog_plate() -> None:
+    """📊 THE CONTEST WATCHDOG (Nov 11): the learning, on the page.
+
+    Every WON contest is graded by contest_watchdog.py at the crossing — the
+    playbook (how fast wins came, which shape paid, which window paid) and the
+    last contest's own lessons and mistakes. This plate only READS those files:
+    the scanner writes them, the console shows them, and the log keeps the
+    receipt. Fail-soft like every plate — an unreadable record degrades to one
+    line, never a broken page.
+    """
+    import html as _htmlw
+    try:
+        import contest_watchdog as _cw
+        doc = _cw.playbook()
+        recs = _cw.load_reports()
+    except Exception as exc:
+        logger.debug("watchdog plate unavailable: %s", exc)
+        st.caption("📊 contest watchdog — dormant: the record is unreadable "
+                   "this rerun; the scanner still grades each win")
+        return
+    try:
+        st.markdown(
+            plate("📊 CONTEST WATCHDOG — what the wins taught the book",
+                  lcd([_htmlw.escape(r) for r in _cw.playbook_rows(doc)])),
+            unsafe_allow_html=True)
+        if not recs:
+            st.caption("the first paycheck at the +12% line writes the first "
+                       "report — until then the record is honestly empty")
+            return
+        st.markdown(
+            plate("🧾 LAST CONTEST GRADED — lessons ✓ and mistakes ✗",
+                  lcd([_htmlw.escape(r) for r in _cw.contest_rows(recs[-1])])),
+            unsafe_allow_html=True)
+        with st.expander(f"📚 Every graded contest ({len(recs)}) — the "
+                         f"lesson each one wrote"):
+            for _rec in list(recs)[-8:][::-1]:
+                st.markdown("**" + _htmlw.escape(_cw.report_text(_rec)) + "**")
+                for _l in (_rec.get("lessons") or [])[:2]:
+                    st.caption("✓ " + _l)
+                for _m in (_rec.get("mistakes") or [])[:1]:
+                    st.caption("✗ " + _m)
+    except Exception as exc:
+        logger.debug("watchdog plate render failed: %s", exc)
+        st.caption("📊 contest watchdog — the record exists but this rerun "
+                   "could not render it")
+
+
 def render_master(cfg: TradingConfig, kraken):
     # THE CARD — the flow itself. One card, nothing else on the main screen.
     # run_every is SECONDS in Streamlit (ints pass through raw —
@@ -2497,6 +2672,12 @@ def render_master(cfg: TradingConfig, kraken):
     # gf_projection. Fail-soft like every plate: a broken line
     # degrades, the plate stands.
     _render_learning_plate()
+
+    # 📊 THE CONTEST WATCHDOG (Nov 11, user ask): every +12% win is
+    # graded by contest_watchdog.py — the playbook (median/best days,
+    # pace, paying shape, paying window) and the last contest's own
+    # lessons and mistakes, on the page instead of in the log.
+    _render_watchdog_plate()
 
     # 🎯 THE GATE QUALITY PLATE (Oct 4, user ask): the weekly per-gate
     # miss-rate report card — burials / would-be payers / miss rate per
@@ -4345,6 +4526,12 @@ def _discipline_plate() -> str:
         pnl = float(_last.get("realized_pnl") or 0)
         left = float(_last.get("total_left") or 0)
         sys_left = float(_last.get("system_left") or 0)
+        # the gates' figure is NET of the duds they also buried (Nov 16): the
+        # old line summed only the payers and read as pure opportunity
+        _ba = _last.get("burial_accounting") or {}
+        dud_n = int(_ba.get("duds") or 0)
+        dud_usd = float(_ba.get("duds_usd") or 0)
+        payer_gross = float(_ba.get("payers_usd") or 0)
         user_left = max(left - sys_left, 0.0)
         top_gate = str(_last.get("top_gate") or "")
         pnl_col = "#4be38a" if pnl > 0 else ("#ff6b5e" if pnl < 0 else "#9a9a9a")
@@ -4394,9 +4581,11 @@ def _discipline_plate() -> str:
       <div class='dim' style='font-size:11px;'>realized this rotation</div>
       <div style='color:{'#ff6b5e' if left > 1 else '#4be38a'};font-size:14px;'>
         ${left:,.0f} left on the table</div>
-      {f"<div style='color:#ffc36b;font-size:12px;'>${sys_left:,.0f} by the gates (theoretical)"
+      {f"<div style='color:#ffc36b;font-size:12px;'>${sys_left:,.0f} by the gates "
+       f"(net of {dud_n} duds ${dud_usd:+,.0f}; gross ${payer_gross:,.0f})"
        + (f" · {top_gate}" if top_gate else "")
-       + f" — user left ${user_left:,.0f}</div>" if sys_left > 1 else
+       + f" — user left ${user_left:,.0f}</div>"
+       if (sys_left > 1 or payer_gross > 1 or dud_n) else
        (f"<div class='dim' style='font-size:11px;'>user left ${user_left:,.0f}</div>"
         if left > 1 else "")}
     </div>
@@ -6782,6 +6971,504 @@ def _today_facts(now_ts: int) -> list[str]:
     ]
 
 
+def _rolling_eta_window_line(w: dict) -> str:
+    """One compact line shared by the blended windows and setup subsets."""
+    n = int(w.get("n") or 0)
+    mean = w.get("mean_net")
+    net = w.get("net")
+    mean_txt = f"${float(mean):+.2f}" if mean is not None else "—"
+    net_txt = f"${float(net):+.2f}" if net is not None else "—"
+    lo, hi = w.get("ci_low"), w.get("ci_high")
+    ci = (f"[${lo:+.2f}, ${hi:+.2f}]" if lo is not None and hi is not None
+          else ("n/a (n<2)" if n else "n/a (no sample)"))
+    edge = str(w.get("edge") or "NO DATA")
+    edge_col = {"POSITIVE": "#4be38a", "NEGATIVE": "#ff6b5e"}.get(
+        edge, "#ffc36b")
+    sig = ("CI excludes 0" if w.get("significant") else
+           "CI includes 0" if n > 1 else "no sample")
+    eta_w = w.get("eta_weeks")
+    eta = (f"{float(eta_w):.1f} wk ({float(eta_w) * 7.0:.0f} d)"
+           if eta_w is not None else
+           ("— (no sample)" if not n else "— (no positive realized rate)"))
+    return (
+        f"{str(w.get('label') or 'WINDOW'):<16} "
+        f"<span class='dim'>n={n}</span>  "
+        f"net {net_txt} · mean {mean_txt}/trade  "
+        f"95% CI mean/trade {ci}  "
+        f"<span style='color:{edge_col};'>EDGE {edge}</span> "
+        f"<span class='dim'>({sig})</span>  "
+        f"ETA {eta}")
+
+
+def _render_setup_eta_plate(rep: dict):
+    """Break the read-only ETA down by the fire-time setup stamp."""
+    setup = rep.get("setup") or {}
+    tagged = int(setup.get("tagged") or 0)
+    applied = int(setup.get("applied") or rep.get("applied_closes") or 0)
+    if not tagged:
+        st.markdown(
+            plate("📊 Rolling ETA by setup — stamped closes",
+                  lcd(["No setup-stamped applied closes yet.",
+                       "<span class='dim'>The breakdown starts with the next "
+                       "fire that carries a setup stamp. The blended ETA above "
+                       "still covers every applied close. Read-only.</span>"],
+                      tone="amber")),
+            unsafe_allow_html=True)
+        return
+
+    lines = [
+        f"STAMPED <span style='color:#ffc36b;'>{tagged}</span> / "
+        f"{applied} applied closes"
+        f"   <span class='dim'>first {str(setup.get('first_tagged') or '')[:16]}"
+        f" → last {str(setup.get('last_tagged') or '')[:16]}</span>",
+        "<span class='dim'>Only rows carrying fire-time setup metadata are "
+        "counted. Untagged history is not guessed into a route. Window = every "
+        "stamped applied close in that subset; no lookback cap. Read-only.</span>",
+    ]
+
+    sections = (("BY SETUP ROUTE", "route"), ("BY TIDE", "tide"),
+                ("CHAMPION VS SCOUT MOVER", "family"))
+    for heading, key in sections:
+        lines.append(f"<span style='color:#ffc36b;'>{heading}</span>")
+        for w in setup.get(key) or []:
+            lines.append(_rolling_eta_window_line(w))
+
+    groups = [
+        (dim, w)
+        for dim, key in (("ROUTE", "route"), ("TIDE", "tide"),
+                         ("FAMILY", "family"))
+        for w in (setup.get(key) or []) if int(w.get("n") or 0) > 0
+    ]
+    positive = [(dim, w) for dim, w in groups
+                if w.get("mean_net") is not None
+                and float(w.get("mean_net")) > 0]
+    significant_positive = [(dim, w) for dim, w in positive
+                            if w.get("significant")]
+    if significant_positive:
+        verdict = ("POSITIVE EXPECTANCY: " + ", ".join(
+            f"{dim} {w.get('label')}" for dim, w in significant_positive)
+            + " — 95% CI above zero.")
+    elif positive:
+        verdict = ("POSITIVE POINT ESTIMATE: " + ", ".join(
+            f"{dim} {w.get('label')}" for dim, w in positive)
+            + " — but no subset has a 95% CI above zero.")
+    else:
+        verdict = ("NO POSITIVE SUBSET in the stamped sample — every "
+                   "route/tide/family group is negative or flat.")
+    mover = next((w for w in (setup.get("family") or [])
+                  if w.get("label") == "SCOUT MOVER"), None)
+    if mover is not None and int(mover.get("n") or 0) == 0:
+        verdict += " SCOUT MOVER has no stamped closes yet."
+    lines.append(f"<span style='color:#ffc36b;'>{verdict}</span>")
+    st.markdown(
+        plate("📊 Rolling ETA by setup — stamped closes",
+              lcd(lines, tone="" if significant_positive else "amber")),
+        unsafe_allow_html=True)
+
+
+@st.cache_data(ttl=120, show_spinner=False)
+def _mover_ledgers_cached():
+    import mover_ledgers as _ml
+    return _ml.side_by_side()
+
+
+def _render_mover_ledger_plate():
+    """Show Bot bridge and Scout contest Mover books side by side.
+
+    The two rows are deliberately separate: signals.db P&L belongs to the
+    Bot account; contest_trades.jsonl P&L belongs to the Scout contest. No
+    combined total is calculated or shown.
+    """
+    try:
+        led = _mover_ledgers_cached()
+    except Exception as exc:
+        st.markdown(
+            plate("🔀 Mover ledgers — Bot vs Scout contest",
+                  lcd([f"<span class='dim'>Ledger read failed: {exc}</span>"],
+                      tone="amber")),
+            unsafe_allow_html=True)
+        return
+
+    b = led.get("bot") or {}
+    s = led.get("scout") or {}
+
+    def _usd(v):
+        if v is None:
+            return "—"
+        try:
+            x = float(v)
+        except (TypeError, ValueError):
+            return "—"
+        return f"{'-' if x < 0 else ''}${abs(x):,.2f}"
+
+    def _cell(v):
+        if v is None or v == "":
+            return "—"
+        return str(v)
+
+    def _row(label, bv, sv, dim=False):
+        style = "padding:3px 6px;border-bottom:1px solid rgba(255,195,107,.18);"
+        lab = "color:#a5946f;" if dim else "color:#ffc36b;"
+        return ("<tr>"
+                f"<td style='{style}{lab}white-space:nowrap;'>{label}</td>"
+                f"<td style='{style}color:#e8e1d2;'>{_cell(bv)}</td>"
+                f"<td style='{style}color:#e8e1d2;'>{_cell(sv)}</td></tr>")
+
+    b_status = " · ".join(
+        f"{k} {v}" for k, v in (b.get("status") or {}).items())
+    s_status = (f"{s.get('closed', 0)} stamped closes"
+                if int(s.get("closed") or 0) else "no stamped closes")
+    table = (
+        "<table style='width:100%;border-collapse:collapse;font-size:10.5px;"
+        "line-height:1.35;margin:2px 0 6px;'>"
+        "<tr>"
+        "<th style='text-align:left;padding:3px 6px;color:#a5946f;'>METRIC</th>"
+        "<th style='text-align:left;padding:3px 6px;color:#ffc36b;'>"
+        "BOT BRIDGE — signals.db</th>"
+        "<th style='text-align:left;padding:3px 6px;color:#ffc36b;'>"
+        "SCOUT CONTEST — contest_trades.jsonl</th>"
+        "</tr>"
+        + _row("OWNER", b.get("owner"), s.get("owner"))
+        + _row("TAG", b.get("tag"), s.get("tag"), dim=True)
+        + _row("UNIT", b.get("unit"), s.get("unit"), dim=True)
+        + _row("ROWS", b.get("signals"), s.get("signals"), dim=True)
+        + _row("CLOSED", b.get("closed"), s.get("closed"))
+        + _row("WINNERS", b.get("wins"), s.get("wins"), dim=True)
+        + _row("NET P&L", _usd(b.get("net")), _usd(s.get("net")))
+        + _row("MEAN / CLOSE", _usd(b.get("mean")), _usd(s.get("mean")), dim=True)
+        + _row("REJECTED", b.get("rejected"), None, dim=True)
+        + _row("STATUS", b_status or b.get("error"), s_status, dim=True)
+        + "</table>"
+    )
+    lines = [
+        table,
+        f"<span class='dim'>{led.get('note') or ''}</span>",
+        "<span class='dim'>Bot rows are read only from signals.db. Scout "
+        "rows are read only from contest_trades.jsonl. No combined total "
+        "exists by design.</span>",
+    ]
+    st.markdown(
+        plate("🔀 Mover ledgers — Bot vs Scout contest",
+              lcd(lines, tone="amber")),
+        unsafe_allow_html=True)
+
+
+@st.cache_data(ttl=300, show_spinner=False)
+def _weekly_projection_cached():
+    import weekly_projection as _wp
+    return _wp.build_report()
+
+
+def _render_weekly_projection_plate():
+    """Read-only +12% weekly projection, gate audit and checkpoints."""
+    try:
+        rep = _weekly_projection_cached()
+    except Exception as exc:
+        logger.warning("weekly projection failed: %s", exc)
+        st.markdown(
+            plate("📅 Weekly +12% projection — checkpoints",
+                  lcd(["<span style='color:#ffc36b;'>projection unreadable — "
+                       "nothing was changed</span>",
+                       f"<span class='dim'>{exc}</span>"], tone="amber")),
+            unsafe_allow_html=True)
+        return
+
+    a = rep.get("actual") or {}
+    c = rep.get("checkpoints") or {}
+    g = rep.get("gates") or {}
+    l = rep.get("left") or {}
+    p = rep.get("projection") or {}
+    w = rep.get("worth_floor") or {}
+    o = rep.get("overwatch") or {}
+    r20 = p.get("recent20") or {}
+    nxt = c.get("next_checkpoint") or {}
+    gov = None
+    try:
+        import overwatch_governor as _og
+        gov = _og.refresh()
+    except Exception as _og_exc:
+        logger.debug("overwatch governor plate read failed: %s", _og_exc)
+
+    def _m(v, sign=False):
+        try:
+            return (f"${float(v):+,.2f}" if sign else f"${float(v):,.2f}")
+        except (TypeError, ValueError):
+            return "—"
+
+    lines = [
+        f"LIVE {_m(a.get('current_balance'))}  ·  TARGET "
+        f"{_m(a.get('target'))}  ·  TO GO {_m(a.get('remaining'))}",
+        f"CONTEST PnL {_m(a.get('contest_pnl'), True)}  ·  "
+        f"{a.get('n', 0)} closes  ·  start {str(a.get('contest_start') or '')[:16]}",
+        f"WEEKLY: <span style='color:#ffc36b;'>{c.get('weekly_status') or '?'}</span>"
+        f"  ·  deadline {str(c.get('weekly_deadline') or '')[:16].replace('T', ' ')}"
+        f"  ·  {float(c.get('days_left') or 0):.1f}d left",
+    ]
+    if nxt:
+        lines.append(
+            f"NEXT CHECKPOINT  DAY {nxt.get('day')} "
+            f"{str(nxt.get('due') or '')[:16].replace('T', ' ')}  ·  "
+            f"required {_m(nxt.get('required_balance'))}  ·  "
+            f"gap {_m(nxt.get('gap_usd'), True)}  ·  "
+            f"<span style='color:{'#ff6b5e' if float(nxt.get('gap_usd') or 0) < 0 else '#4be38a'};'>"
+            f"{str(nxt.get('status') or '?').upper()}</span>")
+    lines += [
+        f"RECENT 20: n={r20.get('n', 0)}  net {_m(r20.get('net'), True)}"
+        f"  ·  mean {_m(r20.get('mean'), True)}/trade"
+        f"  ·  {float(r20.get('closes_per_day') or 0):.1f} closes/day"
+        f"  ·  {_m(r20.get('rate_per_day'), True)}/day",
+        f"GATES: {g.get('unique_candidates', 0)} unique candidates  ·  "
+        f"gross goal {_m(g.get('gross_goal_usd'))}  ·  "
+        f"NET EV {_m(g.get('net_ev_usd'), True)} after "
+        f"{float(g.get('stop_pct') or 0):.1f}% stop + "
+        f"{float(g.get('fee_rt_pct') or 0):.2f}% fee",
+        f"POSITIVE GATES n>=20: "
+        f"{', '.join(g.get('positive_gates') or []) or 'none'}"
+        f"  <span class='dim'>(n=1 gates are not evidence)</span>",
+    ]
+    if l.get("available"):
+        top = " · ".join(
+            f"{x.get('verdict')} {_m(x.get('left'))}"
+            for x in (l.get("by_verdict") or [])[:2] if float(x.get("left") or 0) > 1)
+        lines.append(
+            f"LEFT 7D: realized {_m(l.get('realized'), True)}  ·  "
+            f"left {_m(l.get('left'))}  ·  {top or 'no measured leave'}")
+    else:
+        lines.append("LEFT 7D: verdict study unavailable this pass")
+    if w.get("available"):
+        t25 = (w.get("tranche_by_goal") or {}).get("2.5") or {}
+        lines.append(
+            f"WORTH FLOOR: auto {float(w.get('effective') or 0) * 100:.1f}% of "
+            f"{_m(w.get('daily_pace_usd'))}/day = {_m(w.get('bar_usd'))} bar"
+            f"  ·  {float(w.get('assumed_goal_pct') or 0):.1f}% goal needs "
+            f"{_m(w.get('tranche_assumed_usd'))} (median "
+            f"{_m(w.get('notional_median_usd'))})"
+            + (f"  ·  2.5% goal already pays at {_m(t25.get('size_usd'))}"
+               if t25.get("size_usd") else ""))
+        lines.append(
+            f"WORTH LIMITS: 3% guard ceiling {_m(w.get('guard_ceiling_3pct_usd'))}"
+            f"  ·  stress allowance {_m(w.get('stress_allowance_usd'))}"
+            f"  ·  book room {_m(w.get('book_room_usd'))}"
+            f"  ·  current {_m(w.get('notional_median_usd'))} "
+            f"{'pays' if w.get('current_notional_pays_bar') else 'does NOT pay'} the bar")
+    if o.get("available"):
+        lines.append(
+            f"OVERWATCH: ${float(o.get('scalp_goal_usd') or 0):.0f} scalp goal needs "
+            f"{float(o.get('required_winners') or 0):.1f} wins  ·  recent cadence "
+            f"max {float(o.get('max_closes_to_deadline') or 0):.1f} closes = "
+            f"{_m(o.get('max_gross_if_every_close_hits'))} gross  ·  needs "
+            f"{_m(o.get('needed_per_close_usd'))}/close")
+        lines.append(
+            f"OVERWATCH PACE: {float(o.get('weekly_bar_pct_per_day') or 0):.2f}%/day bar"
+            f"  ·  required {float(o.get('required_pace_pct_per_day') or 0):.2f}%/day"
+            f"  ·  recent 7d {float(o.get('recent7_pace_pct_per_day') or 0):+.2f}%/day"
+            f"  ·  forecast {o.get('forecast_median_days')}d")
+    if gov:
+        ge = gov.get("eta") or {}
+        gc = gov.get("checkpoint") or {}
+        gs = gov.get("streak") or {}
+        gt = gov.get("state") or {}
+        ga = gov.get("adjustment")
+        lines.append(
+            f"GOVERNOR ETA: current <b>{ge.get('current_text') or 'NO SAMPLE'}</b>"
+            f"  ·  required {ge.get('required_text') or '—'}"
+            f"  ·  pace {_m(ge.get('current_daily_usd'), True)}/day vs "
+            f"{_m(ge.get('required_daily_usd'))}/day required")
+        lines.append(
+            f"GOVERNOR CHECKPOINT: "
+            + (f"day {gc.get('day')} required {_m(gc.get('required_balance'))}"
+               f" · gap {_m(gc.get('gap_usd'), True)} · "
+               f"<span style='color:{'#4be38a' if gc.get('status') == 'AHEAD' else '#ff6b5e'};'>"
+               f"{gc.get('status')}</span>"
+               if gc.get("available") else str(gc.get("status") or "—"))
+            + f"  ·  confidence {ge.get('confidence') or '—'}"
+              f" (n={ge.get('sample_n') or 0})")
+        lines.append(
+            f"LOSS STREAK: {int(gs.get('losses') or 0)} / {int(gs.get('trigger') or 3)}"
+            f"  ·  gate bias {float(gt.get('confidence_bias_points') or 0):+.1f} pts"
+            f"  ·  goal bias {float(gt.get('goal_bias_pct') or 0):+.2f}pp"
+            f"  ·  {'FULL SPEED' if gt.get('full_speed') else '—'}"
+            + (f"  ·  <span style='color:#ffc36b;'>MICRO-TUNE "
+               f"{float(ga.get('confidence_delta') or 0):+.1f} pts / "
+               f"{float(ga.get('goal_delta_pct') or 0):+.2f}pp</span>"
+               if ga else "  ·  no new tune"))
+        gr = gov.get("roadmap") or {}
+        if gr.get("available"):
+            pa = gr.get("point_a") or {}
+            pb = gr.get("point_b") or {}
+            rm = gr.get("next_checkpoint") or {}
+            path = gr.get("path") or []
+            pb_due = str(pb.get("deadline") or "")[5:16].replace("T", " ")
+            lines.append(
+                f"ROADMAP A→B: {_m(pa.get('balance'))} → {_m(pb.get('balance'))}"
+                f" by {pb_due or '—'}"
+                f"  ·  ${float(gr.get('required_daily_usd') or 0):,.2f}/day required"
+                f"  ·  ${float(gr.get('normal_daily_usd') or 0):,.2f} normal"
+                f" + ${float(gr.get('extra_daily_usd') or 0):,.2f} catch-up")
+            lines.append(
+                f"ROADMAP NEXT: {rm.get('label') or '—'}"
+                f" by {rm.get('due_short') or '—'}"
+                f"  ·  {_m(rm.get('required_balance'))} required"
+                f"  ·  +{_m(rm.get('gain_from_prev_usd'))} from here"
+                f"  ·  need ${float(rm.get('required_mean_at_recent_cadence') or 0):,.2f}/close"
+                f" at {float(gr.get('recent_closes_per_day') or 0):.2f} closes/day")
+            _te = gr.get("today_edge") or {}
+            if int(_te.get("n") or 0) > 0:
+                lines.append(
+                    f"TODAY EDGE: {int(_te.get('n') or 0)} closes"
+                    f"  ·  {_m(_te.get('net'), True)}"
+                    f"  ·  {_m(_te.get('mean'), True)}/close"
+                    f"  ·  {int(_te.get('wins') or 0)}W / {int(_te.get('losses') or 0)}L"
+                    f"  ·  basis {gr.get('edge_basis') or '—'}")
+            _rec = gov.get("reconciliation") or {}
+            if _rec:
+                _prior = _rec.get("prior_closes") or []
+                _prior_txt = ", ".join(
+                    f"{(c.get('pair') or '?').split('/')[0]}"
+                    f" {_m(c.get('net'), True)}" for c in _prior[:4])
+                lines.append(
+                    f"TODAY VS ACCOUNT: today {_m(_rec.get('today_net'), True)}"
+                    f" + prior closes {_m(_rec.get('prior_net'), True)}"
+                    f" = ledger {_m(_rec.get('ledger_net'), True)}"
+                    f"  ·  account {_m(_rec.get('account_net'), True)}"
+                    f"  ·  rounding {_m(_rec.get('rounding'), True)}"
+                    + (f"  ·  prior: {_prior_txt}" if _prior_txt else "")
+                    + (f"  ·  {_rec.get('note')}" if _rec.get("note") else ""))
+            _dg = gov.get("daily_goal") or {}
+            if _dg:
+                lines.append(
+                    f"DAILY GOAL: {_m(_dg.get('required_daily_usd'))}/day required"
+                    f"  ·  today {_m(_dg.get('today_net'), True)}"
+                    f"  ·  {_m(_dg.get('remaining_usd'))} to +12%"
+                    f"  ·  {float(_dg.get('days_left') or 0):.2f}d left")
+            lines.append(
+                f"ROADMAP EDGE: {gr.get('thesis')}"
+                f"  ·  {gr.get('feasibility')} / {gr.get('confidence')}"
+                f"  ·  basis {gr.get('edge_basis') or '—'}")
+            lines.append(
+                "ROADMAP CHECKPOINTS: "
+                + "  ·  ".join(
+                    f"{p.get('label')} {_m(p.get('required_balance'))}"
+                    for p in path))
+        ge = gov.get("economics") or {}
+        if ge:
+            _edge = ge.get("edge") or {}
+            _risk_state = ("ALLOWED" if ge.get("allow_new_risk")
+                           else (f"PROBE {_m(ge.get('probe_size_usd'))}"
+                                 if ge.get("allow_probe") else "REFUSED"))
+            lines.append(
+                f"ECONOMICS: {ge.get('verdict') or '—'}"
+                f"  ·  new risk {_risk_state}"
+                f"  ·  edge {_m(_edge.get('mean'), True)}/close rolling"
+                f" (LB {_m(_edge.get('lower'), True)}, n={_edge.get('n', 0)})"
+                f"  ·  win {float(_edge.get('win_rate') or 0):.1%}"
+                f"  ·  payoff {float(_edge.get('payoff') or 0):.2f}"
+                f"  ·  R:R {float(ge.get('reward_risk') or 0):.2f}"
+                f"  ·  target size {_m(ge.get('required_size_usd'))}"
+                f" (cap {_m(ge.get('max_size_usd'))})")
+        gl = gov.get("learning") or {}
+        if gl:
+            gm = gl.get("top_mistake") or {}
+            lm = gl.get("last_mistake") or {}
+            gctx = gl.get("contexts") or {}
+            prob = sum(1 for v in gctx.values() if v.get("probation"))
+            deep = int(gl.get("blocked") or 0)
+            lines.append(
+                f"MISTAKE MEMORY: {int(gm.get('count') or 0)} "
+                f"{gm.get('kind') or 'repeats'}  ·  probation {prob}"
+                f"  ·  blocked {deep}  ·  "
+                + (f"last {lm.get('kind')} {lm.get('pair')} "
+                   f"{_m(lm.get('net'), True)}" if lm else "no classified mistake")   
+                + f"  ·  {gl.get('quickest_fix') or '—'}")
+    lines += [
+        f"TARGET MATH: {_m(c.get('required_daily_from_now'))}/day required"
+        f"  ·  at {float(r20.get('closes_per_day') or 0):.1f} closes/day the"
+        f" mean must be {_m(p.get('required_mean_per_trade'))}/trade"
+        f"  ·  recent mean {_m(r20.get('mean'), True)}",
+    ]
+    for cp in (c.get("checkpoints") or []):
+        lines.append(
+            f"D{cp.get('day')}  required {_m(cp.get('required_balance'))}"
+            f"  ·  gap {_m(cp.get('gap_usd'), True)}"
+            f"  ·  {str(cp.get('status') or '?').upper()}")
+    baseline = p.get("baseline_projected_balance")
+    left_proj = p.get("left_recovery_projected_balance")
+    lines.append(
+        f"IF RECENT RATE PERSISTS: {_m(baseline)} at deadline"
+        + (f"  ·  perfect 7d left capture: {_m(left_proj)}"
+           if left_proj is not None else ""))
+    if c.get("weekly_status") == "WON":
+        verdict = "TARGET HIT — the weekly bar is met."
+        tone = ""
+    elif p.get("weekly_supported"):
+        verdict = "WEEKLY BAR SUPPORTED by the measured sample."
+        tone = ""
+    else:
+        verdict = ("WEEKLY BAR NOT SUPPORTED by the measured sample — "
+                   + "; ".join((p.get("blockers") or [])[:3]) + ".")
+        tone = "amber"
+    lines += [
+        f"<span style='color:{'#4be38a' if tone == '' else '#ffc36b'};'>{verdict}</span>",
+        "<span class='dim'>Read-only model: actual ledger + recent gate hindsight "
+        "+ exit-peak study. It never places orders or changes the contest. "
+        "Checkpoints are management gates, not instructions to force a trade.</span>",
+    ]
+    st.markdown(
+        plate("📅 Weekly +12% projection — checkpoints", lcd(lines, tone=tone)),
+        unsafe_allow_html=True)
+
+
+def _render_rolling_eta_plate():
+    """Read-only rolling ETA from applied closes in the live contest ledger.
+
+    This plate only reads contest_account.json and contest_trades.jsonl. It
+    never places orders, changes a balance, or writes the contest ledger.
+    """
+    try:
+        import contest_account as _ca_r
+        rep = _ca_r.rolling_eta_report()
+    except Exception as exc:
+        logger.warning("rolling ETA read failed: %s", exc)
+        st.markdown(
+            plate("📈 Rolling ETA — actual closed trades",
+                  lcd(["<span style='color:#ffc36b;'>ledger unreadable — "
+                       "the view is dark, nothing was changed</span>",
+                       f"<span class='dim'>{exc}</span>"], tone="amber")),
+            unsafe_allow_html=True)
+        return
+
+    windows = rep.get("windows") or []
+    if not windows:
+        st.markdown(
+            plate("📈 Rolling ETA — actual closed trades",
+                  lcd(["No applied closed trades in the live ledger yet.",
+                       "<span class='dim'>The first applied close starts the "
+                       "rolling windows. Read-only.</span>"], tone="amber")),
+            unsafe_allow_html=True)
+        return
+
+    lines = [
+        f"LIVE <span style='color:#ffc36b;'>${rep['current_balance']:,.2f}</span>"
+        f"   WIN <span class='dim'>......</span> ${rep['win_line']:,.2f}"
+        f"   TO GO <span class='dim'>...</span> ${rep['remaining']:,.2f}"
+        f"   <span class='dim'>{rep['applied_closes']} applied closes</span>",
+        "<span class='dim'>READ-ONLY · no orders, no balance changes, no contest-ledger "
+        "writes · source: contest_trades.jsonl applied closes</span>",
+    ]
+    any_positive_eta = any(w.get("eta_weeks") is not None for w in windows)
+    lines.extend(_rolling_eta_window_line(w) for w in windows)
+    lines.append(
+        "<span class='dim'>ETA = remaining target ÷ the window's realized "
+        "$/day. It is a point estimate, not a promise. A CI spanning zero means "
+        "the rolling edge is not statistically distinguishable from zero.</span>")
+    st.markdown(
+        plate("📈 Rolling ETA — actual closed trades",
+              lcd(lines, tone="" if any_positive_eta else "amber")),
+        unsafe_allow_html=True)
+    _render_setup_eta_plate(rep)
+    _render_mover_ledger_plate()
+
+
 def render_master_bones(cfg: TradingConfig, kraken):
     sb = _bridge()
 
@@ -6864,6 +7551,8 @@ def render_master_bones(cfg: TradingConfig, kraken):
                 except Exception as exc:
                     logger.debug("reset toast/voice failed: %s", exc)
                 st.rerun()
+        _render_rolling_eta_plate()
+        _render_weekly_projection_plate()
         knobs = (
             knob(bal, 0, 1500, "Account Value", lambda v: f"${v:,.0f}") +
             knob(pnl, -100, 100, "Today P&L", lambda v: f"${v:+,.2f}") +
@@ -7411,7 +8100,11 @@ def render_quick_check(cfg: TradingConfig, kraken):
                     _raw_move = _gmt(pair, _rwin[2] if _rwin else "08-12",
                                      _sd(_now_mst().weekday()), level="standard")
                 except Exception:
-                    _goal_pct, _raw_move = 1.5, None
+                    # the derivation failed (no market read, a stale module).
+                    # Stamp the goal the exit logic actually manages to — the
+                    # operative window goal — never a hardcoded 1.5 that no
+                    # rule was working to.
+                    _goal_pct, _raw_move = _operative_goal_pct(None, pair), None
                 # chase: distance above the last hour's low — MUST be 4 x 15m
                 # candles. The deep-scan df is 1h candles: using its lows made
                 # the window 4 HOURS, catching stale overnight dips and blocking
@@ -7456,7 +8149,8 @@ def render_quick_check(cfg: TradingConfig, kraken):
                 # (its profiled window drawdown from the Volatility Engine)
                 # consumes at most ~1/3 of the remaining buffer. Three
                 # consecutive worst-cases still leave the account alive.
-                # Buffer gone → NO new risk at all (the at-the-line skip).
+                # Buffer gone → WATCH-ONLY: the signal keeps a minimum size
+                # and the real-time exit monitor owns the risk.
                 _risk_cap = None
                 try:
                     import contest_account as _ca
@@ -7560,7 +8254,11 @@ def render_quick_check(cfg: TradingConfig, kraken):
                     st.session_state["qc_result"]["risk_cap"] = _risk_cap
                     st.session_state["qc_result"]["window_dd"] = _wdd
                     if _risk_cap <= 0:
-                        _spend_usd = 0.0  # at/near the death line — no new risk
+                        # WATCH-ONLY (Nov 12): the death line no longer blanks
+                        # the signal.  The QC shows a minimum-size entry and
+                        # the real-time exit monitor owns the risk.
+                        _spend_usd = max(10.0, min(
+                            float(_spend_usd or 0.0) * 0.10, 200.0))
                     else:
                         _spend_usd = min(_spend_usd, _risk_cap)
                 except Exception as _exc:
@@ -7601,6 +8299,46 @@ def render_quick_check(cfg: TradingConfig, kraken):
                         _spend_usd = _spend_usd * _bs_tsf.TIDE_FLAT_SIZE_FACTOR
                     except (AttributeError, ImportError) as exc:
                         logger.debug("FLAT half-size factor skipped: %s", exc)
+                # ── GO BIG OR GO HOME (user rule, Nov 13): when the coin
+                #    and the rotation support it, the QC green light puts
+                #    the WHOLE account in and rides until momentum dies. The hard
+                #    $30 net stop replaces the old per-trade envelope; the
+                #    exit watch reads the row's momentum exit. No window,
+                #    no all-in: a Hail Mary keeps its strict cap.
+                _qc_go_big = False
+                try:
+                    import contest_account as _ca_gbq
+                    _gb_acct = _ca_gbq.load_state()
+                    _gb_bal = float(_gb_acct.get("current_balance") or 0.0)
+                    _gb_ok, _gb_why = _ca_gbq.go_big_supported(
+                        action=sig.action, tide_state=_tide_state,
+                        tide_pct=_tide_pct,
+                        carry_usd=_carry, balance=_gb_bal,
+                        conviction=float(sig.confidence),
+                        floor=_ca_gbq.GO_BIG_MIN_CONVICTION,
+                        slot_open=bool(_load_watch()))
+                    _gb_plan = _ca_gbq.go_big_plan(
+                        _gb_bal, float(_gb_acct.get("start_balance") or 0.0),
+                        supported=bool(_gb_ok and not _qc_hm
+                                       and not no_buy),
+                        stopped=bool(_gb_acct.get("halted")))
+                    if _gb_plan.get("ok"):
+                        _qc_go_big = True
+                        _spend_usd = float(_gb_plan["spend_usd"])
+                        st.session_state["qc_result"]["go_big"] = True
+                        st.session_state["qc_result"]["go_big_why"] = _gb_why
+                        st.session_state["qc_result"]["go_big_take_usd"] = 0.0
+                        st.session_state["qc_result"]["go_big_stop_usd"] = float(
+                            _gb_plan["stop_usd"])
+                        logger.info("QC GO BIG: %s — 100%% = $%.0f (%s)",
+                                    asset, _spend_usd, _gb_why)
+                    else:
+                        st.session_state["qc_result"]["go_big"] = False
+                        logger.info("QC GO BIG declined: %s",
+                                    _gb_plan.get("why"))
+                except Exception as _gbq_exc:
+                    _qc_go_big = False
+                    logger.debug("QC GO BIG sizing skipped: %s", _gbq_exc)
                 # THE JUST-PAID GUARD — RETIRED (user rule, Sep 21: "I
                 # don't want a 'just paid guard' — it was replaced with
                 # real data already"): no payout-based read, no refusal.
@@ -7805,7 +8543,7 @@ def render_quick_check(cfg: TradingConfig, kraken):
                         _bs_cl = importlib.reload(_bs_cl)
                     _climb_res = _bs_cl._climb_out_check(
                         kraken, pair, float(px),
-                        float(_goal_pct or 1.5), float(_spend_usd or 0.0))
+                        _goal_pct, float(_spend_usd or 0.0))
                     _climb_ok = bool(_climb_res.get("ok"))
                 except Exception:
                     _climb_ok, _climb_res = True, None
@@ -7824,8 +8562,8 @@ def render_quick_check(cfg: TradingConfig, kraken):
                         and not (_yctx and _yctx.get("shape") == "blowoff")
                         and not (_raw_move is not None and float(_raw_move) < 1.0)):
                     # AUTO-WATCH on green light: the deep scan IS the entry.
-                    # The user's system: green → all in, scalp to +$20, out,
-                    # re-enter small, green again → buy more. The BOOK CARRY
+                    # The user's system: green → all in, ride until momentum
+                    # dies, GET OUT, wait for the next fresh green. The BOOK CARRY
                     # rule may size the spend down — the watch records the
                     # RECOMMENDED size so the $-counting matches what they
                     # actually hold.
@@ -7846,22 +8584,32 @@ def render_quick_check(cfg: TradingConfig, kraken):
                                        "size": float(_spend_usd),
                                        "added": _now_mst().isoformat(),
                                        "contest_id": _ca.current_contest_id(),
+                                       # GO BIG rides the run: momentum owns
+                                       # the exit; $30 net stop; fresh signal only.
+                                       **(({"go_big": True,
+                                           "goal_usd": 0.0,
+                                           "hard_stop_usd": 30.0})
+                                          if st.session_state.get("qc_result", {}).get("go_big")
+                                          else {}),
                                        # THE GOAL (Sep 1): the entry carries
                                        # its % goal + window — the light's
                                        # clock and goal-call run on these.
-                                       "goal_pct": float(_goal_pct or 1.5),
+                                       "goal_pct": float(_operative_goal_pct(
+                                           _goal_pct, pair)),
                                        # (Sep 4) the window is bounded by the
                                        # next rotation boundary — the goal should
                                        # reach before the rotation turns; a HAIL
                                        # MARY entry bounds by the one-hour window
                                        "window_min": (min(float(_bs._rotation_window_min()
                                                            if hasattr(_bs, "_rotation_window_min")
-                                                           else max(60.0, min(180.0, (_goal_pct or 1.5) * 60.0))),
+                                                           else max(60.0, min(180.0, _operative_goal_pct(
+                                                               _goal_pct, pair) * 60.0))),
                                                           60.0)
                                                        if _champ_hm_win else
                                                        float(_bs._rotation_window_min()
                                                              if hasattr(_bs, "_rotation_window_min")
-                                                             else max(60.0, min(180.0, (_goal_pct or 1.5) * 60.0)))),
+                                                             else max(60.0, min(180.0, _operative_goal_pct(
+                                                                 _goal_pct, pair) * 60.0)))),
                                        # THE BRAIN (Sep 3): why we entered —
                                        # the exit check reads this back before
                                        # recommending anything (thesis check).
@@ -7890,7 +8638,8 @@ def render_quick_check(cfg: TradingConfig, kraken):
                             # refresh on the next read
                             ac_invalidate("qc_liquidity", "bot_positions")
                             logger.info("AUTO-WATCH: %s added on green light (entry %s, goal %.1f%%)",
-                                        pair, px, float(_goal_pct or 1.5))
+                                        pair, px, float(_operative_goal_pct(
+                                            _goal_pct, pair)))
                             # ROTATION LOCKOUT: green light fired — the asset
                             # is cold until the next rotation boundary
                             try:
@@ -7924,7 +8673,7 @@ def render_quick_check(cfg: TradingConfig, kraken):
                             _challenge_txt = ""
                             _challenge_say = ""
                             try:
-                                st.toast(f"✅ GO — {asset}: {_confirm_txt}{_reentry_txt}{_chunk_txt}I count the $20s.{_warn_txt}",
+                                st.toast(f"✅ GO — {asset}: {_confirm_txt}{_reentry_txt}{_chunk_txt}Ride it till momentum dies.{_warn_txt}",
                                          icon="✅", duration=20)
                                 _play_sound("ding")
                                 _sized_down = _spend_usd < float(cfg.challenge_balance)
@@ -7944,7 +8693,8 @@ def render_quick_check(cfg: TradingConfig, kraken):
                                     + (f" — the book will carry it: ${_carry_usd:,.0f} "
                                        f"(20% of the visible book)." if _carry_usd else ".")
                                     + (f"  ⚠ {' · '.join(_warns)}." if _warns else "")
-                                    + f"\nEntry {px}  ·  goal +{float(_goal_pct or 1.5):.1f}%")
+                                    + f"\nEntry {px}  ·  goal "
+                                      f"+{float(_operative_goal_pct(_goal_pct, pair)):.1f}%")
                                 try:
                                     _bs5.popup_journal("BUY", _gl_title, _gl_msg)
                                     _gl_sub = ("powershell", "-WindowStyle", "Hidden", "-Command",
@@ -8061,15 +8811,16 @@ def render_quick_check(cfg: TradingConfig, kraken):
                     elif (sig.action == "buy" and not no_buy
                             and _risk_cap is not None and _risk_cap <= 0):
                         # THE DEATH LINE (Kraken Funded: -3% from start, never
-                        # moves) — no new risk. (Sep 5: the daily lock removed
-                        # — the platform line is the only floor left.)
+                        # moves) — WATCH-ONLY (Nov 12): the signal still shows;
+                        # the size is minimum and the exit monitor is live.
                         try:
-                            st.toast(f"☠ AT THE DEATH LINE — {asset}: the account is at "
-                                     f"the -3% line. ANY new trade can close the contest. "
-                                     f"No entries until the balance recovers above the line.",
+                            st.toast(f"☠ DEATH-LINE WATCH — {asset}: the account is at "
+                                     f"the -3% line. Signal stays open at minimum size; "
+                                     f"the exit monitor will call GET OUT if holding gets "
+                                     f"too risky.",
                                      icon="☠", duration=25)
                             _play_sound("alarm")
-                            _speak(f"No! At the death line! No new trades!", rate=1)
+                            _speak(f"Death line watch! Minimum size! The exit monitor is live!", rate=1)
                         except Exception as exc:
                             logger.debug("death-line toast/voice failed: %s", exc)
                     elif (sig.action == "buy" and not no_buy
@@ -8167,7 +8918,7 @@ def render_quick_check(cfg: TradingConfig, kraken):
     tide_state = result.get("tide")
     # THE GOAL (Sep 1): the coin's raw expected move must reach the 1%
     # goal floor. The $20-pace check retired with the scalp game.
-    goal_pct = float(result.get("goal_pct", 1.5) or 1.5)
+    goal_pct = _read_goal_pct(result.get("goal_pct"), pair)
     raw_move = result.get("raw_move")
     goal_ok = raw_move is None or float(raw_move) >= 1.0
     # HARD gates (ADVISORY BRAIN, Sep 5): the goal gate + no downward trend
@@ -8257,7 +9008,8 @@ def render_quick_check(cfg: TradingConfig, kraken):
         if (result.get("spend_usd", 1) or 0) <= 0:
             return "NO GREEN — TOO THIN"
         if (result.get("risk_cap", 1) or 0) <= 0:
-            return "NO GREEN — AT THE DEATH LINE (the platform -3% floor is gone — no new risk)"
+            return ("SCALP GREEN LIGHT — ☠ DEATH-LINE WATCH "
+                    "(buffer gone; minimum size only, the exit monitor is live)")
         if trend == "FALLING":
             return "NO GREEN — DOWNWARD TREND"
         if not goal_ok:
@@ -8684,9 +9436,9 @@ def _light_check(kraken, cfg: TradingConfig, sb, held: dict, interval_s: int) ->
                 if not live or not entry_px:
                     continue
                 w = contest_watch.get(pair, {}) or {}
-                goal = float(w.get("goal_pct") or 0) or 1.5
+                goal = _read_goal_pct(w.get("goal_pct"), pair)
                 pct = (live / entry_px - 1) * 100
-                glevel = int(pct / goal) if pct > 0 else 0
+                glevel = int(pct / goal) if pct > 0 and goal > 0 else 0
                 if pct < goal * 0.25:
                     take_level.pop(pair, None)
                 elif glevel > take_level.get(pair, 0):
@@ -8694,8 +9446,10 @@ def _light_check(kraken, cfg: TradingConfig, sb, held: dict, interval_s: int) ->
                     asset = _asset(pair)
                     try:
                         if glevel == 1:
-                            st.toast(f"🎯 GOAL — {asset} up {pct:.1f}% (goal {goal:.1f}%) "
-                                     f"— STAY CLOSE, the exit is hers", icon="🎯", duration=15)
+                            st.toast(f"🎯 TAKE IT — {asset} up {pct:.1f}% "
+                                     f"(goal {goal:.1f}%) — banked; the watch "
+                                     f"clears and waits for the next setup",
+                                     icon="🎯", duration=15)
                         else:
                             st.toast(f"🎯 {glevel}× GOAL — {asset} up {pct:.1f}%",
                                      icon="🎯", duration=15)
@@ -8858,7 +9612,7 @@ def _render_her_words():
                     try:
                         _entry = float(_w.get("entry") or 0)
                         _size = float(_w.get("size") or 0) or _bal
-                        _goal = float(_w.get("goal_pct") or 0) or 1.5
+                        _goal = _read_goal_pct(_w.get("goal_pct"), _wp)
                         try:
                             _added = datetime.fromisoformat(_w["added"])
                         except Exception:
@@ -8875,7 +9629,8 @@ def _render_her_words():
                             _usd = (_px / _entry - 1.0) * _size
                             _pct = (_px / _entry - 1.0) * 100
                             _col = "#4be38a" if _usd >= 0 else "#ff6b5e"
-                            _flags = "🎯 GOAL HIT" if _pct >= _goal else ""
+                            _flags = ("🎯 GOAL HIT"
+                                      if _goal > 0 and _pct >= _goal else "")
                             if _left <= 0:
                                 _flags += (" · " if _flags else "") \
                                     + "⏰ time's up — staying close (exit waits for the trend)"
@@ -9380,10 +10135,13 @@ def _render_light_panel(interval: str):
                                             now=_now_mst()) or 0.75)
                     _rem = max(2.0 * _eta * 60.0, 45.0) - _elapsed
                 _goal = float(rec.get("goal_pct") or 0.0)
+                _take_now = bool(_goal > 0 and pnl >= _goal)
                 _near = (_rem <= 15.0) or (_goal > 0 and pnl >= _goal * 0.75)
                 clock_html = (f' · <span style="color:{"#ffc36b" if _near else "#8d8271"};">'
                               f'~{max(_rem, 0):.0f}m left'
-                              + (" · STAY CLOSE" if _near else " · walk around")
+                              + (" · TAKE IT — clears" if _take_now
+                                 else " · STAY CLOSE" if _near
+                                 else " · walk around")
                               + '</span>')
             except Exception as exc:
                 logger.debug("rotation clock html failed: %s", exc)
@@ -9470,7 +10228,6 @@ def render_auto_watch(cfg: TradingConfig, kraken):
     sb = _bridge()
     wallet = wallet_snapshot(kraken)
     held = {a: f"{a}/USD" for a in sorted(wallet["holdings"].keys())}
-
     _cs = _load_console_state()
     # SEMANTIC STATE, DERIVED DISPLAY (Sep 13): the toggles and the
     # interval carry plain keys — session_state keeps the semantic
@@ -9589,17 +10346,17 @@ def render_auto_watch(cfg: TradingConfig, kraken):
                     # trade just executed — the bot book + the QC's
                     # book read refresh on the next read
                     ac_invalidate("bot_positions", "qc_liquidity")
-                    # THE TOMBSTONE, NOT A POP (round-2): merge-save
-                    # deletes the None-marked row — popping the key
-                    # would leave the stale row on disk forever
+                    # THE ROW IS CLEARED AT THE END, NOT HERE (Nov 7): the
+                    # tombstone used to land before a single booking step
+                    # ran, so a refused receipt had ALREADY taken the
+                    # position off the watchlist — the sale failed and the
+                    # row was gone anyway, with no way to retry it. The
+                    # tombstone is written at the bottom of this block, and
+                    # every refusal returns above it. THE TOMBSTONE, NOT A
+                    # POP (round-2): merge-save deletes the None-marked row
+                    # — popping the key would leave the stale row on disk
+                    # forever.
                     _sw = _cw_sold.get(_sp) or {}
-                    _cw_sold[_sp] = None
-                    _save_watch(_cw_sold)
-                    # the re-entered expander follows right below
-                    st.session_state.get("take_level", {}).pop(_sp, None)
-                    # flow advance moves here (Aug 30): SOLD is now the
-                    # only exit — the board clears when YOU clear it
-                    st.session_state["flow_exit_at"] = time.time()
                     # ── AUTO PnL + BALANCE (user rule, Sep 2: "stamp the
                     #    real sold time and auto calculate the PnL...
                     #    auto fill when the button is pushed — I can
@@ -9614,6 +10371,40 @@ def render_auto_watch(cfg: TradingConfig, kraken):
                              f"Update the contest balance in the sidebar — my numbers follow it!")
                     _toast_sold = f"✔ {_asset(_sp)} cleared — next green light re-adds it"
                     _sold_at = _now_mst()
+                    # ── THE MARKET GUARD (Nov 6) — the same check the
+                    #    scanner's GET OUT applies, at the OTHER writer into
+                    #    the book: the ledger takes facts, and only real USD
+                    #    markets produce them. A synthetic self-test pair
+                    #    can be printed and spoken about, but it can never
+                    #    move the balance or become a trade. Fails CLOSED,
+                    #    like the scanner: if the check cannot run, the
+                    #    close is not booked.
+                    # a refused booking leaves the row where it is (Nov 7)
+                    _keep_row = False
+                    _toast_icon = "✔"
+                    _real_mkt = True
+                    try:
+                        import ledger_artifacts as _la_s
+                        _real_mkt = _la_s.is_real_usd_pair(_sp)
+                    except Exception as _mkt_exc:
+                        _real_mkt = False
+                        logger.warning("CLOSE NOT BOOKED — market guard could "
+                                       "not run for %s: %s", _sp, _mkt_exc)
+                    if not _real_mkt:
+                        logger.warning("CLOSE NOT BOOKED — %s is not a real "
+                                       "USD market; the ledger takes real "
+                                       "pairs only; the row stays watched",
+                                       _sp)
+                        # refused → the watch row stays, so a retry (or a
+                        # deliberate clear) is still possible
+                        _keep_row = True
+                        _toast_icon = "✖"
+                        _toast_sold = (f"✖ {_asset(_sp)} NOT "
+                                       f"BOOKED: not a real USD market — "
+                                       f"still on the watchlist")
+                        _say_sold = (f"{_asset(_sp)} is not a real USD market. "
+                                     f"Nothing was booked and the balance is untouched. "
+                                     f"It is still on your watchlist.")
                     try:
                         _entry = float(_sw.get("entry") or 0.0)
                         _size = float(_sw.get("size") or 0.0)
@@ -9623,7 +10414,7 @@ def render_auto_watch(cfg: TradingConfig, kraken):
                                 _live = float(kraken.exchange.fetch_ticker(_sp)["last"])
                             except Exception:
                                 _live = None
-                        if _entry > 0 and _size > 0 and _live:
+                        if _real_mkt and _entry > 0 and _size > 0 and _live:
                             import contest_account as _ca_s
                             _gross, _cost, _net = _ca_s.pnl_net_usd(_entry, _live, _size)
                             # (Sep 9) the trade lands on ITS OWN contest
@@ -9633,9 +10424,6 @@ def render_auto_watch(cfg: TradingConfig, kraken):
                             # current balance (the TIA bug: an old
                             # contest's console sold it and the loss hit
                             # the new contest's account).
-                            _applied, _new_bal, _note = _ca_s.apply_pnl(
-                                _net, _sw.get("contest_id"),
-                                dedupe_key=f"{_sp}|{_sw.get('added')}")
                             _held_min = ""
                             try:
                                 from datetime import datetime as _dts
@@ -9644,7 +10432,17 @@ def render_auto_watch(cfg: TradingConfig, kraken):
                                     _held_min = f"{(_sold_at - _dts.fromisoformat(_added)).total_seconds() / 60.0:.0f}"
                             except (TypeError, ValueError) as exc:
                                 logger.debug("held-minutes compute failed: %s", exc)
-                            try:
+
+                            # THE RECEIPT FIRST (Nov 6): the ledger row was
+                            # written AFTER the balance moved, and a failed
+                            # append only logged — money moved, nothing on
+                            # the books to prove it. apply_pnl_journaled calls
+                            # this inside the account lock and commits only if
+                            # it returns, so a receipt that cannot be written
+                            # cannot move a dollar.
+                            import background_scanner as _bst
+
+                            def _journal_sold(_applied_j, _bal_j, _note_j):
                                 import json as _jsons
                                 with open("contest_trades.jsonl", "a", encoding="utf-8") as _fs:
                                     _fs.write(_jsons.dumps({
@@ -9654,14 +10452,85 @@ def render_auto_watch(cfg: TradingConfig, kraken):
                                         "pnl_gross": round(_gross, 2),
                                         "cost_rt": round(_cost, 2),
                                         "pnl_net": round(_net, 2),
-                                        "balance_after": round(_new_bal, 2),
-                                        "applied": bool(_applied),
-                                        "note": ("" if _applied else _note),
+                                        "balance_after": round(_bal_j, 2),
+                                        "applied": bool(_applied_j),
+                                        "note": ("" if _applied_j else _note_j),
+                                        # the manual route labels ITSELF
+                                        # (Nov 6): every one of the 66 SOLD
+                                        # closes this writer produced went
+                                        # into the ledger with no closed_by
+                                        # and no reason, so the studies
+                                        # showed them as an unnamed "?"
+                                        # mechanism. Same keys the scanner's
+                                        # GET-OUT close writes, so the two
+                                        # routes are separable by one field
+                                        # and the family prefix before the
+                                        # em dash is what the reports group
+                                        # on.
+                                        "closed_by": "sold",
+                                        "exit_reason": "MANUAL SOLD — operator "
+                                                       "tapped SOLD at the live "
+                                                       "price",
                                         "goal_pct": _sw.get("goal_pct"),
                                         "held_min": _held_min,
+                                        # the fire-time family (Nov 6) — the
+                                        # manual SOLD closes the same ledger
+                                        # shape as the scanner's GET OUT, via
+                                        # the same helper (Nov 15) so neither
+                                        # writer can drop a key the other keeps
+                                        **_bst._family_fields(_sw),
                                     }) + "\n")
-                            except Exception as exc:
-                                logger.warning("sold record write failed — outcome not journaled: %s", exc)
+                                    # durable: the append must survive the
+                                    # process, not just the buffer, before
+                                    # the balance commit can happen
+                                    _fs.flush()
+                                    os.fsync(_fs.fileno())
+
+                            try:
+                                _applied, _new_bal, _note = _ca_s.apply_pnl_journaled(
+                                    _net, _sw.get("contest_id"),
+                                    dedupe_key=f"{_sp}|{_sw.get('added')}",
+                                    journal=_journal_sold)
+                            except Exception as _book_exc:
+                                # nothing moved and nothing was receipted:
+                                # say so plainly instead of reporting a sale
+                                # the toast names no failing step: a refused
+                                # receipt and a refused state write both leave
+                                # the balance where it was, and the log below
+                                # carries which one it was. The watch row is
+                                # untouched too (Nov 7) — this return is above
+                                # the tombstone, so the position stays listed
+                                # and the operator can retry the sale.
+                                logger.error("SOLD NOT BOOKED — balance untouched, "
+                                             "the booking aborted (row kept on "
+                                             "the watchlist): %s", _book_exc)
+                                try:
+                                    st.toast(f"✖ {_asset(_sp)} NOT BOOKED — "
+                                             f"balance untouched, still on the watchlist "
+                                             f"(see log)",
+                                             icon="✖", duration=10)
+                                    _play_sound("ding")
+                                    _speak(f"{_asset(_sp)} was not booked. "
+                                           f"The balance was not moved and it "
+                                           f"is still on your watchlist. "
+                                           f"Check the log for the failed step.")
+                                except Exception as _say_exc:
+                                    logger.debug("not-booked toast failed: %s", _say_exc)
+                                # stop here: the sale did not happen, and the
+                                # rest of this block reports one
+                                return
+                            # THE SURVIVABILITY GUARD (Nov 10): the console's
+                            # SOLD is the other place real money is booked, so
+                            # it reports the close to the same guard the
+                            # scanner's entry gate reads. Only an APPLIED
+                            # close counts (a foreign-window or replayed sale
+                            # moved nothing).
+                            if _applied:
+                                try:
+                                    import survival_guard as _sg_s
+                                    _sg_s.record_close(_net, _new_bal)
+                                except Exception as _sg_s_exc:
+                                    logger.debug("survival guard record failed: %s", _sg_s_exc)
                             _sign = "+" if _net >= 0 else "-"
                             _toast_sold = (f"✔ {_asset(_sp)} sold — {_sign}${abs(_net):,.2f} net "
                                            f"(0.08% RT cost incl.) · balance now ${_new_bal:,.0f}")
@@ -9708,11 +10577,38 @@ def render_auto_watch(cfg: TradingConfig, kraken):
                     # enriched-skip alike — the enrichment's failure must
                     # never silence the confirmation of a closed position.
                     try:
-                        st.toast(_toast_sold, icon="✔", duration=10)
+                        st.toast(_toast_sold, icon=_toast_icon, duration=10)
                         _play_sound("ding")
                         _speak(_say_sold)
                     except Exception as exc:
                         logger.debug("sold toast/voice failed: %s", exc)
+                    if _keep_row:
+                        # the exit was refused: the row stays on the
+                        # watchlist and the flow does NOT advance — nothing
+                        # was sold, so nothing is cleared
+                        logger.warning("SOLD NOT CLEARED — %s stays on the "
+                                       "watchlist (the booking was refused)",
+                                       _sp)
+                    else:
+                        # the settled exit: tombstone + merge-save delete
+                        # the row, and the board is cleared (Aug 30: SOLD
+                        # is the only exit)
+                        _cw_sold[_sp] = None
+                        _save_watch(_cw_sold)
+                        # THE OVERWATCH PACE GOVERNOR: a SOLD is a close
+                        # annotation too — recompute ETA/checkpoint and let
+                        # the 3-loss micro gate tune land immediately.
+                        try:
+                            import overwatch_governor as _og
+                            _og.refresh()
+                        except Exception as _og_exc:
+                            logger.debug("overwatch governor refresh skipped: %s",
+                                         _og_exc)
+                        # the re-entered expander follows right below
+                        st.session_state.get("take_level", {}).pop(_sp, None)
+                        # flow advance moves here (Aug 30): SOLD is now the
+                        # only exit — the board clears when YOU clear it
+                        st.session_state["flow_exit_at"] = time.time()
                     st.rerun()
 
     # ── the manual entry section retired here (user rule, Sep 21):
@@ -9966,7 +10862,23 @@ def render_exit_check(cfg: TradingConfig, kraken):
         try:
             import contest_account as _ca_ec
             _acct_ec = _ca_ec.load_state()
-            _stop_usd = max(_ca_ec.buffer(_acct_ec) * 0.5, 5.0)
+            # (Nov 6, the cascade review): the console judge must use the
+            # SAME smooth stop as the scanner's exit gate — the flat
+            # max(half-buffer, $5) floor made an $1,800 row's stop 0.28%
+            # of its size here too. Single source: the scanner's helper.
+            try:
+                import background_scanner as _bs_stop
+                _stop_usd = float(_wr.get("hard_stop_usd") or 0.0)
+                if _stop_usd <= 0.0:
+                    _stop_usd = _bs_stop._hard_stop_usd(
+                        float(entry or 0.0), float(_w_size or 0.0),
+                        _ca_ec.buffer(_acct_ec))
+            except (AttributeError, TypeError):
+                # a console running ahead of its scanner: the old formula
+                # is still a stop (loud only in the log, never silent None)
+                _stop_usd = max(_ca_ec.buffer(_acct_ec) * 0.5, 5.0)
+                logger.warning("console stop fell back to the flat floor — "
+                               "background_scanner has no _hard_stop_usd")
             if _wr.get("hm_mode") == "opportunistic" and entry:
                 # THE OPPORTUNISTIC HARD STOP (user ask, Oct 1): the exit
                 # watch is the authoritative exit and judges an
@@ -9997,8 +10909,12 @@ def render_exit_check(cfg: TradingConfig, kraken):
     # (Sep 21 audit) NO _window_expired term: the clock never exits. The
     # window's end is display-only (STAY CLOSE) — the exit gates below
     # are all real data: trail, trend sell bar, exhaustion, rider, stop.
+    # TAKE IT = GET OUT: a paid goal is an exit, not a stay-close perch.
+    # The scanner owns the actual close/clear; this check mirrors it so
+    # the console never tells the trader to keep riding a paid goal.
+    _take_hit = bool(_w_goal and _goal_mult >= 1)
     should_exit = trail_hit or strategy_sell or exhaustion or rider_exit \
-        or _hard_stop_hit
+        or _hard_stop_hit or _take_hit
     reasons = []
     if trail_hit and high:
         reasons.append(f"down {(high-live)/high*100:.1f}% from the top")
@@ -10010,6 +10926,9 @@ def render_exit_check(cfg: TradingConfig, kraken):
         reasons.append("out of steam")
     if _hard_stop_hit:
         reasons.append(f"stopped out — down ${abs(_pnl_usd):,.0f} (stop is -${_stop_usd:,.0f})")
+    if _take_hit:
+        reasons.append("goal paid — TAKE IT: the watch clears and waits "
+                       "for the next clean setup")
 
     # DCA-style dip signal (advisory display only)
     if entry and sig.action == "buy":
@@ -10049,14 +10968,33 @@ def render_exit_check(cfg: TradingConfig, kraken):
 
     # ── THE GOAL: reached? how many times? window state? ───────────────
     if _w_goal:
+        # the dollar target next to the percent one (Nov 10): the exit check
+        # fires on DOLLARS, so the trader needs the number it fires on, not
+        # only the percentage the plan was written in.
+        _g_usd = _watch_goal_usd(_wr, _w_size, _w_goal)
+        _usd_now = float(_pnl_usd or 0.0)
+        _usd_txt = (f" · <span style='color:#4be38a;'>${_usd_now:+,.2f} of "
+                    f"${_g_usd:,.2f}</span>" if _g_usd > 0 else "")
         if _goal_mult >= 1:
             verdict_lines.append(
                 f"GOAL <span class='dim'>...............</span> "
-                f"<span style='color:#4be38a;'>{_pct:+.1f}% = {_goal_mult}× the {_w_goal:.1f}% goal — STAY CLOSE, the exit is hers</span>")
+                f"<span style='color:#4be38a;'>{_pct:+.1f}% = {_goal_mult}× the {_w_goal:.1f}% goal"
+                f"{_usd_txt} — TAKE IT, the watch clears and waits for "
+                f"the next setup</span>")
         else:
             verdict_lines.append(
                 f"GOAL <span class='dim'>...............</span> "
-                f"{_pct:+.1f}% of the {_w_goal:.1f}% goal — {_goal_left:.1f}% to go")
+                f"{_pct:+.1f}% of the {_w_goal:.1f}% goal — {_goal_left:.1f}% to go"
+                f"{_usd_txt}")
+        if _g_usd > 0:
+            _usd_left = _g_usd - _usd_now
+            verdict_lines.append(
+                f"TAKE <span class='dim'>...............</span> "
+                f"<span style='color:{'#4be38a' if _usd_left <= 0 else '#ffc36b'};'>"
+                f"${_g_usd:,.2f} at the fire's dollar goal"
+                + (" — REACHED, the exit check fires" if _usd_left <= 0
+                   else f" — ${_usd_left:,.2f} to go")
+                + "</span>" + (" <span class='dim'>(1R to plan)</span>"))
         if _w_window and _elapsed_min is not None:
             # expired ⇒ _left_min <= 0 < 15, so one amber ternary covers both
             _win_col = "#ffc36b" if _left_min < 15 else "#4be38a"
@@ -10107,9 +11045,9 @@ def render_exit_check(cfg: TradingConfig, kraken):
             verdict_lines.append(f"  ✕ {r}")
     elif _goal_mult >= 1:
         verdict_lines.append(
-            f'<span style="color:#ffb347;">STAY CLOSE — {_goal_mult}× the goal pays '
+            f'<span style="color:#ffb347;">TAKE IT — {_goal_mult}× the goal pays '
             f'{_fmt_price(_goal_px)}' + (f" (${_pnl_usd:+,.0f} on ${_w_size:,.0f})" if _pnl_usd is not None else "")
-            + "</span>")
+            + " — the watch clears and waits for the next setup</span>")
     else:
         verdict_lines.append('<span style="color:#4be38a;">HOLD</span>')
 
@@ -10152,20 +11090,28 @@ def render_exit_check(cfg: TradingConfig, kraken):
     # Windows desktop alerts are BUY-NOW calls only (never a sell popup).
     if should_exit:
         try:
-            st.toast(f"🚨 GET OUT NOW — SELL {asset}: {reasons[0]}", icon="🚨", duration=20)
-            _play_sound("alarm")
-            _speak(f"Get out now! Sell {asset}! Get out now!")
+            if _take_hit:
+                st.toast(f"🎯 TAKE IT — {asset}: goal paid. Clearing; "
+                         f"waiting for the next setup.", icon="🎯", duration=20)
+                _play_sound("ding")
+                _speak(f"Take it! {asset} paid the goal! "
+                       f"Cleared — waiting for the next setup!")
+            else:
+                st.toast(f"🚨 GET OUT NOW — SELL {asset}: {reasons[0]}", icon="🚨", duration=20)
+                _play_sound("alarm")
+                _speak(f"Get out now! Sell {asset}! Get out now!")
         except Exception as exc:
             logger.debug("get-out toast/voice failed: %s", exc)
     else:
         # HOLD — she answers the real question: how long to the goal?
-        # (when the goal is REACHED the answer is STAY CLOSE — the exit
-        # is hers: the trend break, never the clock)
+        # (when the goal is REACHED the answer is TAKE IT — the same
+        # close/clear path as GET OUT, then wait for the next setup)
         try:
             if _goal_mult >= 1:
                 _play_sound("ding")
-                _speak(f"Goal reached! {asset} is up {_pct:.1f} percent — "
-                       f"{_goal_mult} times the goal! Stay close!")
+                _speak(f"Take it! {asset} is up {_pct:.1f} percent — "
+                       f"{_goal_mult} times the goal! Cleared — waiting "
+                       f"for the next setup!")
             else:
                 _pnl_txt = ""
                 if entry:
@@ -10188,7 +11134,7 @@ def render_exit_check(cfg: TradingConfig, kraken):
 #  MAIN
 # ════════════════════════════════════════════════════════════════════════
 
-def _on_tier_change(key: str):
+def _on_tier_change(key: str, seen_contest: str | None = None):
     """(Sep 9) the tier select's on_change: a NEW CONTEST starts -- the
     only path that resets the balance to the tier's starting amount.
     Fires on USER INTERACTION only; a rerun (even from a stale second
@@ -10204,6 +11150,21 @@ def _on_tier_change(key: str):
     if _t not in (1000, 5000, 10000):
         return
     import contest_account as _ca_t
+    # THE STALE-WIDGET GUARD (Nov 11): the select's key carries the contest
+    # id, so a reset remounts the widget; a change event delivered for a
+    # contest that no longer exists used to start ANOTHER contest, whose new
+    # id remounted the widget again -- the reset loop (09:53 -> 09:57 ->
+    # 10:01, balance pinned at the tier start, applied trades wiped). A
+    # callback naming a contest that is gone is a ghost: drop it. A real
+    # user pick always names the live contest.
+    try:
+        _cur_state = _ca_t.load_state()
+        if seen_contest and _cur_state.get("contest_id") != seen_contest:
+            logger.debug("tier change from a stale widget (%s != %s) — ignored",
+                         seen_contest, _cur_state.get("contest_id"))
+            return
+    except Exception as _stale_exc:
+        logger.debug("stale-widget guard could not read the account: %s", _stale_exc)
     try:
         _ca_t.new_contest(_t)
     except RuntimeError:
@@ -10232,19 +11193,29 @@ def _on_tier_change(key: str):
 def _pace_target_clock_leds() -> str:
     """ON PACE / TARGET / CLOCK — three live gauges for the header strip
     (Sep 21, user ask). The SAME live data her 'all good' line reads:
-    today's realized PnL vs the tier's daily pace (weekly 12% / 5 days),
+    today's realized PnL vs the live daily pace (remaining ÷ days left),
     the +12% target progress from the live account balance, and the
     minutes left in the current rotation (the window her stay-close
-    clock talks about). Never raises — the header cannot die for a
-    gauge; unreadable data renders nothing rather than a lie."""
+    clock talks about). GREEN requires BOTH a higher balance and a
+    smaller +12% distance than the prior day's close; the required pace
+    stays visible but is not the green test. Never raises — the header
+    cannot die for a gauge; unreadable data renders nothing rather than a
+    lie."""
     out = ""
     try:
         import contest_account as _ca_p
         _acct = _ca_p.load_state()
         _bal = float(_acct.get("current_balance") or 0)
         _start = float(_acct.get("start_balance") or 0)
-        _pace_day = _start * 0.12 / 5.0  # the weekly goal / 5 trading days
+        _target_bal = float(_ca_p.win_line(_acct))
+        _remaining = max(0.0, _target_bal - _bal)
+        _days_left = _ca_p.days_left(_acct)
+        _pace_day = (_remaining / _days_left
+                     if _days_left and _days_left > 0 else 0.0)
         _today = 0.0
+        _today_n = 0
+        _prior_net = 0.0
+        _prior_n = 0
         try:
             import json as _j2
             from pathlib import Path as _P5
@@ -10254,15 +11225,32 @@ def _pace_target_clock_leds() -> str:
                 if not _l.strip():
                     continue
                 _r = _j2.loads(_l)
-                if str(_r.get("sold_at", "")).startswith(_day) \
-                        and _r.get("applied"):
+                if not _r.get("applied"):
+                    continue
+                if str(_r.get("sold_at", "")).startswith(_day):
                     _today += float(_r.get("pnl_net") or 0.0)
+                    _today_n += 1
+                else:
+                    _prior_net += float(_r.get("pnl_net") or 0.0)
+                    _prior_n += 1
         except Exception as exc:
             logger.debug("pace gauge just stays off — the header never lies: %s", exc)
         if _start:
-            _pace_col = "g" if _today >= _pace_day else \
-                ("a" if _today >= 0 else "r")
-            out += led(f"ON PACE ${_today:+,.0f}/${_pace_day:,.0f}/day", _pace_col)
+            _prior_close = _start + _prior_net if _prior_n else None
+            _prior_remaining = (_target_bal - _prior_close
+                                if _prior_close is not None else None)
+            _balance_higher = (bool(_bal > _prior_close)
+                               if _prior_close is not None else False)
+            _distance_better = (bool(_remaining < _prior_remaining)
+                                if _prior_remaining is not None else False)
+            _green = bool(_today_n and _prior_n
+                          and _balance_higher and _distance_better)
+            _pace_status = ("GREEN" if _green else
+                            ("NO CLOSES" if not _today_n else
+                             ("FIRST DAY" if not _prior_n else "RED")))
+            _pace_col = "g" if _green else ("a" if _today >= 0 else "r")
+            out += led(f"ON PACE ${_today:+,.2f}/${_pace_day:,.2f}/day"
+                       f" · {_pace_status}", _pace_col)
             _tpct = (_bal / _start - 1.0) * 100.0
             out += led(f"TARGET {_tpct:+.2f}% / 12%", "g" if _tpct > 0 else "a")
         try:
@@ -10395,7 +11383,8 @@ def main():
         "Contest account (the contest you're in)",
         _tiers,
         index=_tiers.index(_ca.TIERS[_acct["tier"]]["label"]),
-        on_change=_on_tier_change, args=(_tier_key,),
+        on_change=_on_tier_change,
+        args=(_tier_key, _acct.get("contest_id")),
         key=_tier_key,
         help="Changing this STARTS A NEW CONTEST at that tier (balance resets, "
              "fresh death line). It only fires when YOU change it -- never on a "
@@ -10425,6 +11414,28 @@ def main():
                          icon="⏳", duration=8)
             except Exception as exc:
                 logger.debug("balance-busy toast failed: %s", exc)
+    # ── WIN PATH (+12%): once the account reaches the win line the Console
+    # says so. "Score and restart" records the result, clears the board and
+    # starts the next contest from the won balance, so the death line and the
+    # +12% target recalculate from it. Console-triggered only; any tier.
+    if _ca.contest_won(_acct):
+        st.sidebar.success(
+            f"🏆 +12% reached: ${float(_acct['current_balance']):,.2f} "
+            f"(win line ${_ca.win_line(_acct):,.2f}). Score it and start the next contest.")
+        if st.sidebar.button("Score and restart",
+                             key=f"score_restart_{_acct.get('contest_id') or 'legacy'}",
+                             type="primary"):
+            try:
+                _ca.score_and_restart(int(_acct["tier"]))
+            except (RuntimeError, ValueError) as exc:
+                st.sidebar.error(f"Could not score the contest: {exc}")
+            else:
+                _cs_w = _load_console_state()
+                _cs_w["tier"] = _ca.TIERS[int(_acct["tier"])]["label"]
+                _save_console_state(_cs_w)
+                st.toast("🏆 Contest scored and recorded. Next contest started from the won balance.",
+                         icon="🏆", duration=10)
+                st.rerun()
     cfg.challenge_balance = float(_acct["current_balance"])
     # ── THE BALANCE, LIVE (Sep 22, the KAITO lesson): the +$0.77 from a
     # profit-guard close hit the FILE at 13:45 but the sidebar only
@@ -10474,12 +11485,76 @@ def main():
       _buf = _ca.buffer(_acct_l)
       _pace = _ca.daily_pace_usd(_acct_l)
       _line_col = "r" if _buf <= 0 else ("a" if _buf < _ca.TIERS[_acct_l["tier"]]["start"] * 0.01 else "g")
+      _rec = {}
+      try:
+          import overwatch_governor as _og_bal
+          _rec = _og_bal.reconcile(state=_acct_l)
+      except Exception as _rec_exc:
+          logger.debug("account reconciliation skipped: %s", _rec_exc)
+      def _rm(v):
+          try:
+              _x = float(v)
+              return f"{'+' if _x >= 0 else '-'}${abs(_x):,.2f}"
+          except (TypeError, ValueError):
+              return "—"
+      _prior_txt = " · ".join(
+          f"{(c.get('pair') or '?').split('/')[0]} {_rm(c.get('net'))}"
+          for c in (_rec.get("prior_closes") or [])[:4])
+      _rec_line = (
+          (led(f"TODAY {_rm(_rec.get('today_net'))}"
+               f" + PRIOR {_rm(_rec.get('prior_net'))}"
+               f" = LEDGER {_rm(_rec.get('ledger_net'))}", "a") + "<br>" +
+                     led(f"ACCOUNT {_rm(_rec.get('account_net'))}"
+              f" · ROUNDING {_rm(_rec.get('rounding'))}", "g") +
+           (("<br>" + led(f"PRIOR: {_prior_txt}", "a"))
+            if _prior_txt else ""))
+          if _rec else led("EDGE/ACCOUNT RECONCILIATION — unavailable", "a")
+      )
+      _dg = _rec.get("daily_goal") or {}
+      if _dg:
+          _dcol = ("g" if _dg.get("green") else
+                   ("r" if _dg.get("status") == "RED" else "a"))
+          _rec_line += "<br>" + led(
+              f"DAILY {_rm(_dg.get('required_daily_usd'))} NEEDED"
+              f" · TODAY {_rm(_dg.get('today_net'))}"
+              f" · {_dg.get('status', '—')}", _dcol)
+          if _dg.get("prior_close_balance") is not None:
+              _rec_line += "<br>" + led(
+                  f"PRIOR CLOSE {_rm(_dg.get('prior_close_balance'))}"
+                  f" · BAL Δ {_rm(_dg.get('balance_delta_usd'))}"
+                  f" · DIST Δ {_rm(_dg.get('distance_delta_usd'))}"
+                  f" · {int(_dg.get('streak_days') or 0)}D GREEN STREAK", _dcol)
+      try:
+          import edge_live as _edge_live
+          _edge_status = _edge_live.status()
+          _edge_chain = _edge_status.get("chain") or {}
+          if _edge_status.get("active"):
+              _rec_line += "<br>" + led(
+                  f"LIVE EDGE: {_edge_status['active']} · LONG ONLY"
+                  f" · {_edge_chain.get('passes', 0)}/3 profitable"
+                  f" · {_edge_status.get('promoted', 0)} promoted", "g")
+              _rec_line += "<br>" + led(
+                  f"EVIDENCE: {_edge_chain.get('trades', 0)} trades"
+                  f" · {float(_edge_chain.get('win_rate') or 0) * 100:.0f}% win"
+                  f" · {_rm(_edge_chain.get('expectancy_usd'))}/trade"
+                  f" · DD {_edge_chain.get('max_drawdown_pct', 0)}%", "a")
+              _rec_line += "<br>" + led(
+                  f"WORST DAY {_rm(_edge_chain.get('worst_day_usd'))}"
+                  f" ({float(_edge_chain.get('worst_day_pct_of_start') or 0):+.2f}% of start)"
+                  f" · DEATH HEADROOM {_rm(_edge_chain.get('worst_headroom'))}"
+                  f" · contest {_edge_chain.get('contest_passes', 0)}/3", "a")
+          else:
+              _rec_line += "<br>" + led(
+                  "LIVE EDGE: none promoted · no policy override", "a")
+      except Exception as _edge_exc:
+          logger.debug("edge registry plate skipped: %s", _edge_exc)
       st.sidebar.markdown(plate("☠ CONTEST ACCOUNT", (
           led(f"BALANCE ${_bp_cur:,.2f}", _line_col) + "<br>" +
           led(f"DEATH LINE ${_line:,.0f}", _line_col) + "<br>" +
           led(f"BUFFER ${_buf:,.0f}", _line_col) + "<br>" +
           led(f"PACE ${_pace:,.0f}/DAY (12%/WK)", "a") + "<br>" +
-          led(f"TARGET +12% = ${float(_acct_l['start_balance']) * 1.12:,.0f}", "g")
+          led(f"TARGET +12% = ${float(_acct_l['start_balance']) * 1.12:,.0f}", "g") +
+          "<br>" + _rec_line
       )), unsafe_allow_html=True)
       # ── THE HAIL MARY WINDOW — REMOVED FROM THE CONSOLE (Oct 4 user
       #    rule: "remove it from the console settings — no emergency
