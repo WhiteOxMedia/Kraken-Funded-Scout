@@ -134,6 +134,10 @@ def check_c5(gate, base):
     if "__error__" in d:
         return _result("FAIL", d["__error__"])
     req = gate["criteria"]["C5_pace"]["required"]
+    # the audit reports several windows; the gate prices the CURRENT mode, which is
+    # the last seven complete days, and says so rather than picking the best one
+    if "days" not in d and isinstance(d.get("windows"), dict):
+        d = dict(d, **d["windows"].get("last_7", {}), _window="last_7")
     missing = [f for f in req["fields"] if f not in d]
     if missing:
         return _result("FAIL", f"pace audit missing fields: {missing}")
@@ -159,7 +163,8 @@ def check_c5(gate, base):
         return _result("FAIL", f"expected completions in 365d {exp365:.2f} < "
                                f"{req['expected_completions_365d_min']} "
                                f"(pace {per_day:.1f}/day -> median {med_adj:.0f}d)")
-    return _result("PASS", f"{per_day:.1f} fires/day over {days:.0f}d, fills {ratio:.0%}, "
+    return _result("PASS", f"{per_day:.1f} fires/day over {days:.0f}d "
+                           f"({d.get('_window', 'reported window')}), fills {ratio:.0%}, "
                            f"expected {exp365:.2f} completions/365d")
 
 

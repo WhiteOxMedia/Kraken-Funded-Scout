@@ -1,0 +1,197 @@
+{
+ "source": "popups.jsonl (background_scanner.popup_journal)",
+ "assumed_pace": 47.4,
+ "journal_span": [
+  "2026-09-21",
+  "2026-11-14"
+ ],
+ "buy_popups_total": 2658,
+ "exit_popups_total": 2646,
+ "windows": {
+  "last_7": {
+   "window_start": "2026-11-08",
+   "window_end": "2026-11-14",
+   "days": 7,
+   "fires": 36,
+   "fills": 31,
+   "fires_per_day": 5.14,
+   "fills_per_day": 4.43,
+   "zero_days": 1,
+   "max_day": 12,
+   "daily": {
+    "2026-11-08": 8,
+    "2026-11-09": 2,
+    "2026-11-10": 1,
+    "2026-11-11": 8,
+    "2026-11-12": 12,
+    "2026-11-13": 0,
+    "2026-11-14": 5
+   }
+  },
+  "last_14": {
+   "window_start": "2026-11-01",
+   "window_end": "2026-11-14",
+   "days": 14,
+   "fires": 640,
+   "fills": 638,
+   "fires_per_day": 45.71,
+   "fills_per_day": 45.57,
+   "zero_days": 2,
+   "max_day": 164,
+   "daily": {
+    "2026-11-01": 57,
+    "2026-11-02": 164,
+    "2026-11-03": 142,
+    "2026-11-04": 158,
+    "2026-11-05": 75,
+    "2026-11-06": 0,
+    "2026-11-07": 8,
+    "2026-11-08": 8,
+    "2026-11-09": 2,
+    "2026-11-10": 1,
+    "2026-11-11": 8,
+    "2026-11-12": 12,
+    "2026-11-13": 0,
+    "2026-11-14": 5
+   }
+  },
+  "all_complete": {
+   "days": 38,
+   "fires": 2652,
+   "fills": 2633,
+   "fires_per_day": 69.79,
+   "fills_per_day": 69.29
+  }
+ },
+ "fill_ratio": 1.0,
+ "fill_ratio_note": "BUY popups ARE the entry record; no separate fill event exists, so fires and fills are the same count by construction.",
+ "bimodality": "Daily fires are 1-12 under the current strict envelope (8/day cap) and 48-258 in the late-October burst; the median across all complete days is misleading because of that mode change.",
+ "hour_histogram": {
+  "00": 107,
+  "01": 108,
+  "02": 87,
+  "03": 91,
+  "04": 115,
+  "05": 122,
+  "06": 151,
+  "07": 228,
+  "08": 210,
+  "09": 219,
+  "10": 232,
+  "11": 169,
+  "12": 152,
+  "13": 120,
+  "14": 93,
+  "15": 138,
+  "16": 91,
+  "17": 92,
+  "18": 76,
+  "19": 56,
+  "20": 1
+ },
+ "median_fires_per_day_all_complete": 35.0,
+ "median_exits_per_day_all_complete": 40.5,
+ "completions_at_observed_pace": {
+  "method": "completions/day scales exactly with pace: days = trades_to_target / pace",
+  "baseline_730d_assumed_47.4": {
+   "always_on": 0.004369650289696752,
+   "halt_only": 0.004115584839945136,
+   "size_only": 0.004814504456463779,
+   "live": 0.004651887056631328
+  },
+  "by_policy_and_window": {
+   "always_on": {
+    "last_7": {
+     "pace": 5.14,
+     "completions_per_day": 0.000474,
+     "days_per_completion": 2110.0,
+     "completions_per_year": 0.17,
+     "median_days_to_pass": 2038.0
+    },
+    "last_14": {
+     "pace": 45.71,
+     "completions_per_day": 0.004214,
+     "days_per_completion": 237.0,
+     "completions_per_year": 1.54,
+     "median_days_to_pass": 229.0
+    },
+    "all_complete": {
+     "pace": 69.79,
+     "completions_per_day": 0.006434,
+     "days_per_completion": 155.0,
+     "completions_per_year": 2.35,
+     "median_days_to_pass": 150.0
+    }
+   },
+   "halt_only": {
+    "last_7": {
+     "pace": 5.14,
+     "completions_per_day": 0.000446,
+     "days_per_completion": 2241.0,
+     "completions_per_year": 0.16,
+     "median_days_to_pass": 2038.0
+    },
+    "last_14": {
+     "pace": 45.71,
+     "completions_per_day": 0.003969,
+     "days_per_completion": 252.0,
+     "completions_per_year": 1.45,
+     "median_days_to_pass": 229.0
+    },
+    "all_complete": {
+     "pace": 69.79,
+     "completions_per_day": 0.00606,
+     "days_per_completion": 165.0,
+     "completions_per_year": 2.21,
+     "median_days_to_pass": 150.0
+    }
+   },
+   "size_only": {
+    "last_7": {
+     "pace": 5.14,
+     "completions_per_day": 0.000522,
+     "days_per_completion": 1915.0,
+     "completions_per_year": 0.19,
+     "median_days_to_pass": 2038.0
+    },
+    "last_14": {
+     "pace": 45.71,
+     "completions_per_day": 0.004643,
+     "days_per_completion": 215.0,
+     "completions_per_year": 1.69,
+     "median_days_to_pass": 229.0
+    },
+    "all_complete": {
+     "pace": 69.79,
+     "completions_per_day": 0.007089,
+     "days_per_completion": 141.0,
+     "completions_per_year": 2.59,
+     "median_days_to_pass": 150.0
+    }
+   },
+   "live": {
+    "last_7": {
+     "pace": 5.14,
+     "completions_per_day": 0.000504,
+     "days_per_completion": 1982.0,
+     "completions_per_year": 0.18,
+     "median_days_to_pass": 2038.0
+    },
+    "last_14": {
+     "pace": 45.71,
+     "completions_per_day": 0.004486,
+     "days_per_completion": 223.0,
+     "completions_per_year": 1.64,
+     "median_days_to_pass": 229.0
+    },
+    "all_complete": {
+     "pace": 69.79,
+     "completions_per_day": 0.006849,
+     "days_per_completion": 146.0,
+     "completions_per_year": 2.5,
+     "median_days_to_pass": 150.0
+    }
+   }
+  }
+ }
+}
