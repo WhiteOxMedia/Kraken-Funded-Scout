@@ -262,6 +262,24 @@ Walked forward from the live balance with `contest_account.sized_entry_usd` and
 Every size breaches. On this tape the running config cannot be armed at any ticket
 size that is worth a fill, which is exactly what `STUDY["verdict"]` now says.
 
+### The caller
+
+`timing_live.tick` lives inside `scout_signal_reader.check_scout_signals`, and nothing
+called that function, so the wiring was unreachable. `timing_loop.py` is the caller and
+nothing more: one cycle per interval, gate first, and **no client at all while
+`ARMED` is False**. Two switches are needed for real money — `ARMED` true *and*
+`--live`, because `TradingConfig` carries no `paper_mode` and `timing_live` defaults it
+to `True` (validate-only).
+
+    python timing_loop.py --once      # what one cycle would do
+    python timing_loop.py             # the loop
+    python timing_loop.py --live      # allow real fills
+
+`scout_signal_reader` currently cannot be imported: it needs `restricted_pairs`, which
+is not in this tree. Until that module exists the loop calls `timing_live.tick`
+directly and records the degradation in `timing_loop_state.json` rather than pretending
+the reader ran. A lock file stops a second loop from double-sizing entries.
+
 ### What is left to decide
 
 The divergence is a design question, not a tuning one: whether the live engine should
