@@ -1,0 +1,767 @@
+{
+ "pace": 47.4,
+ "horizon_days": 365,
+ "block": 50,
+ "size_base": 0.01,
+ "stop_t": -1.96,
+ "hold_trades": 6,
+ "barriers": {
+  "A": 0.11332868530700327,
+  "B": 0.030459207484708654
+ },
+ "tape": {
+  "tight": {
+   "always_on": {
+    "verdict": "ALIVE",
+    "trade": -1,
+    "log_at_close": 0.0576,
+    "taken_frac": 1.0,
+    "log_peak": 0.0576,
+    "cost_vs_always_on": 0.0
+   },
+   "halt_only": {
+    "verdict": "ALIVE",
+    "trade": -1,
+    "log_at_close": 0.0559,
+    "taken_frac": 0.971,
+    "log_peak": 0.0559,
+    "cost_vs_always_on": -0.0017
+   },
+   "size_only": {
+    "verdict": "ALIVE",
+    "trade": -1,
+    "log_at_close": 0.066,
+    "taken_frac": 1.0,
+    "log_peak": 0.066,
+    "cost_vs_always_on": 0.0084
+   },
+   "live": {
+    "verdict": "ALIVE",
+    "trade": -1,
+    "log_at_close": 0.0652,
+    "taken_frac": 0.971,
+    "log_peak": 0.0652,
+    "cost_vs_always_on": 0.0076
+   }
+  },
+  "mid": {
+   "always_on": {
+    "verdict": "ALIVE",
+    "trade": -1,
+    "log_at_close": 0.0671,
+    "taken_frac": 1.0,
+    "log_peak": 0.0671,
+    "cost_vs_always_on": 0.0
+   },
+   "halt_only": {
+    "verdict": "ALIVE",
+    "trade": -1,
+    "log_at_close": 0.0638,
+    "taken_frac": 0.961,
+    "log_peak": 0.0638,
+    "cost_vs_always_on": -0.0033
+   },
+   "size_only": {
+    "verdict": "ALIVE",
+    "trade": -1,
+    "log_at_close": 0.0777,
+    "taken_frac": 1.0,
+    "log_peak": 0.0777,
+    "cost_vs_always_on": 0.0106
+   },
+   "live": {
+    "verdict": "ALIVE",
+    "trade": -1,
+    "log_at_close": 0.0754,
+    "taken_frac": 0.961,
+    "log_peak": 0.0754,
+    "cost_vs_always_on": 0.0083
+   }
+  },
+  "shipped": {
+   "always_on": {
+    "verdict": "ALIVE",
+    "trade": -1,
+    "log_at_close": 0.0737,
+    "taken_frac": 1.0,
+    "log_peak": 0.0737,
+    "cost_vs_always_on": 0.0
+   },
+   "halt_only": {
+    "verdict": "ALIVE",
+    "trade": -1,
+    "log_at_close": 0.074,
+    "taken_frac": 0.921,
+    "log_peak": 0.074,
+    "cost_vs_always_on": 0.0003
+   },
+   "size_only": {
+    "verdict": "ALIVE",
+    "trade": -1,
+    "log_at_close": 0.1024,
+    "taken_frac": 1.0,
+    "log_peak": 0.1024,
+    "cost_vs_always_on": 0.0287
+   },
+   "live": {
+    "verdict": "PASS",
+    "trade": 7799,
+    "log_at_close": 0.1053,
+    "taken_frac": 0.921,
+    "log_peak": 0.1133,
+    "cost_vs_always_on": 0.0316
+   }
+  },
+  "wide": {
+   "always_on": {
+    "verdict": "ALIVE",
+    "trade": -1,
+    "log_at_close": 0.0859,
+    "taken_frac": 1.0,
+    "log_peak": 0.0859,
+    "cost_vs_always_on": 0.0
+   },
+   "halt_only": {
+    "verdict": "ALIVE",
+    "trade": -1,
+    "log_at_close": 0.0837,
+    "taken_frac": 0.941,
+    "log_peak": 0.0837,
+    "cost_vs_always_on": -0.0022
+   },
+   "size_only": {
+    "verdict": "PASS",
+    "trade": 6574,
+    "log_at_close": 0.1291,
+    "taken_frac": 1.0,
+    "log_peak": 0.1134,
+    "cost_vs_always_on": 0.0432
+   },
+   "live": {
+    "verdict": "PASS",
+    "trade": 6550,
+    "log_at_close": 0.1314,
+    "taken_frac": 0.941,
+    "log_peak": 0.1134,
+    "cost_vs_always_on": 0.0455
+   }
+  }
+ },
+ "sim": {
+  "tight": {
+   "always_on": {
+    "p_pass": 0.6133,
+    "p_death": 0.0,
+    "median_days": 332.3,
+    "completions": 92,
+    "completions_per_day": 0.001680365296803653
+   },
+   "halt_only": {
+    "p_pass": 0.5533,
+    "p_death": 0.0,
+    "median_days": 330.1,
+    "completions": 83,
+    "completions_per_day": 0.0015159817351598174
+   },
+   "size_only": {
+    "p_pass": 0.72,
+    "p_death": 0.0,
+    "median_days": 325.8,
+    "completions": 108,
+    "completions_per_day": 0.0019726027397260273
+   },
+   "live": {
+    "p_pass": 0.6867,
+    "p_death": 0.0,
+    "median_days": 325.0,
+    "completions": 103,
+    "completions_per_day": 0.0018812785388127853
+   }
+  },
+  "mid": {
+   "always_on": {
+    "p_pass": 0.9333,
+    "p_death": 0.0,
+    "median_days": 290.7,
+    "completions": 140,
+    "completions_per_day": 0.0025570776255707762
+   },
+   "halt_only": {
+    "p_pass": 0.8867,
+    "p_death": 0.0,
+    "median_days": 295.7,
+    "completions": 133,
+    "completions_per_day": 0.0024292237442922375
+   },
+   "size_only": {
+    "p_pass": 0.9133,
+    "p_death": 0.0,
+    "median_days": 282.0,
+    "completions": 137,
+    "completions_per_day": 0.0025022831050228313
+   },
+   "live": {
+    "p_pass": 0.88,
+    "p_death": 0.0,
+    "median_days": 281.1,
+    "completions": 132,
+    "completions_per_day": 0.002410958904109589
+   }
+  },
+  "shipped": {
+   "always_on": {
+    "p_pass": 0.9133,
+    "p_death": 0.0,
+    "median_days": 260.9,
+    "completions": 137,
+    "completions_per_day": 0.0025022831050228313
+   },
+   "halt_only": {
+    "p_pass": 0.8733,
+    "p_death": 0.0,
+    "median_days": 268.0,
+    "completions": 131,
+    "completions_per_day": 0.0023926940639269405
+   },
+   "size_only": {
+    "p_pass": 0.9667,
+    "p_death": 0.0,
+    "median_days": 240.0,
+    "completions": 145,
+    "completions_per_day": 0.0026484018264840183
+   },
+   "live": {
+    "p_pass": 0.94,
+    "p_death": 0.0,
+    "median_days": 244.5,
+    "completions": 141,
+    "completions_per_day": 0.0025753424657534245
+   }
+  },
+  "wide": {
+   "always_on": {
+    "p_pass": 0.9767,
+    "p_death": 0.0,
+    "median_days": 224.0,
+    "completions": 293,
+    "completions_per_day": 0.002675799086757991
+   },
+   "halt_only": {
+    "p_pass": 0.9467,
+    "p_death": 0.0,
+    "median_days": 233.5,
+    "completions": 284,
+    "completions_per_day": 0.002593607305936073
+   },
+   "size_only": {
+    "p_pass": 0.98,
+    "p_death": 0.0,
+    "median_days": 207.0,
+    "completions": 294,
+    "completions_per_day": 0.002684931506849315
+   },
+   "live": {
+    "p_pass": 0.98,
+    "p_death": 0.0,
+    "median_days": 211.3,
+    "completions": 294,
+    "completions_per_day": 0.002684931506849315
+   }
+  }
+ },
+ "net_completions_delta": -0.00016261739983245132,
+ "cost_channel": {
+  "tape": {
+   "tight": {
+    "always_on": {
+     "verdict": "ALIVE",
+     "trade": -1,
+     "log_at_close": 0.0576,
+     "taken_frac": 1.0,
+     "log_peak": 0.0576,
+     "cost_vs_always_on": 0.0
+    },
+    "halt_only": {
+     "verdict": "ALIVE",
+     "trade": -1,
+     "log_at_close": 0.0559,
+     "taken_frac": 0.971,
+     "log_peak": 0.0559,
+     "cost_vs_always_on": -0.0017
+    },
+    "size_only": {
+     "verdict": "ALIVE",
+     "trade": -1,
+     "log_at_close": 0.066,
+     "taken_frac": 1.0,
+     "log_peak": 0.066,
+     "cost_vs_always_on": 0.0084
+    },
+    "live": {
+     "verdict": "ALIVE",
+     "trade": -1,
+     "log_at_close": 0.0652,
+     "taken_frac": 0.971,
+     "log_peak": 0.0652,
+     "cost_vs_always_on": 0.0076
+    }
+   },
+   "mid": {
+    "always_on": {
+     "verdict": "ALIVE",
+     "trade": -1,
+     "log_at_close": 0.0671,
+     "taken_frac": 1.0,
+     "log_peak": 0.0671,
+     "cost_vs_always_on": 0.0
+    },
+    "halt_only": {
+     "verdict": "ALIVE",
+     "trade": -1,
+     "log_at_close": 0.0638,
+     "taken_frac": 0.961,
+     "log_peak": 0.0638,
+     "cost_vs_always_on": -0.0033
+    },
+    "size_only": {
+     "verdict": "ALIVE",
+     "trade": -1,
+     "log_at_close": 0.0777,
+     "taken_frac": 1.0,
+     "log_peak": 0.0777,
+     "cost_vs_always_on": 0.0106
+    },
+    "live": {
+     "verdict": "ALIVE",
+     "trade": -1,
+     "log_at_close": 0.0754,
+     "taken_frac": 0.961,
+     "log_peak": 0.0754,
+     "cost_vs_always_on": 0.0083
+    }
+   },
+   "shipped": {
+    "always_on": {
+     "verdict": "ALIVE",
+     "trade": -1,
+     "log_at_close": 0.0737,
+     "taken_frac": 1.0,
+     "log_peak": 0.0737,
+     "cost_vs_always_on": 0.0
+    },
+    "halt_only": {
+     "verdict": "ALIVE",
+     "trade": -1,
+     "log_at_close": 0.074,
+     "taken_frac": 0.921,
+     "log_peak": 0.074,
+     "cost_vs_always_on": 0.0003
+    },
+    "size_only": {
+     "verdict": "ALIVE",
+     "trade": -1,
+     "log_at_close": 0.1024,
+     "taken_frac": 1.0,
+     "log_peak": 0.1024,
+     "cost_vs_always_on": 0.0287
+    },
+    "live": {
+     "verdict": "PASS",
+     "trade": 7799,
+     "log_at_close": 0.1053,
+     "taken_frac": 0.921,
+     "log_peak": 0.1133,
+     "cost_vs_always_on": 0.0316
+    }
+   },
+   "wide": {
+    "always_on": {
+     "verdict": "ALIVE",
+     "trade": -1,
+     "log_at_close": 0.0859,
+     "taken_frac": 1.0,
+     "log_peak": 0.0859,
+     "cost_vs_always_on": 0.0
+    },
+    "halt_only": {
+     "verdict": "ALIVE",
+     "trade": -1,
+     "log_at_close": 0.0837,
+     "taken_frac": 0.941,
+     "log_peak": 0.0837,
+     "cost_vs_always_on": -0.0022
+    },
+    "size_only": {
+     "verdict": "PASS",
+     "trade": 6574,
+     "log_at_close": 0.1291,
+     "taken_frac": 1.0,
+     "log_peak": 0.1134,
+     "cost_vs_always_on": 0.0432
+    },
+    "live": {
+     "verdict": "PASS",
+     "trade": 6550,
+     "log_at_close": 0.1314,
+     "taken_frac": 0.941,
+     "log_peak": 0.1134,
+     "cost_vs_always_on": 0.0455
+    }
+   }
+  },
+  "horizon_days": null
+ },
+ "benefit_channel": {
+  "sim": {
+   "tight": {
+    "always_on": {
+     "p_pass": 0.6133,
+     "p_death": 0.0,
+     "median_days": 332.3,
+     "completions": 92,
+     "completions_per_day": 0.001680365296803653
+    },
+    "halt_only": {
+     "p_pass": 0.5533,
+     "p_death": 0.0,
+     "median_days": 330.1,
+     "completions": 83,
+     "completions_per_day": 0.0015159817351598174
+    },
+    "size_only": {
+     "p_pass": 0.72,
+     "p_death": 0.0,
+     "median_days": 325.8,
+     "completions": 108,
+     "completions_per_day": 0.0019726027397260273
+    },
+    "live": {
+     "p_pass": 0.6867,
+     "p_death": 0.0,
+     "median_days": 325.0,
+     "completions": 103,
+     "completions_per_day": 0.0018812785388127853
+    }
+   },
+   "mid": {
+    "always_on": {
+     "p_pass": 0.9333,
+     "p_death": 0.0,
+     "median_days": 290.7,
+     "completions": 140,
+     "completions_per_day": 0.0025570776255707762
+    },
+    "halt_only": {
+     "p_pass": 0.8867,
+     "p_death": 0.0,
+     "median_days": 295.7,
+     "completions": 133,
+     "completions_per_day": 0.0024292237442922375
+    },
+    "size_only": {
+     "p_pass": 0.9133,
+     "p_death": 0.0,
+     "median_days": 282.0,
+     "completions": 137,
+     "completions_per_day": 0.0025022831050228313
+    },
+    "live": {
+     "p_pass": 0.88,
+     "p_death": 0.0,
+     "median_days": 281.1,
+     "completions": 132,
+     "completions_per_day": 0.002410958904109589
+    }
+   },
+   "shipped": {
+    "always_on": {
+     "p_pass": 0.9133,
+     "p_death": 0.0,
+     "median_days": 260.9,
+     "completions": 137,
+     "completions_per_day": 0.0025022831050228313
+    },
+    "halt_only": {
+     "p_pass": 0.8733,
+     "p_death": 0.0,
+     "median_days": 268.0,
+     "completions": 131,
+     "completions_per_day": 0.0023926940639269405
+    },
+    "size_only": {
+     "p_pass": 0.9667,
+     "p_death": 0.0,
+     "median_days": 240.0,
+     "completions": 145,
+     "completions_per_day": 0.0026484018264840183
+    },
+    "live": {
+     "p_pass": 0.94,
+     "p_death": 0.0,
+     "median_days": 244.5,
+     "completions": 141,
+     "completions_per_day": 0.0025753424657534245
+    }
+   },
+   "wide": {
+    "always_on": {
+     "p_pass": 0.9767,
+     "p_death": 0.0,
+     "median_days": 224.0,
+     "completions": 293,
+     "completions_per_day": 0.002675799086757991
+    },
+    "halt_only": {
+     "p_pass": 0.9467,
+     "p_death": 0.0,
+     "median_days": 233.5,
+     "completions": 284,
+     "completions_per_day": 0.002593607305936073
+    },
+    "size_only": {
+     "p_pass": 0.98,
+     "p_death": 0.0,
+     "median_days": 207.0,
+     "completions": 294,
+     "completions_per_day": 0.002684931506849315
+    },
+    "live": {
+     "p_pass": 0.98,
+     "p_death": 0.0,
+     "median_days": 211.3,
+     "completions": 294,
+     "completions_per_day": 0.002684931506849315
+    }
+   }
+  },
+  "paths": 300,
+  "trades": 17301,
+  "sim_elapsed_day": {
+   "365d": {
+    "policies": {
+     "always_on": {
+      "p_pass": 0.98,
+      "p_death": 0.0,
+      "completions": 294,
+      "elapsed_days": 67422.7,
+      "completions_per_day": 0.004360550529047964,
+      "taken_frac": 1.0
+     },
+     "halt_only": {
+      "p_pass": 0.97,
+      "p_death": 0.0,
+      "completions": 291,
+      "elapsed_days": 71070.9,
+      "completions_per_day": 0.004094499969276558,
+      "taken_frac": 0.913
+     },
+     "size_only": {
+      "p_pass": 0.9967,
+      "p_death": 0.0,
+      "completions": 299,
+      "elapsed_days": 61443.9,
+      "completions_per_day": 0.00486622733301722,
+      "taken_frac": 1.0
+     },
+     "live": {
+      "p_pass": 0.9833,
+      "p_death": 0.0,
+      "completions": 295,
+      "elapsed_days": 63270.3,
+      "completions_per_day": 0.004662535528367341,
+      "taken_frac": 0.913
+     }
+    },
+    "live_vs_best_baseline": -0.0002036918046498786,
+    "halt_cost": -0.00026605055977140576,
+    "size_gain": 0.0005056768039692558
+   },
+   "730d": {
+    "policies": {
+     "always_on": {
+      "p_pass": 1.0,
+      "p_death": 0.0,
+      "completions": 300,
+      "elapsed_days": 68655.4,
+      "completions_per_day": 0.004369650289696752,
+      "taken_frac": 1.0
+     },
+     "halt_only": {
+      "p_pass": 1.0,
+      "p_death": 0.0,
+      "completions": 300,
+      "elapsed_days": 72893.6,
+      "completions_per_day": 0.004115584839945136,
+      "taken_frac": 0.911
+     },
+     "size_only": {
+      "p_pass": 1.0,
+      "p_death": 0.0,
+      "completions": 300,
+      "elapsed_days": 62311.7,
+      "completions_per_day": 0.004814504456463779,
+      "taken_frac": 1.0
+     },
+     "live": {
+      "p_pass": 1.0,
+      "p_death": 0.0,
+      "completions": 300,
+      "elapsed_days": 64490.0,
+      "completions_per_day": 0.004651887056631328,
+      "taken_frac": 0.911
+     }
+    },
+    "live_vs_best_baseline": -0.00016261739983245132,
+    "halt_cost": -0.00025406544975161566,
+    "size_gain": 0.000444854166767027
+   }
+  },
+  "death_stress": {
+   "730d_wide": {
+    "always_on": {
+     "PASS": 300,
+     "DEATH": 0,
+     "ALIVE": 0,
+     "p_pass": 1.0,
+     "p_death": 0.0,
+     "median_days": 221.0,
+     "completions_per_day": 0.0013698630136986301,
+     "taken_frac": 1.0
+    },
+    "halt_only": {
+     "PASS": 300,
+     "DEATH": 0,
+     "ALIVE": 0,
+     "p_pass": 1.0,
+     "p_death": 0.0,
+     "median_days": 237.1,
+     "completions_per_day": 0.0013698630136986301,
+     "taken_frac": 0.911
+    },
+    "size_only": {
+     "PASS": 300,
+     "DEATH": 0,
+     "ALIVE": 0,
+     "p_pass": 1.0,
+     "p_death": 0.0,
+     "median_days": 209.0,
+     "completions_per_day": 0.0013698630136986301,
+     "taken_frac": 1.0
+    },
+    "live": {
+     "PASS": 300,
+     "DEATH": 0,
+     "ALIVE": 0,
+     "p_pass": 1.0,
+     "p_death": 0.0,
+     "median_days": 212.5,
+     "completions_per_day": 0.0013698630136986301,
+     "taken_frac": 0.911
+    },
+    "_delta": {
+     "live_vs_best": 0.0,
+     "halt_vs_always": 0.0
+    }
+   },
+   "worst_regime": {
+    "always_on": {
+     "PASS": 0,
+     "DEATH": 300,
+     "ALIVE": 0,
+     "p_pass": 0.0,
+     "p_death": 1.0,
+     "median_days": null,
+     "completions_per_day": 0.0,
+     "taken_frac": 1.0
+    },
+    "halt_only": {
+     "PASS": 0,
+     "DEATH": 0,
+     "ALIVE": 300,
+     "p_pass": 0.0,
+     "p_death": 0.0,
+     "median_days": null,
+     "completions_per_day": 0.0,
+     "taken_frac": 0.002
+    },
+    "size_only": {
+     "PASS": 0,
+     "DEATH": 300,
+     "ALIVE": 0,
+     "p_pass": 0.0,
+     "p_death": 1.0,
+     "median_days": null,
+     "completions_per_day": 0.0,
+     "taken_frac": 1.0
+    },
+    "live": {
+     "PASS": 0,
+     "DEATH": 0,
+     "ALIVE": 300,
+     "p_pass": 0.0,
+     "p_death": 0.0,
+     "median_days": null,
+     "completions_per_day": 0.0,
+     "taken_frac": 0.002
+    },
+    "_delta": {
+     "live_vs_best": 0.0,
+     "halt_vs_always": 0.0
+    }
+   },
+   "synthetic_losing": {
+    "always_on": {
+     "PASS": 0,
+     "DEATH": 300,
+     "ALIVE": 0,
+     "p_pass": 0.0,
+     "p_death": 1.0,
+     "median_days": null,
+     "completions_per_day": 0.0,
+     "taken_frac": 1.0
+    },
+    "halt_only": {
+     "PASS": 0,
+     "DEATH": 0,
+     "ALIVE": 300,
+     "p_pass": 0.0,
+     "p_death": 0.0,
+     "median_days": null,
+     "completions_per_day": 0.0,
+     "taken_frac": 0.002
+    },
+    "size_only": {
+     "PASS": 0,
+     "DEATH": 300,
+     "ALIVE": 0,
+     "p_pass": 0.0,
+     "p_death": 1.0,
+     "median_days": null,
+     "completions_per_day": 0.0,
+     "taken_frac": 1.0
+    },
+    "live": {
+     "PASS": 0,
+     "DEATH": 0,
+     "ALIVE": 300,
+     "p_pass": 0.0,
+     "p_death": 0.0,
+     "median_days": null,
+     "completions_per_day": 0.0,
+     "taken_frac": 0.002
+    },
+    "_delta": {
+     "live_vs_best": 0.0,
+     "halt_vs_always": 0.0
+    }
+   }
+  }
+ },
+ "paths": 300,
+ "trades": 17301,
+ "verdict": "live (halt+size) beats always-on but LOSES to the size schedule alone; the halt's benefit is unmeasurable because no simulated path died",
+ "metric": "elapsed-day completions/day (completions / days elapsed to completion)",
+ "net_completions_delta_365d": -0.0002036918046498786,
+ "halt_cost_730d": -0.00025406544975161566,
+ "size_gain_730d": 0.000444854166767027
+}

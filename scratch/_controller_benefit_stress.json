@@ -1,0 +1,150 @@
+{
+ "paths": 300,
+ "block": 50,
+ "pace": 47.4,
+ "arms": {
+  "730d_wide": {
+   "always_on": {
+    "PASS": 300,
+    "DEATH": 0,
+    "ALIVE": 0,
+    "p_pass": 1.0,
+    "p_death": 0.0,
+    "median_days": 221.0,
+    "completions_per_day": 0.0013698630136986301,
+    "taken_frac": 1.0
+   },
+   "halt_only": {
+    "PASS": 300,
+    "DEATH": 0,
+    "ALIVE": 0,
+    "p_pass": 1.0,
+    "p_death": 0.0,
+    "median_days": 237.1,
+    "completions_per_day": 0.0013698630136986301,
+    "taken_frac": 0.911
+   },
+   "size_only": {
+    "PASS": 300,
+    "DEATH": 0,
+    "ALIVE": 0,
+    "p_pass": 1.0,
+    "p_death": 0.0,
+    "median_days": 209.0,
+    "completions_per_day": 0.0013698630136986301,
+    "taken_frac": 1.0
+   },
+   "live": {
+    "PASS": 300,
+    "DEATH": 0,
+    "ALIVE": 0,
+    "p_pass": 1.0,
+    "p_death": 0.0,
+    "median_days": 212.5,
+    "completions_per_day": 0.0013698630136986301,
+    "taken_frac": 0.911
+   },
+   "_delta": {
+    "live_vs_best": 0.0,
+    "halt_vs_always": 0.0
+   }
+  },
+  "worst_regime": {
+   "always_on": {
+    "PASS": 0,
+    "DEATH": 300,
+    "ALIVE": 0,
+    "p_pass": 0.0,
+    "p_death": 1.0,
+    "median_days": null,
+    "completions_per_day": 0.0,
+    "taken_frac": 1.0
+   },
+   "halt_only": {
+    "PASS": 0,
+    "DEATH": 0,
+    "ALIVE": 300,
+    "p_pass": 0.0,
+    "p_death": 0.0,
+    "median_days": null,
+    "completions_per_day": 0.0,
+    "taken_frac": 0.002
+   },
+   "size_only": {
+    "PASS": 0,
+    "DEATH": 300,
+    "ALIVE": 0,
+    "p_pass": 0.0,
+    "p_death": 1.0,
+    "median_days": null,
+    "completions_per_day": 0.0,
+    "taken_frac": 1.0
+   },
+   "live": {
+    "PASS": 0,
+    "DEATH": 0,
+    "ALIVE": 300,
+    "p_pass": 0.0,
+    "p_death": 0.0,
+    "median_days": null,
+    "completions_per_day": 0.0,
+    "taken_frac": 0.002
+   },
+   "_delta": {
+    "live_vs_best": 0.0,
+    "halt_vs_always": 0.0
+   }
+  },
+  "synthetic_losing": {
+   "always_on": {
+    "PASS": 0,
+    "DEATH": 300,
+    "ALIVE": 0,
+    "p_pass": 0.0,
+    "p_death": 1.0,
+    "median_days": null,
+    "completions_per_day": 0.0,
+    "taken_frac": 1.0
+   },
+   "halt_only": {
+    "PASS": 0,
+    "DEATH": 0,
+    "ALIVE": 300,
+    "p_pass": 0.0,
+    "p_death": 0.0,
+    "median_days": null,
+    "completions_per_day": 0.0,
+    "taken_frac": 0.002
+   },
+   "size_only": {
+    "PASS": 0,
+    "DEATH": 300,
+    "ALIVE": 0,
+    "p_pass": 0.0,
+    "p_death": 1.0,
+    "median_days": null,
+    "completions_per_day": 0.0,
+    "taken_frac": 1.0
+   },
+   "live": {
+    "PASS": 0,
+    "DEATH": 0,
+    "ALIVE": 300,
+    "p_pass": 0.0,
+    "p_death": 0.0,
+    "median_days": null,
+    "completions_per_day": 0.0,
+    "taken_frac": 0.002
+   },
+   "_delta": {
+    "live_vs_best": 0.0,
+    "halt_vs_always": 0.0
+   }
+  }
+ },
+ "worst_regime": {
+  "regime": 2,
+  "trades": 1476,
+  "mu": -0.5468
+ }
+}
