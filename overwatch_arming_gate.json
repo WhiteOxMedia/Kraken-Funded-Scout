@@ -1,0 +1,82 @@
+{
+ "gate": "overwatch-controller-arming",
+ "version": 1,
+ "authored": "2026-11-16",
+ "author": "pre-registered before the pace audit and the controller backtest exist",
+ "purpose": "The exact conditions that must hold before overwatch_timing.ARMED may be set to True. Written while ARMED is False and before the new evidence is collected, so the thresholds cannot be fitted to results.",
+ "what_arming_means": "ARMED=True lets contest_control's scanner_gate refuse entries (short-window edge t <= -1.96), scale size 0.25x-2.0x, and latch a halt to contest_control_state.json. It is the only switch between advisory logging and real decisions.",
+ "change_policy": "These thresholds may only be changed by a commit that (a) bumps version, (b) states which criterion it changes and why BEFORE the result that motivated it exists, and (c) re-runs `python arming_gate.py --lock`. Any edit without a version bump is a failed gate.",
+ "criteria": {
+  "C1_rule3_causal": {
+   "statement": "Rule 3 is evaluated with causal (prior-only) regime labels, and the best config passes it.",
+   "why": "The 98-point rule-3 loss on wide collapsed to 0.4 points under causal labels and fell below the shuffled-label decimation floor. Label leakage, not regime dependence, produced the disqualification, so any verdict built on same-day labels is inadmissible evidence for arming.",
+   "artifact": "contest_control_verdict.json",
+   "required": {
+    "label_mode": "prior_only",
+    "best.contest_worthy": true,
+    "rule3_not_in": "1_best_config.disqualified_on"
+   }
+  },
+  "C2_label_robustness": {
+   "statement": "The three-arm label test exists at the same k and path count as the shipped measurement, and the causal loss is under the rule's own tolerance.",
+   "why": "A single label arm cannot separate a real regime effect from decimation or from leakage. The shuffled arm is the floor: an effect at or below it is indistinguishable from deleting that fraction of the record.",
+   "artifact": "scratch/_regime_label_test.json",
+   "required": {
+    "k": 3,
+    "paths_min": 900,
+    "prior_only_loss_max": 0.25,
+    "shuffled_floor_reported": true,
+    "arms_present": ["same_day", "prior_only", "shuffled"]
+   }
+  },
+  "C3_all_rules_clear": {
+   "statement": "The best config fires none of the five disqualifiers under causal labels.",
+   "why": "Arming a config that is disqualified on any rule is trading a known defect.",
+   "artifact": "contest_control_verdict.json",
+   "required": {"disqualified_on": []}
+  },
+  "C4_death_tolerance": {
+   "statement": "P(death) at the 730d horizon is at or below the shipped DEATH_TOLERANCE.",
+   "why": "The death line is the one loss the contest cannot recover from; the gate must be tighter than 'usually fine'.",
+   "artifact": "contest_control_verdict.json",
+   "required": {"3_p_death_max": 0.02}
+  },
+  "C5_pace": {
+   "statement": "Realized scanner pace is measured over at least seven full days and is at least 42% of the pace every simulation assumes.",
+   "why": "completions/day = P(pass)*(1-P(death))/median_days, and median_days = trades_to_target/pace. Pace is a pure scale factor on the objective, and 47.4/day is an assumption imported from cached band entries, not an observation. At half the assumed pace every completions/day figure is twice too high. 25 fires/day is the bound implied by the completions criterion at the current 221-day median: below it, expected completions in a year fall under one whatever the probability.",
+   "artifact": "scratch/_pace_audit.json",
+   "required": {
+    "days_min": 7,
+    "fires_per_day_min": 25.0,
+    "fills_per_fire_min": 0.6,
+    "expected_completions_365d_min": 1.0,
+    "fields": ["days", "fires", "fills", "window_start", "window_end"]
+   }
+  },
+  "C6_shadow_period": {
+   "statement": "The controller ran in ADVISORY for at least fourteen consecutive days and at least 200 decisions, with no traceback and no latched halt.",
+   "why": "The wiring is new and inert; the only way to know it reads real state without throwing is to watch it do so on live cycles for long enough to cover a weekend, a rate-limit episode and a restart.",
+   "artifact": "scratch/_shadow_audit.json",
+   "required": {
+    "consecutive_days_min": 14,
+    "decisions_min": 200,
+    "tracebacks_max": 0,
+    "halted": false
+   }
+  },
+  "C7_controller_backtest": {
+   "statement": "The controller's own policy (halt/resume and size schedule) is measured on both channels and does not reduce completions/day.",
+   "why": "The stop rule can only help by preventing deaths, and the realized tape almost never dies; so on the tape it can only cost completions by interrupting recoveries. Measuring cost on the tape and benefit on the simulator separately is the only honest test, and a negative net means the controller subtracts from the objective it exists to protect.",
+   "artifact": "scratch/_controller_backtest.json",
+   "required": {
+    "cost_channel_present": true,
+    "benefit_channel_present": true,
+    "net_completions_delta_min": 0.0,
+    "paths_min": 100,
+    "trades_min": 200
+   }
+  }
+ },
+ "arming_recipe": "python arming_gate.py  # must print ARMED-READY with every criterion PASS; then set ARMED = True in overwatch_timing.py, commit, and restart the scanner (the flag is read at import).",
+ "disarming_rule": "ARMED must be returned to False by any commit that invalidates a criterion: a new config wins, the tape advances by 30+ days, or the pace audit's window ends. Re-arming needs a fresh pass of every criterion."
+}
