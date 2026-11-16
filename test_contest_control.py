@@ -83,13 +83,19 @@ check("rule 1 fires on a non-positive edge",
       cc.disqualify(comp(mu=0.0), healthy_regs)[0][1] is True)
 check("rule 2 fires past the death tolerance",
       cc.disqualify(comp(p_death_block=0.05), healthy_regs)[1][1] is True)
-dependent = [{"share_of_drift": 1.2, "total_drift": 10.0},
-             {"share_of_drift": -0.2, "total_drift": -2.0}]
-check("rule 3 fires when removing the best regime leaves nothing",
-      cc.disqualify(comp(), dependent)[2][1] is True)
-check("rule 3 does NOT fire merely because one regime dominates",
-      cc.disqualify(comp(), [{"share_of_drift": 0.95, "total_drift": 10.0},
-                             {"share_of_drift": 0.05, "total_drift": 0.5}])[2][1] is False)
+# rule 3 is a MEASURED holdout now, not a drift-total subtraction
+_dependent = {"base": 0.97, "loss": 0.97,
+              "worst": {"regime": 1, "p_pass": 0.0, "trades": 1400}}
+check("rule 3 fires when holding a regime out costs the pass",
+      cc.disqualify(comp(), healthy_regs, _dependent)[2][1] is True)
+check("rule 3 names the measured loss",
+      "-97 pts" in cc.disqualify(comp(), healthy_regs, _dependent)[2][2])
+_mild = {"base": 0.97, "loss": 0.05,
+         "worst": {"regime": 2, "p_pass": 0.92, "trades": 1800}}
+check("rule 3 does NOT fire for a small measured loss",
+      cc.disqualify(comp(), healthy_regs, _mild)[2][1] is False)
+check("rule 3 does NOT fire when the holdout was never measured",
+      cc.disqualify(comp(), healthy_regs, None)[2][1] is False)
 check("rule 4 fires when 1.5x the toll halves the pass",
       cc.disqualify(comp(p_pass_365=0.9, **{"p_pass_cost_x1.5": 0.3}), healthy_regs)[3][1] is True)
 check("rule 5 fires when a 10% drift move crosses the 50% decision line",
@@ -204,6 +210,35 @@ check("sensitivity: the edge and the regime mix are NOT given the same number",
           - [x for x in _c if "regime" in x["assumption"]][0]["swing"]) > 1e-6)
 check("sensitivity: a short series declines to rank rather than guessing",
       cc.sensitivity_ranking(_nets[:50], _ts[:50], 47.4)["winner"] is None)
+
+
+# ── rule 3 measures the holdout instead of subtracting drift totals ───
+_h_rng = np.random.default_rng(33)
+_hn = 2400
+_h_nets = _h_rng.normal(0.30, 0.5, _hn)
+_h_nets[900:1500] = _h_rng.normal(-1.2, 0.5, 600)   # a bad stretch: holding it out HELPS
+_h_ts = [1_790_000_000_000 + 420_000 * i for i in range(_hn)]
+_ho = cc.regime_holdout(_h_nets, _h_ts, 47.4, paths=120, seed=9)
+check("holdout: every regime is re-simulated, none inferred",
+      _ho and len(_ho["holdouts"]) >= 2 and all("p_pass" in h for h in _ho["holdouts"]))
+check("holdout: losses are the measured difference from the full tape",
+      all(abs(h["loss"] - (_ho["base"] - h["p_pass"])) < 1e-3
+          for h in _ho["holdouts"] if h["p_pass"] is not None))
+check("holdout: losing the bad stretch RAISES the pass, so the loss is negative there",
+      any((h["loss"] or 0) < 0 for h in _ho["holdouts"] if h["p_pass"] is not None))
+check("holdout: a single-regime tape declines rather than inventing a holdout",
+      cc.regime_holdout(_h_nets[:50], _h_ts[:50], 47.4) is None)
+
+# and the rule consumes it: a tape carried by ONE regime must fire
+_e_rng = np.random.default_rng(33)
+_e_nets = _e_rng.normal(0.02, 0.5, _hn)
+_e_nets[900:1500] = _e_rng.normal(0.9, 0.5, 600)   # the only stretch that completes
+_ho_essential = cc.regime_holdout(_e_nets, _h_ts, 47.4, paths=120, seed=9)
+check("holdout: the essential regime is identified by name and loss",
+      _ho_essential["worst"]["p_pass"] == 0.0 and _ho_essential["loss"] >= 0.5)
+_h_rule = cc.disqualify(comp(), healthy_regs, _ho_essential)[2]
+check("holdout: rule 3 consumes the measurement (fires on a regime-dependent tape)",
+      _h_rule[1] is True and "P(pass)" in _h_rule[2])
 
 print(f"\n{PASS} passed, {FAIL} failed")
 sys.exit(1 if FAIL else 0)

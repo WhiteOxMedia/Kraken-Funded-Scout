@@ -1,5 +1,5 @@
 {
- "generated_at": "2026-11-16T13:41:50.559210+00:00",
+ "generated_at": "2026-11-16T13:46:20.298177+00:00",
  "1_best_config": {
   "name": "wide",
   "cfg": [
@@ -10,8 +10,10 @@
   ],
   "theta": 1644.2,
   "mu": 0.09901,
-  "contest_worthy": true,
-  "disqualified_on": []
+  "contest_worthy": false,
+  "disqualified_on": [
+   "3. single-regime dependence"
+  ]
  },
  "2_p_pass": 0.9989,
  "3_p_death": 0.0011,
@@ -54,6 +56,38 @@
      "death_at_trade": -1,
      "final_log": 0.0576
     },
+    "regime_holdout": {
+     "base": 0.6033,
+     "holdouts": [
+      {
+       "regime": 0,
+       "trades": 4067,
+       "p_pass": 0.0,
+       "loss": 0.6033
+      },
+      {
+       "regime": 1,
+       "trades": 7021,
+       "p_pass": 0.0,
+       "loss": 0.6033
+      },
+      {
+       "regime": 2,
+       "trades": 6277,
+       "p_pass": 1.0,
+       "loss": -0.3967
+      }
+     ],
+     "worst": {
+      "regime": 0,
+      "trades": 4067,
+      "p_pass": 0.0,
+      "loss": 0.6033
+     },
+     "loss": 0.6033,
+     "horizon_days": 365,
+     "paths": 300
+    },
     "disqualified": [
      [
       "1. edge <= cost",
@@ -67,8 +101,8 @@
      ],
      [
       "3. single-regime dependence",
-      false,
-      "best regime carries 84% of drift; without it the remainder is +90.815"
+      true,
+      "holding out regime 0 takes P(pass) 60% -> 0% (-60 pts) on the 4067 remaining trades"
      ],
      [
       "4. profit dies under realistic costs",
@@ -115,6 +149,38 @@
      "death_at_trade": -1,
      "final_log": 0.0671
     },
+    "regime_holdout": {
+     "base": 0.9133,
+     "holdouts": [
+      {
+       "regime": 0,
+       "trades": 3781,
+       "p_pass": 0.0,
+       "loss": 0.9133
+      },
+      {
+       "regime": 1,
+       "trades": 6499,
+       "p_pass": 0.03,
+       "loss": 0.8833
+      },
+      {
+       "regime": 2,
+       "trades": 7085,
+       "p_pass": 1.0,
+       "loss": -0.0867
+      }
+     ],
+     "worst": {
+      "regime": 0,
+      "trades": 3781,
+      "p_pass": 0.0,
+      "loss": 0.9133
+     },
+     "loss": 0.9133,
+     "horizon_days": 365,
+     "paths": 300
+    },
     "disqualified": [
      [
       "1. edge <= cost",
@@ -128,8 +194,8 @@
      ],
      [
       "3. single-regime dependence",
-      false,
-      "best regime carries 84% of drift; without it the remainder is +90.815"
+      true,
+      "holding out regime 0 takes P(pass) 91% -> 0% (-91 pts) on the 3781 remaining trades"
      ],
      [
       "4. profit dies under realistic costs",
@@ -176,6 +242,38 @@
      "death_at_trade": -1,
      "final_log": 0.0737
     },
+    "regime_holdout": {
+     "base": 0.9333,
+     "holdouts": [
+      {
+       "regime": 0,
+       "trades": 4471,
+       "p_pass": 0.0,
+       "loss": 0.9333
+      },
+      {
+       "regime": 1,
+       "trades": 4650,
+       "p_pass": 1.0,
+       "loss": -0.0667
+      },
+      {
+       "regime": 2,
+       "trades": 8244,
+       "p_pass": 1.0,
+       "loss": -0.0667
+      }
+     ],
+     "worst": {
+      "regime": 0,
+      "trades": 4471,
+      "p_pass": 0.0,
+      "loss": 0.9333
+     },
+     "loss": 0.9333,
+     "horizon_days": 365,
+     "paths": 300
+    },
     "disqualified": [
      [
       "1. edge <= cost",
@@ -189,8 +287,8 @@
      ],
      [
       "3. single-regime dependence",
-      false,
-      "best regime carries 84% of drift; without it the remainder is +90.815"
+      true,
+      "holding out regime 0 takes P(pass) 93% -> 0% (-93 pts) on the 4471 remaining trades"
      ],
      [
       "4. profit dies under realistic costs",
@@ -237,6 +335,38 @@
      "death_at_trade": -1,
      "final_log": 0.0859
     },
+    "regime_holdout": {
+     "base": 0.9733,
+     "holdouts": [
+      {
+       "regime": 0,
+       "trades": 3624,
+       "p_pass": 0.0,
+       "loss": 0.9733
+      },
+      {
+       "regime": 1,
+       "trades": 6535,
+       "p_pass": 0.09,
+       "loss": 0.8833
+      },
+      {
+       "regime": 2,
+       "trades": 7206,
+       "p_pass": 1.0,
+       "loss": -0.0267
+      }
+     ],
+     "worst": {
+      "regime": 0,
+      "trades": 3624,
+      "p_pass": 0.0,
+      "loss": 0.9733
+     },
+     "loss": 0.9733,
+     "horizon_days": 365,
+     "paths": 300
+    },
     "disqualified": [
      [
       "1. edge <= cost",
@@ -250,8 +380,8 @@
      ],
      [
       "3. single-regime dependence",
-      false,
-      "best regime carries 84% of drift; without it the remainder is +90.815"
+      true,
+      "holding out regime 0 takes P(pass) 97% -> 0% (-97 pts) on the 3624 remaining trades"
      ],
      [
       "4. profit dies under realistic costs",

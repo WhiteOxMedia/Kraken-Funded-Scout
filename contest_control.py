@@ -63,6 +63,7 @@ DEATH_TOLERANCE = 0.02        # block-bootstrap P(death) above this is disqualif
 SINGLE_REGIME_SHARE = 0.80    # one regime carrying this much drift is dependence
 COST_SHOCK_MULT = 1.5         # the cost sensitivity re-runs at 1.5x the toll
 DRIFT_HAIRCUT = 0.5           # the drift sensitivity re-runs at half the measured mu
+REGIME_PASS_LOSS = 0.25       # losing one regime may cost this much P(pass), no more
 
 
 def _load_json(path, default):
@@ -467,27 +468,65 @@ def replay_tape(nets, ts, size=0.01):
             "final_log": round(float(L[-1]), 4)}
 
 
-def disqualify(comp, regimes):
+def regime_holdout(nets, ts, pace, size=0.01, paths=300, seed=13):
+    """Leave one regime out, at a time, and RE-MEASURE the pass probability.
+
+    Drift totals cannot answer this: a regime can be worth little in summed
+    points per trade and still be the only stretch on which the tape ever
+    reaches +12%, because reaching it is a path property (ordering, drawdown
+    budget), not a sum of means. So each holdout is a genuine block resample of
+    the remaining trades and the loss is `P(pass | all) - P(pass | without j)`.
+
+    Returns None when the tape has fewer than two regimes to hold out.
+    """
+    a = np.asarray(nets, float)
+    labels, _rows = trade_regime_labels(nets, ts)
+    ids = sorted({int(x) for x in labels if x >= 0})
+    if a.size == 0 or len(ids) < 2:
+        return None
+    n = int(pace * SECONDARY_DAYS)
+    base = float(block_mc(a, size, n, 50, paths=paths, seed=seed)["pass"])
+    holdouts = []
+    for j in ids:
+        sub = a[labels != j]
+        if sub.size < 100:
+            holdouts.append({"regime": j, "trades": int(sub.size),
+                             "p_pass": None, "loss": None})
+            continue
+        p = float(block_mc(sub, size, n, 50, paths=paths, seed=seed)["pass"])
+        holdouts.append({"regime": j, "trades": int(sub.size),
+                         "p_pass": round(p, 4), "loss": round(base - p, 4)})
+    meas = [h for h in holdouts if h["loss"] is not None]
+    worst = min(meas, key=lambda h: h["p_pass"]) if meas else None
+    return {"base": round(base, 4), "holdouts": holdouts, "worst": worst,
+            "loss": round(worst["loss"], 4) if worst else 0.0,
+            "horizon_days": SECONDARY_DAYS, "paths": paths}
+
+
+def disqualify(comp, regimes, holdout=None):
     """The five automatic disqualifications. Returns [(rule, fired, why)].
 
-    Rule 3 asks the question behind the rule rather than a drift-share number:
-    if the best regime is removed, does the REMAINDER still have positive drift?
-    A config whose total drift goes negative without its best stretch is
-    dependent on that stretch, whatever its share of the total.
+    Rule 3 is MEASURED, not a drift-share test: each regime is held out of the
+    tape in turn and the pass probability is re-simulated. It fires when losing
+    any single regime costs more than REGIME_PASS_LOSS of P(pass) — the config's
+    completion does not survive its own record losing one stretch.
     """
     def fired(rule, cond, why):
         return (rule, bool(cond), why)
-    share = max((r["share_of_drift"] for r in regimes), default=0.0)
-    total = sum(r["total_drift"] for r in regimes) if regimes else 0.0
-    rest = total - (share * total if total else 0.0)
+    ho = holdout if holdout is not None else comp.get("regime_holdout")
+    worst = (ho or {}).get("worst") or {}
+    loss = (ho or {}).get("loss") or 0.0
     out = [
         fired("1. edge <= cost", comp["mu"] <= 0,
               f"mu {comp['mu']:+.4f}%/trade is at or below zero"),
         fired("2. block death > tolerance", comp["p_death_block"] > DEATH_TOLERANCE,
               f"P(death) {comp['p_death_block']*100:.1f}% > {DEATH_TOLERANCE*100:.0f}%"),
-        fired("3. single-regime dependence", bool(regimes) and rest <= 0,
-              f"best regime carries {share*100:.0f}% of drift; without it the "
-              f"remainder is {rest:+.3f}"),
+        fired("3. single-regime dependence", bool(ho) and loss >= REGIME_PASS_LOSS,
+              (f"holding out regime {worst.get('regime')} takes P(pass) "
+               f"{(ho or {}).get('base', 0)  * 100:.0f}% -> "
+               f"{worst.get('p_pass', 0) * 100:.0f}% "
+               f"(-{loss * 100:.0f} pts) on the {worst.get('trades')} remaining "
+               f"trades") if ho else "not measured: no regime holdout"),
         fired("4. profit dies under realistic costs",
               comp["p_pass_cost_x1.5"] < 0.5 * max(comp["p_pass_365"], 1e-9)
               and comp["p_pass_365"] > 0,
@@ -515,7 +554,8 @@ def portfolio(data):
         c = component(name, nets, ts, pace, tolls)
         if reg is None:
             reg = regime_classifier(nets, ts)
-        c["disqualified"] = disqualify(c, reg["regimes"])
+        c["regime_holdout"] = regime_holdout(nets, ts, pace)
+        c["disqualified"] = disqualify(c, reg["regimes"], c["regime_holdout"])
         comps.append(c)
     # named lanes with no authoritative series: UNMEASURED, not guessed
     for lane in ("champion lane", "GO BIG lane"):
@@ -780,6 +820,15 @@ def print_verdict(v, detail=False):
     for c in (d.get("sensitivity") or {}).get("candidates") or []:
         print(f"  {c['swing']*100:5.1f} pts  {c['assumption']:<42} "
               + "  ".join(f"{v*100:.1f}%" for v in c["variants"]))
+    print("\n--- REGIME HOLDOUT (rule 3, re-simulated) " + "-" * 22)
+    for c in d["components"]:
+        ho = c.get("regime_holdout")
+        if not ho:
+            continue
+        print(f"  {c['name']:<14} all {ho['base']*100:5.1f}%  "
+              + "  ".join(f"-r{h['regime']} {(h['p_pass'] or 0)*100:5.1f}%"
+                          for h in ho["holdouts"])
+              + f"   worst loss {ho['loss']*100:.0f} pts")
     print("\n--- COST " + "-" * 51)
     c = d["cost"]
     print(f"  refused ({len(c['refused'])}): {', '.join(c['refused'][:12])}")
