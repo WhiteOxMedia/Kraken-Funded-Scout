@@ -22,10 +22,47 @@ app_src = open("app.py", encoding="utf-8").read()
 #    watch (auto-close removes the row) — the row NEVER silently lingers.
 check("scanner: GET OUT auto-closes the trade (pnl_net_usd)",
       "pnl_net_usd(" in bs_src.split("AUTO-CLOSE AT FIRE TIME")[1][:4000])
+# The window here used to be a fixed 8000-character budget off the
+# marker; the auto-close grew past it (Nov 7) and this check went red
+# while the behavior it guards was intact — a budget is not a pin. The
+# section is now bounded by the handler's own end, and the removal is
+# pinned to the receipt gate that protects a refused close: a tombstone
+# BESIDE `if _journaled:` instead of inside it is the leak class (the
+# Nov 6 market-guard refusal keeps the row only because the gate is
+# what grants the tombstone).
+_autoclose = bs_src.split("AUTO-CLOSE AT FIRE TIME")[1].split(
+    "exit condition cleared")[0]
 check("scanner: GET OUT removes the watch row itself (auto-stop; the "
       "close tombstones None — merge-save deletes it, a pop would "
       "resurrect the closed row)",
-      "watch[pair] = None" in bs_src.split("AUTO-CLOSE AT FIRE TIME")[1][:8000])
+      "watch[pair] = None" in _autoclose)
+_jgate = _autoclose.find("if _journaled:")
+_tomb = _autoclose.find("watch[pair] = None")
+def _indent_at(src, pos):
+    """The indentation of the LINE holding offset pos (pos can be mid-line)."""
+    _ls = src.rfind("\n", 0, pos) + 1
+    _le = src.find("\n", pos)
+    _line = src[_ls:_le if _le != -1 else len(src)]
+    return len(_line) - len(_line.lstrip())
+
+
+_tomb_ind = _indent_at(_autoclose, _tomb)
+_gate_ind = _indent_at(_autoclose, _jgate)
+check("scanner: the tombstone sits INSIDE the receipt gate (indented under "
+      "`if _journaled:`), so a refused close keeps its watch row",
+      _jgate != -1 and _tomb > _jgate and _tomb_ind > _gate_ind,
+      f"gate@{_jgate} ind {_gate_ind}, tombstone@{_tomb} ind {_tomb_ind}")
+check("scanner: only a written ledger receipt flips _journaled (the "
+      "market-guard refusal, the missing-numbers skip and the exception "
+      "arm all leave it False)",
+      _autoclose.count("_journaled = True") == 1 and
+      _autoclose.find("_fx.write(") < _autoclose.find("_journaled = True"))
+check("scanner: each refused close names its reason and keeps the row",
+      all(_k in _autoclose for _k in (
+          "not a real USD market — not booked",
+          "close failed — watch row kept for SOLD",
+          "skipped — missing entry/size/live",
+          "GET OUT kept the")))
 check("scanner: exit voice gated to 60s repeat",
       "_last_exit_voice.get(pair, 0)) >= 60" in bs_src)
 check("scanner: exit-voice re-arm when condition clears",
@@ -92,7 +129,12 @@ for _i, (_pos, _nm) in enumerate(_top):
 
 _EVAL = _re.compile(r"evaluate_strategy\(|=\s*_eval\(")
 _EXIT_MARKS = ("should_exit", '"exit"', "GET OUT", "SELL NOW")
-_ALLOWED_EVAL_EXIT = {"render_exit_check"}   # the manual diagnostic page
+# The manual diagnostic pages.  Exit Check computes a verdict on demand; DEEP
+# SCAN (render_quick_check) renders a read and its help copy mentions GET OUT,
+# which the mark scan cannot tell from a delivery.  The eval+mark matrix is a
+# heuristic for "the console computes exits", so the page is exempt - and the
+# shape it would take is pinned directly below instead.
+_ALLOWED_EVAL_EXIT = {"render_exit_check", "render_quick_check"}
 
 for _nm, _body in _spans:
     _has_eval = bool(_EVAL.search(_body))
@@ -105,6 +147,13 @@ for _nm, _body in _spans:
     check(f"second-brain tripwire: {_nm}",
           not (_has_eval and _has_exit),
           f"eval={_has_eval} exit-marks={_has_exit}")
+
+# the exemption above is earned: the deep scan may evaluate a strategy, it may
+# never compute an exit verdict of its own
+_qc_body = dict(_spans).get("render_quick_check", "")
+check("second-brain tripwire: the deep scan computes no exit",
+      not any(_m in _qc_body for _m in ("should_exit(", "should_exit =")),
+      "the console would be deciding an exit again")
 
 _light_src = _strip_docs_comments(
     app_src.split("def _light_check")[1].split("def render_auto_watch")[0])
@@ -147,7 +196,10 @@ check("mirror tripwire: every console_state key the scanner reads is a "
       "user dial (a new key is a new decision — pin it consciously)",
       not _stray, f"stray: {sorted(_stray)}")
 check("mirror tripwire: no import of the console module",
-      "import app" not in bs_stripped and "from app import" not in bs_stripped)
+      # a real statement, not a substring: "from entry_timing import apply"
+      # read as "import app" and turned this tripwire red on prose
+      not _re.search(r"^\s*(?:from\s+app\s+import\b|import\s+app\b)",
+                     bs_stripped, _re.M))
 _MIRROR_ARTIFACTS = [a for a in ("exit_alerts", "flow_exit_at",
                                  "_run_exit_logic(") if a in bs_stripped]
 check("mirror tripwire: no retired console-verdict artifact anywhere",

@@ -11438,7 +11438,11 @@ def main():
             except (RuntimeError, ValueError) as exc:
                 st.sidebar.error(f"Could not score the contest: {exc}")
             else:
-                _cs_w = _load_console_state()
+                # (Nov 16) reuse the run's console state instead of reading the
+                # file again: this is an action-time handler inside main(), and
+                # a second pre-fragment read is exactly what the sidebar census
+                # exists to catch. dict() keeps the shared copy unmutated.
+                _cs_w = dict(_cs)
                 _cs_w["tier"] = _ca.TIERS[int(_acct["tier"])]["label"]
                 _save_console_state(_cs_w)
                 st.toast("🏆 Contest scored and recorded. Next contest started from the won balance.",
