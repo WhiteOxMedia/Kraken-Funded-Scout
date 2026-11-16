@@ -153,7 +153,7 @@ def sim_channel(data, name, paths, seed=17):
     n = int(PACE * HORIZON_DAYS)
     # draw one shared trade-index path per simulated run so every policy sees the
     # same tape; otherwise the comparison is between different random paths
-    counts = {p: {"PASS": 0, "DEATH": 0, "ALIVE": 0, "days": []}
+    counts = {p: {"PASS": 0, "DEATH": 0, "ALIVE": 0, "days": [], "elapsed": 0.0}
               for p in ("always_on", "halt_only", "size_only", "live")}
     for _ in range(paths):
         starts = rng.integers(0, nets.size - BLOCK, size=n // BLOCK + 1)
@@ -161,17 +161,22 @@ def sim_channel(data, name, paths, seed=17):
         for pol, (mult, halted) in policies_for(seq).items():
             verdict, at, _final, _val = run_policy(seq, mult, halted)
             counts[pol][verdict] += 1
+            # elapsed days, not horizon slots: a path that completes on day 209 is
+            # worth more than one that completes on day 237, and a metric that counts
+            # fixed horizon slots stops discriminating the moment every path completes
+            counts[pol]["elapsed"] += (at / PACE) if verdict == "PASS" else HORIZON_DAYS
             if verdict == "PASS":
                 counts[pol]["days"].append(at / PACE)
     out = {}
-    total_days = paths * HORIZON_DAYS
     for pol, c in counts.items():
         med = float(np.median(c["days"])) if c["days"] else None
         out[pol] = {"p_pass": round(c["PASS"] / paths, 4),
                     "p_death": round(c["DEATH"] / paths, 4),
                     "median_days": None if med is None else round(med, 1),
                     "completions": c["PASS"],
-                    "completions_per_day": c["PASS"] / total_days}
+                    "elapsed_days": round(c["elapsed"], 1),
+                    "completions_per_day": (c["PASS"] / c["elapsed"]
+                                            if c["elapsed"] else 0.0)}
     return out
 
 
@@ -192,7 +197,7 @@ def main():
             print(f"  tape {pol:<10} {t[pol]['verdict']:<5} log {t[pol]['log_at_close']:+.4f} "
                   f"({t[pol]['cost_vs_always_on']:+.4f})  taken {t[pol]['taken_frac']:.0%}  |  "
                   f"sim pass {s[pol]['p_pass']:.1%} death {s[pol]['p_death']:.1%} "
-                  f"comp/day {s[pol]['completions_per_day']:.5f} "
+                  f"comp/day(elapsed) {s[pol]['completions_per_day']:.6f} "
                   f"med {s[pol]['median_days']}d", flush=True)
     # gate-facing summary: the live policy against the better of its two baselines
     wide = res["sim"]["wide"]
@@ -204,6 +209,8 @@ def main():
                               "trades": int(PACE * HORIZON_DAYS)}
     res["paths"] = 300
     res["trades"] = int(PACE * HORIZON_DAYS)
+    res["metric"] = ("completions per ELAPSED day: elapsed days accrue until a "
+                     "completion, or to the horizon for paths that never complete")
     res["verdict"] = ("live beats both baselines" if res["net_completions_delta"] > 0
                       else "live does not beat the better baseline")
     with open(OUT, "w", encoding="utf-8") as fh:

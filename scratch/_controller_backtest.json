@@ -154,28 +154,32 @@
     "p_death": 0.0,
     "median_days": 332.3,
     "completions": 92,
-    "completions_per_day": 0.001680365296803653
+    "elapsed_days": 51468.6,
+    "completions_per_day": 0.0017874980888346543
    },
    "halt_only": {
     "p_pass": 0.5533,
     "p_death": 0.0,
     "median_days": 330.1,
     "completions": 83,
-    "completions_per_day": 0.0015159817351598174
+    "elapsed_days": 51736.3,
+    "completions_per_day": 0.0016042891961468024
    },
    "size_only": {
     "p_pass": 0.72,
     "p_death": 0.0,
     "median_days": 325.8,
     "completions": 108,
-    "completions_per_day": 0.0019726027397260273
+    "elapsed_days": 49818.6,
+    "completions_per_day": 0.002167862847695693
    },
    "live": {
     "p_pass": 0.6867,
     "p_death": 0.0,
     "median_days": 325.0,
     "completions": 103,
-    "completions_per_day": 0.0018812785388127853
+    "elapsed_days": 50050.0,
+    "completions_per_day": 0.002057941190479904
    }
   },
   "mid": {
@@ -184,28 +188,32 @@
     "p_death": 0.0,
     "median_days": 290.7,
     "completions": 140,
-    "completions_per_day": 0.0025570776255707762
+    "elapsed_days": 45277.8,
+    "completions_per_day": 0.003092021178201718
    },
    "halt_only": {
     "p_pass": 0.8867,
     "p_death": 0.0,
     "median_days": 295.7,
     "completions": 133,
-    "completions_per_day": 0.0024292237442922375
+    "elapsed_days": 46076.9,
+    "completions_per_day": 0.00288647634414461
    },
    "size_only": {
     "p_pass": 0.9133,
     "p_death": 0.0,
     "median_days": 282.0,
     "completions": 137,
-    "completions_per_day": 0.0025022831050228313
+    "elapsed_days": 43655.4,
+    "completions_per_day": 0.0031382142266871424
    },
    "live": {
     "p_pass": 0.88,
     "p_death": 0.0,
     "median_days": 281.1,
     "completions": 132,
-    "completions_per_day": 0.002410958904109589
+    "elapsed_days": 44195.0,
+    "completions_per_day": 0.002986766060049425
    }
   },
   "shipped": {
@@ -214,28 +222,32 @@
     "p_death": 0.0,
     "median_days": 260.9,
     "completions": 137,
-    "completions_per_day": 0.0025022831050228313
+    "elapsed_days": 40538.9,
+    "completions_per_day": 0.0033794680842759344
    },
    "halt_only": {
     "p_pass": 0.8733,
     "p_death": 0.0,
     "median_days": 268.0,
     "completions": 131,
-    "completions_per_day": 0.0023926940639269405
+    "elapsed_days": 41913.2,
+    "completions_per_day": 0.0031255049235234334
    },
    "size_only": {
     "p_pass": 0.9667,
     "p_death": 0.0,
     "median_days": 240.0,
     "completions": 145,
-    "completions_per_day": 0.0026484018264840183
+    "elapsed_days": 36851.5,
+    "completions_per_day": 0.0039347134122604144
    },
    "live": {
     "p_pass": 0.94,
     "p_death": 0.0,
     "median_days": 244.5,
     "completions": 141,
-    "completions_per_day": 0.0025753424657534245
+    "elapsed_days": 37864.9,
+    "completions_per_day": 0.0037237637459835294
    }
   },
   "wide": {
@@ -244,28 +256,32 @@
     "p_death": 0.0,
     "median_days": 224.0,
     "completions": 293,
-    "completions_per_day": 0.002675799086757991
+    "elapsed_days": 69463.8,
+    "completions_per_day": 0.00421802450598071
    },
    "halt_only": {
     "p_pass": 0.9467,
     "p_death": 0.0,
     "median_days": 233.5,
     "completions": 284,
-    "completions_per_day": 0.002593607305936073
+    "elapsed_days": 72598.6,
+    "completions_per_day": 0.003911920757276442
    },
    "size_only": {
     "p_pass": 0.98,
     "p_death": 0.0,
     "median_days": 207.0,
     "completions": 294,
-    "completions_per_day": 0.002684931506849315
+    "elapsed_days": 64170.8,
+    "completions_per_day": 0.00458152143359447
    },
    "live": {
     "p_pass": 0.98,
     "p_death": 0.0,
     "median_days": 211.3,
     "completions": 294,
-    "completions_per_day": 0.002684931506849315
+    "elapsed_days": 65743.0,
+    "completions_per_day": 0.004471960713904069
    }
   }
  },
@@ -419,28 +435,32 @@
      "p_death": 0.0,
      "median_days": 332.3,
      "completions": 92,
-     "completions_per_day": 0.001680365296803653
+     "elapsed_days": 51468.6,
+     "completions_per_day": 0.0017874980888346543
     },
     "halt_only": {
      "p_pass": 0.5533,
      "p_death": 0.0,
      "median_days": 330.1,
      "completions": 83,
-     "completions_per_day": 0.0015159817351598174
+     "elapsed_days": 51736.3,
+     "completions_per_day": 0.0016042891961468024
     },
     "size_only": {
      "p_pass": 0.72,
      "p_death": 0.0,
      "median_days": 325.8,
      "completions": 108,
-     "completions_per_day": 0.0019726027397260273
+     "elapsed_days": 49818.6,
+     "completions_per_day": 0.002167862847695693
     },
     "live": {
      "p_pass": 0.6867,
      "p_death": 0.0,
      "median_days": 325.0,
      "completions": 103,
-     "completions_per_day": 0.0018812785388127853
+     "elapsed_days": 50050.0,
+     "completions_per_day": 0.002057941190479904
     }
    },
    "mid": {
@@ -449,28 +469,32 @@
      "p_death": 0.0,
      "median_days": 290.7,
      "completions": 140,
-     "completions_per_day": 0.0025570776255707762
+     "elapsed_days": 45277.8,
+     "completions_per_day": 0.003092021178201718
     },
     "halt_only": {
      "p_pass": 0.8867,
      "p_death": 0.0,
      "median_days": 295.7,
      "completions": 133,
-     "completions_per_day": 0.0024292237442922375
+     "elapsed_days": 46076.9,
+     "completions_per_day": 0.00288647634414461
     },
     "size_only": {
      "p_pass": 0.9133,
      "p_death": 0.0,
      "median_days": 282.0,
      "completions": 137,
-     "completions_per_day": 0.0025022831050228313
+     "elapsed_days": 43655.4,
+     "completions_per_day": 0.0031382142266871424
     },
     "live": {
      "p_pass": 0.88,
      "p_death": 0.0,
      "median_days": 281.1,
      "completions": 132,
-     "completions_per_day": 0.002410958904109589
+     "elapsed_days": 44195.0,
+     "completions_per_day": 0.002986766060049425
     }
    },
    "shipped": {
@@ -479,28 +503,32 @@
      "p_death": 0.0,
      "median_days": 260.9,
      "completions": 137,
-     "completions_per_day": 0.0025022831050228313
+     "elapsed_days": 40538.9,
+     "completions_per_day": 0.0033794680842759344
     },
     "halt_only": {
      "p_pass": 0.8733,
      "p_death": 0.0,
      "median_days": 268.0,
      "completions": 131,
-     "completions_per_day": 0.0023926940639269405
+     "elapsed_days": 41913.2,
+     "completions_per_day": 0.0031255049235234334
     },
     "size_only": {
      "p_pass": 0.9667,
      "p_death": 0.0,
      "median_days": 240.0,
      "completions": 145,
-     "completions_per_day": 0.0026484018264840183
+     "elapsed_days": 36851.5,
+     "completions_per_day": 0.0039347134122604144
     },
     "live": {
      "p_pass": 0.94,
      "p_death": 0.0,
      "median_days": 244.5,
      "completions": 141,
-     "completions_per_day": 0.0025753424657534245
+     "elapsed_days": 37864.9,
+     "completions_per_day": 0.0037237637459835294
     }
    },
    "wide": {
@@ -509,112 +537,114 @@
      "p_death": 0.0,
      "median_days": 224.0,
      "completions": 293,
-     "completions_per_day": 0.002675799086757991
+     "elapsed_days": 69463.8,
+     "completions_per_day": 0.00421802450598071
     },
     "halt_only": {
      "p_pass": 0.9467,
      "p_death": 0.0,
      "median_days": 233.5,
      "completions": 284,
-     "completions_per_day": 0.002593607305936073
+     "elapsed_days": 72598.6,
+     "completions_per_day": 0.003911920757276442
     },
     "size_only": {
      "p_pass": 0.98,
      "p_death": 0.0,
      "median_days": 207.0,
      "completions": 294,
-     "completions_per_day": 0.002684931506849315
+     "elapsed_days": 64170.8,
+     "completions_per_day": 0.00458152143359447
     },
     "live": {
      "p_pass": 0.98,
      "p_death": 0.0,
      "median_days": 211.3,
      "completions": 294,
-     "completions_per_day": 0.002684931506849315
+     "elapsed_days": 65743.0,
+     "completions_per_day": 0.004471960713904069
     }
    }
   },
   "paths": 300,
   "trades": 17301,
-  "sim_elapsed_day": {
-   "365d": {
-    "policies": {
-     "always_on": {
-      "p_pass": 0.98,
-      "p_death": 0.0,
-      "completions": 294,
-      "elapsed_days": 67422.7,
-      "completions_per_day": 0.004360550529047964,
-      "taken_frac": 1.0
-     },
-     "halt_only": {
-      "p_pass": 0.97,
-      "p_death": 0.0,
-      "completions": 291,
-      "elapsed_days": 71070.9,
-      "completions_per_day": 0.004094499969276558,
-      "taken_frac": 0.913
-     },
-     "size_only": {
-      "p_pass": 0.9967,
-      "p_death": 0.0,
-      "completions": 299,
-      "elapsed_days": 61443.9,
-      "completions_per_day": 0.00486622733301722,
-      "taken_frac": 1.0
-     },
-     "live": {
-      "p_pass": 0.9833,
-      "p_death": 0.0,
-      "completions": 295,
-      "elapsed_days": 63270.3,
-      "completions_per_day": 0.004662535528367341,
-      "taken_frac": 0.913
-     }
+  "sim_730d": {
+   "policies": {
+    "always_on": {
+     "p_pass": 1.0,
+     "p_death": 0.0,
+     "completions": 300,
+     "elapsed_days": 68655.4,
+     "completions_per_day": 0.004369650289696752,
+     "taken_frac": 1.0
     },
-    "live_vs_best_baseline": -0.0002036918046498786,
-    "halt_cost": -0.00026605055977140576,
-    "size_gain": 0.0005056768039692558
+    "halt_only": {
+     "p_pass": 1.0,
+     "p_death": 0.0,
+     "completions": 300,
+     "elapsed_days": 72893.6,
+     "completions_per_day": 0.004115584839945136,
+     "taken_frac": 0.911
+    },
+    "size_only": {
+     "p_pass": 1.0,
+     "p_death": 0.0,
+     "completions": 300,
+     "elapsed_days": 62311.7,
+     "completions_per_day": 0.004814504456463779,
+     "taken_frac": 1.0
+    },
+    "live": {
+     "p_pass": 1.0,
+     "p_death": 0.0,
+     "completions": 300,
+     "elapsed_days": 64490.0,
+     "completions_per_day": 0.004651887056631328,
+     "taken_frac": 0.911
+    }
    },
-   "730d": {
-    "policies": {
-     "always_on": {
-      "p_pass": 1.0,
-      "p_death": 0.0,
-      "completions": 300,
-      "elapsed_days": 68655.4,
-      "completions_per_day": 0.004369650289696752,
-      "taken_frac": 1.0
-     },
-     "halt_only": {
-      "p_pass": 1.0,
-      "p_death": 0.0,
-      "completions": 300,
-      "elapsed_days": 72893.6,
-      "completions_per_day": 0.004115584839945136,
-      "taken_frac": 0.911
-     },
-     "size_only": {
-      "p_pass": 1.0,
-      "p_death": 0.0,
-      "completions": 300,
-      "elapsed_days": 62311.7,
-      "completions_per_day": 0.004814504456463779,
-      "taken_frac": 1.0
-     },
-     "live": {
-      "p_pass": 1.0,
-      "p_death": 0.0,
-      "completions": 300,
-      "elapsed_days": 64490.0,
-      "completions_per_day": 0.004651887056631328,
-      "taken_frac": 0.911
-     }
+   "live_vs_best_baseline": -0.00016261739983245132,
+   "halt_cost": -0.00025406544975161566,
+   "size_gain": 0.000444854166767027
+  },
+  "sim_365d_elapsed_check": {
+   "policies": {
+    "always_on": {
+     "p_pass": 0.98,
+     "p_death": 0.0,
+     "completions": 294,
+     "elapsed_days": 67422.7,
+     "completions_per_day": 0.004360550529047964,
+     "taken_frac": 1.0
     },
-    "live_vs_best_baseline": -0.00016261739983245132,
-    "halt_cost": -0.00025406544975161566,
-    "size_gain": 0.000444854166767027
-   }
+    "halt_only": {
+     "p_pass": 0.97,
+     "p_death": 0.0,
+     "completions": 291,
+     "elapsed_days": 71070.9,
+     "completions_per_day": 0.004094499969276558,
+     "taken_frac": 0.913
+    },
+    "size_only": {
+     "p_pass": 0.9967,
+     "p_death": 0.0,
+     "completions": 299,
+     "elapsed_days": 61443.9,
+     "completions_per_day": 0.00486622733301722,
+     "taken_frac": 1.0
+    },
+    "live": {
+     "p_pass": 0.9833,
+     "p_death": 0.0,
+     "completions": 295,
+     "elapsed_days": 63270.3,
+     "completions_per_day": 0.004662535528367341,
+     "taken_frac": 0.913
+    }
+   },
+   "live_vs_best_baseline": -0.0002036918046498786,
+   "halt_cost": -0.00026605055977140576,
+   "size_gain": 0.0005056768039692558
   },
   "death_stress": {
    "730d_wide": {
@@ -759,9 +789,9 @@
  },
  "paths": 300,
  "trades": 17301,
- "verdict": "live (halt+size) beats always-on but LOSES to the size schedule alone; the halt's benefit is unmeasurable because no simulated path died",
- "metric": "elapsed-day completions/day (completions / days elapsed to completion)",
- "net_completions_delta_365d": -0.0002036918046498786,
+ "metric": "completions per ELAPSED day: elapsed days accrue until a completion, or to the horizon for paths that never complete",
+ "verdict": "live (halt+size) beats always-on but loses to the size schedule alone; the halt's benefit is unmeasurable because no simulated path died",
+ "net_completions_delta_365d": -0.00010956071969040089,
  "halt_cost_730d": -0.00025406544975161566,
  "size_gain_730d": 0.000444854166767027
 }
