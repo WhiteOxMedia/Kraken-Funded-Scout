@@ -556,32 +556,99 @@ def _pick(comps):
     return pool[0], False
 
 
-def _dominant_uncertainty(best, mon, rob):
-    """Which assumption, if wrong, moves the answer most."""
-    cands = []
-    if mon:
-        w = mon.get("500") or {}
-        if w.get("zero_indistinguishable"):
-            cands.append(("the edge estimate itself (CI includes zero)",
-                          f"t={w.get('t')} on the last {w.get('n')} trades"))
-        else:
-            cands.append(("the edge estimate", f"t={w.get('t')} on the last {w.get('n')} trades"))
-    cands.append(("costs", f"P(pass) {best['p_pass_block']*100:.0f}% -> "
-                           f"{best['p_pass_cost_x1.5']*100:.0f}% at 1.5x toll"))
-    cands.append(("drift", f"P(pass) {best['p_pass_block']*100:.0f}% -> "
-                           f"{best['p_pass_half_drift']*100:.0f}% at half the measured mu"))
-    cands.append(("regime mix", "the worst run is "
-                                f"{best['worst_run']['max_dd_pct_eq']:.2f}% against a "
-                                f"{best['worst_run']['death_line_pct']:.2f}% line"))
-    # magnitude = the swing the assumption produces in P(pass)
-    swing = {
-        "the edge estimate": abs(best["p_pass_block"] - best["p_pass_half_drift"]),
-        "the edge estimate itself (CI includes zero)": abs(best["p_pass_block"] - best["p_pass_half_drift"]),
-        "costs": abs(best["p_pass_block"] - best["p_pass_cost_x1.5"]),
-        "drift": abs(best["p_pass_block"] - best["p_pass_half_drift"]),
-        "regime mix": abs(best["p_pass_block"] - best["p_pass_half_drift"]),
-    }
-    return max(cands, key=lambda c: swing.get(c[0], 0.0))
+def trade_regime_labels(nets, ts, k=3):
+    """One regime label per TRADE (from its day's features), plus the partition.
+
+    Days with fewer than three trades are not clustered, so their trades carry -1
+    and stay in every subset — dropping them would silently change the universe.
+    """
+    rows = _daily_features(nets, ts)
+    if len(rows) < 6:
+        return np.full(len(nets), -1), []
+    keys = ("drift", "vol", "breadth", "part")
+    X, _mu, _sd = _standardize(rows, keys)
+    lab, _C = _kmeans(X, k)
+    dmap = {rows[i]["day"]: int(lab[i]) for i in range(len(rows))}
+    t = np.asarray(ts, float)
+    day = (t // 86400000).astype(np.int64) if t.max() > 1e11 else (t // 86400).astype(np.int64)
+    return np.array([dmap.get(int(d), -1) for d in day]), rows
+
+
+def sensitivity_ranking(nets, ts, pace, mean_toll=0.0257, size=0.01,
+                        paths=600, seed=11):
+    """Rank the assumptions by how far P(pass) ACTUALLY moves when each one varies.
+
+    No labels, no hand-written magnitudes: every candidate is a set of re-runs of
+    the same block simulation at the short horizon (where P(pass) still has room to
+    move), and its sensitivity is max-minus-min of the simulated P(pass) across its
+    own variants. The candidate with the widest swing dominates the answer.
+
+      edge        mu at each end of its own 95% CI
+      costs       the toll at 0.75x and 1.5x the measured mean
+      regime mix  leave-one-regime-out: drop each partition's trades in turn
+      drift       the measured mu at 0.5x and 1.0x (how wrong the estimate may be)
+    """
+    a = np.asarray(nets, float)
+    if a.size < 100:
+        return {"winner": None, "candidates": []}
+    n = int(pace * SECONDARY_DAYS)
+    mu = float(a.mean())
+    se = float(a.std(ddof=1) / math.sqrt(a.size))
+    base = block_mc(nets, size, n, 50, paths=paths, seed=seed)["pass"]
+    out = []
+
+    # 1. the edge, at both ends of its own confidence interval — an absolute
+    #    shift in points per trade, so it is defined even when mu <= 0
+    p_lo = block_mc(nets, size, n, 50, paths=paths, seed=seed,
+                    toll_shift=-1.96 * se)["pass"]
+    p_hi = block_mc(nets, size, n, 50, paths=paths, seed=seed,
+                    toll_shift=+1.96 * se)["pass"]
+    out.append({"id": "edge", "assumption": "the edge estimate (mu at its 95% CI)",
+                "variants": [round(p_lo, 4), round(p_hi, 4)],
+                "labels": [f"mu {mu-1.96*se:+.4f}%", f"mu {mu+1.96*se:+.4f}%"],
+                "swing": round(abs(p_hi - p_lo), 4), "base": round(base, 4)})
+
+    # 2. the toll: every trade repriced at 0.75x and 1.5x the pair's measured cost
+    #    (mean_toll is the table's average across the traded pairs)
+    p_cheap = block_mc(nets, size, n, 50, paths=paths, seed=seed,
+                       toll_shift=+0.25 * mean_toll)["pass"]
+    p_dear = block_mc(nets, size, n, 50, paths=paths, seed=seed,
+                      toll_shift=-0.50 * mean_toll)["pass"]
+    out.append({"id": "costs", "assumption": "costs (toll 0.75x -> 1.5x)",
+                "variants": [round(p_cheap, 4), round(p_dear, 4)],
+                "labels": ["toll -25%", "toll +50%"],
+                "swing": round(abs(p_cheap - p_dear), 4), "base": round(base, 4)})
+
+    # 3. the regime mix: drop each partition in turn
+    labels, _rows = trade_regime_labels(nets, ts)
+    ids = sorted({int(x) for x in labels if x >= 0})
+    if len(ids) >= 2:
+        vals = []
+        for j in ids:
+            sub = a[labels != j]
+            if sub.size >= 100:
+                vals.append((round(float(block_mc(sub, size, n, 50, paths=paths,
+                                                  seed=seed)["pass"]), 4), j))
+        if len(vals) >= 2:
+            ps = [v[0] for v in vals]
+            out.append({"id": "regime", "assumption": "regime mix (leave one regime out)",
+                        "variants": ps,
+                        "labels": [f"without regime {j}" for _p, j in vals],
+                        "swing": round(max(ps) - min(ps), 4), "base": round(base, 4)})
+
+    # 4. how wrong the drift itself may be
+    p_half = block_mc(nets, size, n, 50, paths=paths, seed=seed,
+                      edge_mult=DRIFT_HAIRCUT)["pass"]
+    out.append({"id": "drift", "assumption": "drift (mu at 0.5x -> 1.0x)",
+                "variants": [round(p_half, 4), round(base, 4)],
+                "labels": ["half the measured mu", "measured mu"],
+                "swing": round(abs(base - p_half), 4), "base": round(base, 4)})
+
+    out.sort(key=lambda c: -c["swing"])
+    return {"winner": out[0]["assumption"] if out else None,
+            "winner_id": out[0]["id"] if out else None,
+            "candidates": out, "horizon_days": SECONDARY_DAYS,
+            "base_p_pass": round(base, 4)}
 
 
 def verdict(data=None):
@@ -595,7 +662,18 @@ def verdict(data=None):
         n = int(float(data.get("pace") or 47.4) * SECONDARY_DAYS)
         for label, fn in schedules().items():
             sched[label] = schedule_mc(got[0], fn, n)
-    dom, dom_why = _dominant_uncertainty(best, mon, comps) if best else (None, None)
+    sens = {"winner": None, "candidates": []}
+    if got:
+        _tolls = list((data.get("tolls") or {}).values())
+        sens = sensitivity_ranking(got[0], got[1], float(data.get("pace") or 47.4),
+                                   mean_toll=float(np.mean(_tolls)) if _tolls else 0.0257)
+    dom = sens.get("winner")
+    dom_why = None
+    if sens.get("candidates"):
+        top = sens["candidates"][0]
+        dom_why = (f"P(pass) {top['variants'][0]*100:.1f}% -> "
+                   f"{top['variants'][-1]*100:.1f}% across its variants "
+                   f"(swing {top['swing']*100:.1f} pts, base {top['base']*100:.1f}%)")
     out = {
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "1_best_config": ({"name": best["name"], "cfg": CONFIGS.get(best["name"]),
@@ -610,6 +688,7 @@ def verdict(data=None):
         "dashboard": {"components": comps, "regimes": reg.get("regimes") or [],
                       "today": reg.get("today"),
                       "edge_monitor": mon, "schedules": sched,
+                      "sensitivity": sens,
                       "cost": cost_intel()},
     }
     out["5_next_experiment"] = _experiment(out)
@@ -619,25 +698,36 @@ def verdict(data=None):
 
 
 def _experiment(v):
-    dom = (v["4_dominant_uncertainty"] or {}).get("assumption") or ""
-    if "edge" in dom:
+    # keyed on the MEASURED winner's id, never on words in its label
+    sens = (v.get("dashboard") or {}).get("sensitivity") or {}
+    dom = sens.get("winner_id") or ""
+    if dom == "edge":
         return ("Extend the tape forward and re-estimate mu on NEW days only "
                 "(walk-forward), because the current edge rests on one 183-day "
                 "sample whose CI is the binding uncertainty. Concretely: hold the "
                 "config fixed, log the next N=500 live-shadow trades, and re-run "
                 "this report; the answer changes iff the new CI excludes zero.")
-    if "cost" in dom:
+    if dom == "costs":
         return ("Run the spread sampler through a full week and re-price every pair "
                 "at its 7-day mean; the 1.5x-toll run is the binding sensitivity, so "
                 "the experiment is measuring whether the toll really is 1.5x on the "
                 "pairs the config actually trades.")
-    if "drift" in dom:
+    if dom == "drift":
         return ("Split the tape in half by calendar and re-fit mu on the first half, "
                 "then test the second half; that isolates whether the drift is a "
                 "property of the strategy or of the sample.")
-    return ("Replay the tape with the regime partitions held out one at a time "
-            "(leave-one-regime-out) and re-measure P(pass); that tests whether the "
-            "answer survives losing its best stretch.")
+    if dom == "regime":
+        top = (sens.get("candidates") or [{}])[0]
+        lo = min(top.get("variants") or [0.0])
+        hi = max(top.get("variants") or [0.0])
+        return ("The answer does not survive losing one stretch of tape: dropping a "
+                f"single regime moves P(pass) {lo*100:.0f}% -> {hi*100:.0f}%. So the "
+                "experiment is not another rule — it is collecting tape until a NEW "
+                "regime appears outside this 183-day sample, then re-running this "
+                "ranking. Until that tape exists the pass is a claim about a regime "
+                "composition the record has not repeated.")
+    return ("Re-run the ranking on a held-out stretch of tape and confirm which "
+            "assumption moved; the winner here was not one of the known four.")
 
 
 def print_verdict(v, detail=False):
@@ -653,6 +743,8 @@ def print_verdict(v, detail=False):
     print(f"3. ESTIMATED P(death) {(v['3_p_death'] or 0)*100:.1f}%")
     print(f"4. DOMINANT UNCERTAINTY: {v['4_dominant_uncertainty']['assumption']}")
     print(f"   {v['4_dominant_uncertainty']['evidence']}")
+    for c in ((v["dashboard"].get("sensitivity") or {}).get("candidates") or [])[1:]:
+        print(f"   (next: {c['assumption']} — {c['swing']*100:.1f} pts)")
     print(f"5. NEXT EXPERIMENT: {v['5_next_experiment']}")
     if not detail:
         return
@@ -684,6 +776,10 @@ def print_verdict(v, detail=False):
               f"comp/day {c.get('completions_per_day', 0):.5f}  "
               f"replay {c['replay']['verdict']:<5} "
               + (f" DISQUALIFIED: {'; '.join(bad)}" if bad else " CLEAR"))
+    print("\n--- SENSITIVITY (each assumption re-run, ranked by swing) " + "-" * 8)
+    for c in (d.get("sensitivity") or {}).get("candidates") or []:
+        print(f"  {c['swing']*100:5.1f} pts  {c['assumption']:<42} "
+              + "  ".join(f"{v*100:.1f}%" for v in c["variants"]))
     print("\n--- COST " + "-" * 51)
     c = d["cost"]
     print(f"  refused ({len(c['refused'])}): {', '.join(c['refused'][:12])}")

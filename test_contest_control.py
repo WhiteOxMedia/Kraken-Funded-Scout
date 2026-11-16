@@ -179,5 +179,31 @@ check("armed: the resume is recorded", json.loads(
 
 cc.armed = _real_armed
 
+
+# ── the dominant uncertainty is MEASURED, not matched on labels ───────
+_rng = np.random.default_rng(21)
+_n = 2400
+_nets = _rng.normal(0.06, 0.5, _n)
+_nets[-600:] = _rng.normal(-0.9, 0.5, 600)      # one regime is a wreck
+_ts = [1_790_000_000_000 + 300_000 * i for i in range(_n)]
+_r = cc.sensitivity_ranking(_nets, _ts, 47.4, paths=120, seed=5)
+_c = _r["candidates"]
+check("sensitivity: every candidate is a re-run, not a label",
+      len(_c) >= 3 and all("variants" in x for x in _c))
+check("sensitivity: ranked by measured swing, widest first",
+      [x["swing"] for x in _c] == sorted([x["swing"] for x in _c], reverse=True))
+check("sensitivity: each swing IS the spread of its own re-runs",
+      all(abs(x["swing"] - (max(x["variants"]) - min(x["variants"]))) < 1e-3 for x in _c))
+check("sensitivity: the winner is the top of the ranking",
+      _r["winner"] == _c[0]["assumption"])
+check("sensitivity: the wrecked regime wins the ranking on measured effect",
+      "regime" in _c[0]["assumption"]
+      and _c[0]["swing"] > [x for x in _c if "costs" in x["assumption"]][0]["swing"] + 0.01)
+check("sensitivity: the edge and the regime mix are NOT given the same number",
+      abs([x for x in _c if "edge" in x["assumption"]][0]["swing"]
+          - [x for x in _c if "regime" in x["assumption"]][0]["swing"]) > 1e-6)
+check("sensitivity: a short series declines to rank rather than guessing",
+      cc.sensitivity_ranking(_nets[:50], _ts[:50], 47.4)["winner"] is None)
+
 print(f"\n{PASS} passed, {FAIL} failed")
 sys.exit(1 if FAIL else 0)
