@@ -1,0 +1,32 @@
+
+== R1 on kraken_5m_long_183d.json
+    book carry at the 319 signals: max $1,167, median $808 -> GO BIG supported 0 times against a $10,000 account
+
+R1  kraken_5m_long_183d.json  (16,000 bars, 319 events)
+   A shipped all-in        0 trades  $ 10,000.00   +0.00%  low $10,000.00  alive
+   B frac 0.5  100/500     0 trades  $ 10,000.00   +0.00%  low $10,000.00  alive
+   C frac 0.5   50/250     0 trades  $ 10,000.00   +0.00%  low $10,000.00  alive
+   G abs 10k/5k 100/500    0 trades  $ 10,000.00   +0.00%  low $10,000.00  alive
+   H abs 10k/5k  50/250    0 trades  $ 10,000.00   +0.00%  low $10,000.00  alive
+   champion ladder    316 trades  $  9,958.12   -0.42%  low $ 9,958.12  alive
+      normal 316 ($-42)
+
+SLICES kraken_5m_long_183d_aligned.json: 52,705 bars, 1055 events, 14-day windows
+  2026-05-14..2026-05-28  ev  72  ladder  71tr   -0.06% low $    9,994 flat  |  all-in  0tr   +0.00% low $   10,000 flat   big 0 half 0
+  2026-05-28..2026-06-11  ev  84  ladder  82tr   -0.09% low $    9,990 flat  |  all-in  0tr   +0.00% low $   10,000 flat   big 0 half 0
+  2026-06-11..2026-06-25  ev  78  ladder  78tr   -0.07% low $    9,992 flat  |  all-in  0tr   +0.00% low $   10,000 flat   big 0 half 0
+  2026-06-25..2026-07-09  ev  87  ladder  87tr   -0.16% low $    9,984 flat  |  all-in  0tr   +0.00% low $   10,000 flat   big 0 half 0
+  2026-07-09..2026-07-23  ev  85  ladder  83tr   +0.01% low $    9,999 flat  |  all-in  0tr   +0.00% low $   10,000 flat   big 0 half 0
+  2026-07-23..2026-08-06  ev  79  ladder  77tr   -0.05% low $    9,995 flat  |  all-in  0tr   +0.00% low $   10,000 flat   big 0 half 0
+  2026-08-06..2026-08-20  ev  78  ladder  76tr   -0.08% low $    9,986 flat  |  all-in  0tr   +0.00% low $   10,000 flat   big 0 half 0
+  2026-08-20..2026-09-03  ev  99  ladder  10tr   -4.09% low $    9,591 DEAD  |  all-in  2tr   -4.16% low $    9,584 DEAD   big 0 half 0
+  2026-09-03..2026-09-17  ev  82  ladder  77tr   +0.13% low $    9,999 flat  |  all-in  1tr   +0.24% low $   10,000 flat   big 0 half 0
+  2026-09-17..2026-10-01  ev  75  ladder  74tr   +0.68% low $    9,786 flat  |  all-in  2tr   +0.74% low $    9,790 flat   big 0 half 0
+  2026-10-01..2026-10-15  ev  74  ladder  72tr   +6.87% low $    9,997 flat  |  all-in  2tr   +4.56% low $   10,000 flat   big 0 half 1
+  2026-10-15..2026-10-29  ev  74  ladder  72tr   +2.32% low $    9,991 flat  |  all-in  1tr   +0.28% low $   10,000 flat   big 1 half 1
+  2026-10-29..2026-11-12  ev  84  ladder  83tr   +7.49% low $   10,000 flat  |  all-in  5tr   +7.38% low $   10,000 flat   big 4 half 2
+  2026-11-12..2026-11-26  ev   4  ladder   4tr   -0.02% low $    9,998 flat  |  all-in  0tr   +0.00% low $   10,000 flat   big 0 half 0
+  ladder : {'windows': 14, 'dead': 1, 'pass': 0, 'flat': 13}
+  all-in : {'windows': 14, 'dead': 1, 'pass': 0, 'flat': 13}
+  GO BIG fires 5, half 4 across 14 windows
+wrote C:\Users\birds\Workspace\kraken_scout\scratch\_champion_slices.json

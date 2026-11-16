@@ -279,6 +279,61 @@ def run_r3():
     return rows
 
 
+def run_slices(tape_path, days: int = 14):
+    """The ladder and the shipped all-in, each window restarted at $10k."""
+    tp = eng.Tape(tape_path)
+    events = G._events(tp)
+    print("")
+    print(f"SLICES {os.path.basename(tape_path)}: {tp.N:,} bars, "
+          f"{len(events)} events, {days}-day windows")
+    rows = []
+    for a, b_, lo, hi in G._windows(tp, days):
+        ev = [e for e in events if lo <= e["i"] < hi]
+        taken, final, low, _ = ladder(tp, events, lo, hi)
+        tags = {}
+        for t in taken:
+            tags[t["tag"]] = tags.get(t["tag"], 0) + 1
+        al_taken, al_final, al_low, _ = G.market(tp, events, "allin", "fixed", lo, hi)
+        row = {
+            "window": f"{a.date()}..{b_.date()}",
+            "events": len(ev),
+            "gobig": tags.get("GO BIG", 0), "half": tags.get("half", 0),
+            "ladder_trades": len(taken),
+            "ladder_ret": round((final / G.START - 1) * 100, 2),
+            "ladder_low": round(low, 2),
+            "ladder_dead": low < DEATH, "ladder_pass": final >= TARGET,
+            "allin_trades": len(al_taken),
+            "allin_ret": round((al_final / G.START - 1) * 100, 2),
+            "allin_low": round(al_low, 2),
+            "allin_dead": al_low < DEATH, "allin_pass": al_final >= TARGET,
+        }
+        rows.append(row)
+        print(f"  {row['window']}  ev {row['events']:>3}  "
+              f"ladder {row['ladder_trades']:>3}tr {row['ladder_ret']:+7.2f}% "
+              f"low ${row['ladder_low']:>9,.0f} "
+              f"{'DEAD' if row['ladder_dead'] else ('PASS' if row['ladder_pass'] else 'flat')}"
+              f"  |  all-in {row['allin_trades']:>2}tr {row['allin_ret']:+7.2f}% "
+              f"low ${row['allin_low']:>9,.0f} "
+              f"{'DEAD' if row['allin_dead'] else ('PASS' if row['allin_pass'] else 'flat')}"
+              f"   big {row['gobig']} half {row['half']}")
+
+    def tally(key_dead, key_pass):
+        d = sum(1 for r in rows if r[key_dead])
+        pss = sum(1 for r in rows if r[key_pass])
+        return {"windows": len(rows), "dead": d, "pass": pss,
+                "flat": len(rows) - d - pss}
+
+    out = {"windows": rows, "ladder": tally("ladder_dead", "ladder_pass"),
+           "allin": tally("allin_dead", "allin_pass"),
+           "gobig_fires": sum(r["gobig"] for r in rows),
+           "half_fires": sum(r["half"] for r in rows)}
+    print(f"  ladder : {out['ladder']}")
+    print(f"  all-in : {out['allin']}")
+    print(f"  GO BIG fires {out['gobig_fires']}, half {out['half_fires']} "
+          f"across {len(rows)} windows")
+    return out
+
+
 def main():
     out = {}
     tapes = [a for a in sys.argv[1:] if a.endswith(".json")]
@@ -296,6 +351,15 @@ def main():
             except Exception as exc:                   # noqa: BLE001
                 out["R1"][os.path.basename(t)] = {"error": f"{type(exc).__name__}: {exc}"}
                 print("R1 failed:", out["R1"][os.path.basename(t)]["error"])
+    if "--slices" in sys.argv:
+        tape = os.path.join(HERE, "kraken_5m_long_183d_aligned.json")
+        out["slices"] = run_slices(tape)
+        with open(os.path.join(HERE, "_champion_slices.json"), "w",
+                  encoding="utf-8") as fh:
+            json.dump(out["slices"], fh, indent=1)
+        print("wrote", os.path.join(HERE, "_champion_slices.json"))
+        return
+
     try:
         out["R2"] = run_r2()
     except Exception as exc:                           # noqa: BLE001
