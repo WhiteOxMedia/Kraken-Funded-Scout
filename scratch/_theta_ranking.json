@@ -1,0 +1,245 @@
+{
+ "a": 0.11332868530700327,
+ "b": 0.030459207484708654,
+ "ranked": [
+  {
+   "config": "band+ride, cheap toll",
+   "size": 0.005,
+   "e_pct": 0.0859,
+   "theta": 3743.3,
+   "p_time_free": 1.0
+  },
+  {
+   "config": "band+ride, cheap toll",
+   "size": 0.01,
+   "e_pct": 0.0859,
+   "theta": 1871.6,
+   "p_time_free": 1.0
+  },
+  {
+   "config": "band+ride, 0.08 toll",
+   "size": 0.005,
+   "e_pct": 0.0269,
+   "theta": 1173.1,
+   "p_time_free": 1.0
+  },
+  {
+   "config": "band+ride, cheap toll",
+   "size": 0.02,
+   "e_pct": 0.0859,
+   "theta": 935.8,
+   "p_time_free": 1.0
+  },
+  {
+   "config": "band+ride (train only)",
+   "size": 0.01,
+   "e_pct": 0.0355,
+   "theta": 773.2,
+   "p_time_free": 1.0
+  },
+  {
+   "config": "band+ride, 0.08 toll",
+   "size": 0.01,
+   "e_pct": 0.0269,
+   "theta": 586.6,
+   "p_time_free": 1.0
+  },
+  {
+   "config": "band+ride, cheap toll",
+   "size": 0.05,
+   "e_pct": 0.0859,
+   "theta": 374.3,
+   "p_time_free": 1.0
+  },
+  {
+   "config": "band+ride, 0.08 toll",
+   "size": 0.02,
+   "e_pct": 0.0269,
+   "theta": 293.3,
+   "p_time_free": 1.0
+  },
+  {
+   "config": "scanner+ride (May-Oct)",
+   "size": 0.01,
+   "e_pct": 0.0086,
+   "theta": 187.3,
+   "p_time_free": 0.997
+  },
+  {
+   "config": "band+ride, 0.08 toll",
+   "size": 0.05,
+   "e_pct": 0.0269,
+   "theta": 117.3,
+   "p_time_free": 0.972
+  },
+  {
+   "config": "band+ride, cheap toll",
+   "size": 0.5,
+   "e_pct": 0.0859,
+   "theta": 37.4,
+   "p_time_free": 0.683
+  },
+  {
+   "config": "band+ride, cheap toll",
+   "size": 1.0,
+   "e_pct": 0.0859,
+   "theta": 18.7,
+   "p_time_free": 0.466
+  },
+  {
+   "config": "band+ride, 0.08 toll",
+   "size": 0.5,
+   "e_pct": 0.0269,
+   "theta": 11.7,
+   "p_time_free": 0.369
+  },
+  {
+   "config": "band+ride, 0.08 toll",
+   "size": 1.0,
+   "e_pct": 0.0269,
+   "theta": 5.9,
+   "p_time_free": 0.287
+  },
+  {
+   "config": "go-big all-in, gap-realised",
+   "size": 1.0,
+   "e_pct": -0.0416,
+   "theta": -9.1,
+   "p_time_free": 0.0
+  },
+  {
+   "config": "scanner+ride (all)",
+   "size": 0.01,
+   "e_pct": -0.0107,
+   "theta": -233.1,
+   "p_time_free": 0.0
+  },
+  {
+   "config": "scanner+ride (Nov)",
+   "size": 0.01,
+   "e_pct": -0.0672,
+   "theta": -1463.7,
+   "p_time_free": 0.0
+  },
+  {
+   "config": "scanner own exit (net)",
+   "size": 0.01,
+   "e_pct": -0.1168,
+   "theta": -2544.0,
+   "p_time_free": 0.0
+  }
+ ],
+ "horizons": {
+  "band+ride cheap toll|1%|90d": {
+   "n_trades": 7830,
+   "pass": 0.0,
+   "death": 0.0,
+   "neither": 1.0
+  },
+  "band+ride cheap toll|1%|180d": {
+   "n_trades": 15660,
+   "pass": 0.966,
+   "death": 0.0,
+   "neither": 0.034
+  },
+  "band+ride cheap toll|1%|365d": {
+   "n_trades": 20000,
+   "pass": 1.0,
+   "death": 0.0,
+   "neither": 0.0
+  },
+  "band+ride cheap toll|2%|90d": {
+   "n_trades": 7830,
+   "pass": 0.906,
+   "death": 0.0,
+   "neither": 0.094
+  },
+  "band+ride cheap toll|2%|180d": {
+   "n_trades": 15660,
+   "pass": 1.0,
+   "death": 0.0,
+   "neither": 0.0
+  },
+  "band+ride cheap toll|2%|365d": {
+   "n_trades": 20000,
+   "pass": 1.0,
+   "death": 0.0,
+   "neither": 0.0
+  },
+  "band+ride cheap toll|5%|90d": {
+   "n_trades": 7830,
+   "pass": 1.0,
+   "death": 0.0,
+   "neither": 0.0
+  },
+  "band+ride cheap toll|5%|180d": {
+   "n_trades": 15660,
+   "pass": 1.0,
+   "death": 0.0,
+   "neither": 0.0
+  },
+  "band+ride cheap toll|5%|365d": {
+   "n_trades": 20000,
+   "pass": 1.0,
+   "death": 0.0,
+   "neither": 0.0
+  },
+  "band+ride 0.08 toll|1%|90d": {
+   "n_trades": 7830,
+   "pass": 0.0,
+   "death": 0.0,
+   "neither": 1.0
+  },
+  "band+ride 0.08 toll|1%|180d": {
+   "n_trades": 15660,
+   "pass": 0.0,
+   "death": 0.0,
+   "neither": 1.0
+  },
+  "band+ride 0.08 toll|1%|365d": {
+   "n_trades": 20000,
+   "pass": 0.0,
+   "death": 0.0,
+   "neither": 1.0
+  },
+  "band+ride 0.08 toll|2%|90d": {
+   "n_trades": 7830,
+   "pass": 0.0,
+   "death": 0.0,
+   "neither": 1.0
+  },
+  "band+ride 0.08 toll|2%|180d": {
+   "n_trades": 15660,
+   "pass": 0.132,
+   "death": 0.0,
+   "neither": 0.868
+  },
+  "band+ride 0.08 toll|2%|365d": {
+   "n_trades": 20000,
+   "pass": 0.462,
+   "death": 0.0,
+   "neither": 0.537
+  },
+  "band+ride 0.08 toll|5%|90d": {
+   "n_trades": 7830,
+   "pass": 0.485,
+   "death": 0.031,
+   "neither": 0.483
+  },
+  "band+ride 0.08 toll|5%|180d": {
+   "n_trades": 15660,
+   "pass": 0.944,
+   "death": 0.029,
+   "neither": 0.027
+  },
+  "band+ride 0.08 toll|5%|365d": {
+   "n_trades": 20000,
+   "pass": 0.965,
+   "death": 0.029,
+   "neither": 0.005
+  }
+ },
+ "band_e": 0.0269,
+ "band_sd": 0.9582,
+ "cheap_e": 0.0859
+}
