@@ -1,0 +1,33 @@
+tape kraken_5m_long_183d_aligned.json  52,705 bars  29 pairs
+
+1. CARRY at 1035 champion signals
+   median $848   p75 $1,074   p90 $1,277   p99 $7,913   max $39,021
+     balance  all-in fires      %  half fires      %
+   $   1,000           386  37.3%         990  95.7%
+   $   2,000            63   6.1%         386  37.3%
+   $   3,000            34   3.3%          76   7.3%
+   $   5,000            16   1.5%          48   4.6%
+   $   7,500            11   1.1%          24   2.3%
+   $  10,000             9   0.9%          16   1.5%
+   $  15,000             3   0.3%          11   1.1%
+   $  20,000             1   0.1%           9   0.9%
+
+2. ADVERSE MOVE the stop must absorb (all pairs, 1,528,445 bars each)
+   5m low-vs-open   p99 0.00%   p99.9 0.00%   worst -16.50%
+   bar-to-bar gap   p99 0.00%   p99.9 0.00%   worst 0.00%
+   move in   5m       p99   0.56%   p99.9   1.24%   worst  -21.43%
+   move in  10m       p99   0.85%   p99.9   1.84%   worst  -21.55%
+   move in  15m       p99   1.09%   p99.9   2.32%   worst  -21.78%
+
+3. STOP BUDGET at a fresh start (death 3.00% away)
+    size  max loss  stop @5m poll  stop @15m poll
+    100%     3.00%          1.76%           0.68%
+     50%     6.00%          4.76%           3.68%
+     25%    12.00%         10.76%           9.68%
+     10%    30.00%         28.76%          27.68%
+      1%   300.00%        298.76%         297.68%
+
+   a stop at the measured average loss (2.08%) fits only if size <= 1.44 of the account
+      -> at 10k that is $14,423, i.e. carry >= $14,423 for the all-in rung
+
+wrote C:\Users\birds\Workspace\kraken_scout\scratch\_carry_and_stop.json

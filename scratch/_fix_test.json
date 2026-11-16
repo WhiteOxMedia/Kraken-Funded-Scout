@@ -1,0 +1,24 @@
+{
+ "cap50_stop1.5": {
+  "cap": 0.5,
+  "stop_frac": 0.015,
+  "trades": 9,
+  "capped_allin": 5,
+  "half_rung": 4,
+  "final": 10746.02,
+  "ret_pct": 7.46,
+  "low": 10000.0,
+  "dead": false
+ },
+ "cap25_stop1.5": {
+  "cap": 0.25,
+  "stop_frac": 0.015,
+  "trades": 10,
+  "capped_allin": 5,
+  "half_rung": 5,
+  "final": 10334.29,
+  "ret_pct": 3.34,
+  "low": 10000.0,
+  "dead": false
+ }
+}

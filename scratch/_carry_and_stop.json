@@ -1,0 +1,150 @@
+{
+ "tape": "kraken_5m_long_183d_aligned.json",
+ "buffer_pct": 3.0,
+ "carry": {
+  "stats": {
+   "n_signals": 1035,
+   "p10": 685.0,
+   "p25": 782.0,
+   "median": 848.0,
+   "p75": 1074.0,
+   "p90": 1277.0,
+   "p99": 7913.0,
+   "max": 39021.0
+  },
+  "curve": {
+   "1000": {
+    "allin_fires": 386,
+    "half_fires": 990,
+    "allin_pct": 37.3,
+    "half_pct": 95.7
+   },
+   "2000": {
+    "allin_fires": 63,
+    "half_fires": 386,
+    "allin_pct": 6.1,
+    "half_pct": 37.3
+   },
+   "3000": {
+    "allin_fires": 34,
+    "half_fires": 76,
+    "allin_pct": 3.3,
+    "half_pct": 7.3
+   },
+   "5000": {
+    "allin_fires": 16,
+    "half_fires": 48,
+    "allin_pct": 1.5,
+    "half_pct": 4.6
+   },
+   "7500": {
+    "allin_fires": 11,
+    "half_fires": 24,
+    "allin_pct": 1.1,
+    "half_pct": 2.3
+   },
+   "10000": {
+    "allin_fires": 9,
+    "half_fires": 16,
+    "allin_pct": 0.9,
+    "half_pct": 1.5
+   },
+   "15000": {
+    "allin_fires": 3,
+    "half_fires": 11,
+    "allin_pct": 0.3,
+    "half_pct": 1.1
+   },
+   "20000": {
+    "allin_fires": 1,
+    "half_fires": 9,
+    "allin_pct": 0.1,
+    "half_pct": 0.9
+   }
+  }
+ },
+ "moves": {
+  "5m_intrabar": {
+   "p99": 0.0,
+   "p99.9": 0.0,
+   "worst": -16.5
+  },
+  "gap": {
+   "p99": 0.0,
+   "p99.9": 0.0,
+   "worst": 0.0
+  },
+  "horizons": {
+   "5m": {
+    "p99": 0.56,
+    "p99.9": 1.24,
+    "worst": -21.43
+   },
+   "10m": {
+    "p99": 0.85,
+    "p99.9": 1.84,
+    "worst": -21.55
+   },
+   "15m": {
+    "p99": 1.09,
+    "p99.9": 2.32,
+    "worst": -21.78
+   }
+  }
+ },
+ "stop_budget": {
+  "100%": {
+   "max_adverse_move_pct": 3.0,
+   "60s poll (5m bar)": 1.76,
+   "15m poll": 0.68
+  },
+  "50%": {
+   "max_adverse_move_pct": 6.0,
+   "60s poll (5m bar)": 4.76,
+   "15m poll": 3.68
+  },
+  "25%": {
+   "max_adverse_move_pct": 12.0,
+   "60s poll (5m bar)": 10.76,
+   "15m poll": 9.68
+  },
+  "10%": {
+   "max_adverse_move_pct": 30.0,
+   "60s poll (5m bar)": 28.76,
+   "15m poll": 27.68
+  },
+  "1%": {
+   "max_adverse_move_pct": 300.0,
+   "60s poll (5m bar)": 298.76,
+   "15m poll": 297.68
+  }
+ },
+ "size_implied_by_stop": 1.442,
+ "worst_pairs": [
+  [
+   "BTC",
+   0.0,
+   -2.0526321634100175
+  ],
+  [
+   "ETH",
+   0.0,
+   -4.204082010117172
+  ],
+  [
+   "ZEC",
+   0.0,
+   -12.254238683658269
+  ],
+  [
+   "XRP",
+   0.0,
+   -10.645242604238703
+  ],
+  [
+   "SOL",
+   0.0,
+   -8.119658119658112
+  ]
+ ]
+}
