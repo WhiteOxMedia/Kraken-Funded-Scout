@@ -10,24 +10,31 @@ EMA20 trend-break exit as worse than the pure ratchet on every entry variant
 (`scratch/trendride_study.py`), so it is not in the engine at all rather than sitting
 dead behind a flag.
 
-The shape, measured (`scratch/trendride_verdict.py`, 30 pairs, 1,544,445 5m bars,
-May 14 - Nov 13, stop 2.0%, trail arms at +0.4%, gives back 0.15%):
+The shape, measured on the code that actually runs (`scratch/remeasure_live_config.py`:
+`entry_ok` on the 320-bar window, `manage` with no hold cap, 30 pairs, 1,544,445 5m
+bars, May 14 - Nov 13):
 
-    win rate        82.3% of 8,304 trades
-    expectancy      +0.0178% per trade
-    November        +0.0379% per trade, 80.8% wins, n=442   (t = 0.79)
+    trades          15,877
+    win rate        84.1%          (train May-Oct 84.4%, November 77.2%)
+    expectancy      +0.0269% per trade  (train +0.0355%, t +4.58)
+    November        -0.1294% per trade, n=821, t -3.40
+    monthly         4 of 7 positive; worst loss streak 19
 
-The death line decides the size. It is `start * 0.97` = $9,700, it never moves, and
-the buffer above it ($300 at the start, $281.96 now) GROWS with every winning trade —
-so the risk question is the lowest point the balance path reaches, never a drawdown
-measured from a peak:
+November is not noise here: t = -3.40 says this config loses money out of sample.
+The death line agrees — walked forward from the live balance with the repo's own
+sizing rule, every size tested reaches the halt line:
 
     size      profit over the sample    lowest balance    room above the halt line
-    1%        +$148.45                  $9,910.66         +$60.66   never halted
-    2%        +$298.33                  $9,839.67         -$10.33   halted
-    5%        +$700.95                  $9,701.20         -$148.80  halted ($1.20 of life)
+    1%        +$435.30                  $9,817.48         -$32.52   halted
+    2%        +$867.54                  $9,700.21         -$149.79  halted (at the line)
+    5%        +$795.09                  $9,700.00         -$150.00  halted
 
-Sizing, not the stop, is what keeps the win rate affordable, so SIZE_FRAC is 1%.
+So the engine is measured, not armable. `STUDY` previously advertised the study's
+band (EMA20 as the mid, sd around the SMA, full-series EMA, 288-bar cap) at 8,304
+trades / 82.3% / November +0.0379% — a band this code never implemented. The parity
+harness (`scratch/trendride_parity.py`) proved the difference by firing 8,304 vs
+15,877 on the same tape; that record is kept under `STUDY["superseded"]` rather than
+deleted, so the history cannot quietly resurrect.
 
 OWNERSHIP: this module restates none of the death-line or sizing arithmetic. The
 death line, halt line, buffer and headroom come from `contest_account` and
@@ -50,7 +57,8 @@ TREND_SPAN = 200         # EMA200 on 5m = the 16-hour trend
 #: The contest's round-trip cost, owned by contest_account — never restated here.
 COST_PCT = ca.COST_ROUNDTRIP_PCT
 
-#: One ticket as a fraction of the balance: the risk control that makes 82.3% affordable.
+#: One ticket as a fraction of the balance. Measured: even 1% breaches the halt
+#: line on this tape, so this is the smallest size that is worth a fill, not a safe one.
 SIZE_FRAC = 0.01
 
 #: Real orders stay off. The shadow record is what EARNS this flag.
@@ -66,32 +74,45 @@ ARM_CRITERIA = {
 
 STUDY = {
     "measured_at": "2026-11-15",
-    "source": "scratch/trendride_verdict.py",
+    "source": "scratch/remeasure_live_config.py",
     "tape": "30 pairs, 1,544,445 5m bars, May 14 - Nov 13",
-    "config": "e3_band|S2.0|A0.4|G0.15",
-    "trades": 8304,
-    "win_pct": 82.3,
-    "mean_net_pct": 0.0178,
-    "november": {"n": 442, "win_pct": 80.8, "mean_net_pct": 0.0379, "t": 0.79},
-    "monthly_positive": "5/7",
-    "worst_month_pct": -0.0637,
-    "worst_loss_streak": 13,
+    "config": ("e3_band|SMA20 mid (the live band)|S2.0|A0.4|G0.15|"
+               "320-bar window|no hold cap"),
+    "trades": 15877,
+    "win_pct": 84.1,
+    "mean_net_pct": 0.0269,
+    "t": 3.54,
+    "train": {"n": 15056, "win_pct": 84.4, "mean_net_pct": 0.0355, "t": 4.58},
+    "november": {"n": 821, "win_pct": 77.2, "mean_net_pct": -0.1294, "t": -3.4},
+    "monthly_positive": "4/7",
+    "worst_month_pct": -0.1294,
+    "worst_loss_streak": 19,
     # recorded values at measurement time (a record, never used as arithmetic)
     "death_line_usd": 9700.0,
     "halt_line_usd": 9850.0,
     "paths": {
-        "1pct": {"profit_usd": 148.45, "lowest_usd": 9910.66, "room_usd": 60.66,
-                 "halted": False},
-        "2pct": {"profit_usd": 298.33, "lowest_usd": 9839.67, "room_usd": -10.33,
+        "1pct": {"profit_usd": 435.30, "lowest_usd": 9817.48, "room_usd": -32.52,
                  "halted": True},
-        "5pct": {"profit_usd": 700.95, "lowest_usd": 9701.20, "room_usd": -148.80,
+        "2pct": {"profit_usd": 867.54, "lowest_usd": 9700.21, "room_usd": -149.79,
+                 "halted": True},
+        "5pct": {"profit_usd": 795.09, "lowest_usd": 9700.00, "room_usd": -150.00,
                  "halted": True},
     },
-    "verdict": "82.3% wins, positive out of sample, and safe on the -3% death line "
-               "only at ~1% of the balance: about $148 over six months, never closer "
-               "than $60 to the halt line",
-    "why_1pct": "sizing is the only thing between this shape and the death line - at "
-                "5% it ends +$701 but passes within $1.20 of dying",
+    "superseded": {
+        "config": "EMA20-mid band, sd around the SMA, full-series EMA, 288-bar cap",
+        "source": "scratch/trendride_verdict.py",
+        "trades": 8304,
+        "win_pct": 82.3,
+        "november_net_pct": 0.0379,
+        "why": "the study's band, never implemented by entry_ok/band_lower; kept for "
+               "provenance after trendride_parity.py showed 8,304 vs 15,877",
+    },
+    "verdict": "not armable: 84.1% wins and a positive train, but November is "
+               "-0.1294%/trade at t -3.40 and even a 1% ticket breaches the halt line "
+               "on this tape",
+    "next": "the difference is the band definition; deciding whether the live SMA band "
+            "or the study's EMA-mid band is the intended indicator is a design call, "
+            "not a tuning step",
 }
 
 

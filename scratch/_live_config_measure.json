@@ -1,0 +1,172 @@
+{
+ "config": "e3_band|SMA20 mid (live)|S2.0|A0.4|G0.15|window320|no cap",
+ "window": 320,
+ "window_note": "the live window; the study used the full series",
+ "all": {
+  "n": 15877,
+  "win_pct": 84.1,
+  "mean_net_pct": 0.0269,
+  "total_net_pct": 427.6,
+  "median_hold_h": 1.17,
+  "worst_pct": -2.08,
+  "best_pct": 4.1,
+  "t": 3.54
+ },
+ "train": {
+  "n": 15056,
+  "win_pct": 84.4,
+  "mean_net_pct": 0.0355,
+  "total_net_pct": 533.8,
+  "median_hold_h": 1.17,
+  "worst_pct": -2.08,
+  "best_pct": 4.1,
+  "t": 4.58
+ },
+ "november": {
+  "n": 821,
+  "win_pct": 77.2,
+  "mean_net_pct": -0.1294,
+  "total_net_pct": -106.3,
+  "median_hold_h": 1.0,
+  "worst_pct": -2.08,
+  "best_pct": 2.4,
+  "t": -3.4
+ },
+ "monthly": {
+  "2026-05": {
+   "n": 1395,
+   "win": 84.4,
+   "net": 0.0072
+  },
+  "2026-06": {
+   "n": 2495,
+   "win": 79.7,
+   "net": -0.0636
+  },
+  "2026-07": {
+   "n": 2944,
+   "win": 87.0,
+   "net": 0.0852
+  },
+  "2026-08": {
+   "n": 2758,
+   "win": 87.7,
+   "net": 0.1092
+  },
+  "2026-09": {
+   "n": 2806,
+   "win": 85.9,
+   "net": 0.0947
+  },
+  "2026-10": {
+   "n": 2658,
+   "win": 81.2,
+   "net": -0.0508
+  },
+  "2026-11": {
+   "n": 821,
+   "win": 77.2,
+   "net": -0.1294
+  }
+ },
+ "worst_loss_streak": 19,
+ "positive_months": "4/7",
+ "entries_per_pair": {
+  "BTC": 630,
+  "ETH": 668,
+  "ZEC": 605,
+  "XRP": 519,
+  "SOL": 659,
+  "PEPE": 525,
+  "NEAR": 578,
+  "HYPE": 608,
+  "SUI": 578,
+  "LTC": 561,
+  "ADA": 523,
+  "TAO": 503,
+  "UNI": 502,
+  "DOGE": 643,
+  "LINK": 595,
+  "AVAX": 555,
+  "INJ": 482,
+  "AAVE": 538,
+  "PUMP": 560,
+  "TON": 109,
+  "BCH": 485,
+  "XLM": 450,
+  "ATOM": 460,
+  "ARB": 452,
+  "OP": 450,
+  "ONDO": 531,
+  "WLD": 471,
+  "RENDER": 481,
+  "BNB": 676,
+  "TRX": 480
+ },
+ "death_context": {
+  "start": 10000.0,
+  "balance": 9981.95855906339,
+  "death_line": 9700.0,
+  "halt_line": 9850.0,
+  "buffer_now": 281.96
+ },
+ "paths": {
+  "1pct": {
+   "size_frac": 0.01,
+   "final_balance": 10417.26,
+   "profit_usd": 435.3,
+   "min_balance": 9817.48,
+   "min_at": "2026-07",
+   "min_headroom_to_halt_usd": -32.52,
+   "min_headroom_to_death_usd": 117.48,
+   "halted": true,
+   "per_month_usd": {
+    "2026-05": 10.41,
+    "2026-06": -157.55,
+    "2026-07": 249.42,
+    "2026-08": 308.07,
+    "2026-09": 279.87,
+    "2026-10": -143.19,
+    "2026-11": -111.33
+   }
+  },
+  "2pct": {
+   "size_frac": 0.02,
+   "final_balance": 10849.5,
+   "profit_usd": 867.54,
+   "min_balance": 9700.21,
+   "min_at": "2026-07",
+   "min_headroom_to_halt_usd": -149.79,
+   "min_headroom_to_death_usd": 0.21,
+   "halted": true,
+   "per_month_usd": {
+    "2026-05": 19.98,
+    "2026-06": -299.57,
+    "2026-07": 465.06,
+    "2026-08": 630.66,
+    "2026-09": 589.24,
+    "2026-10": -304.28,
+    "2026-11": -233.27
+   }
+  },
+  "5pct": {
+   "size_frac": 0.05,
+   "final_balance": 10777.05,
+   "profit_usd": 795.09,
+   "min_balance": 9700.0,
+   "min_at": "2026-07",
+   "min_headroom_to_halt_usd": -150.0,
+   "min_headroom_to_death_usd": 0.0,
+   "halted": true,
+   "per_month_usd": {
+    "2026-05": 49.02,
+    "2026-06": -331.04,
+    "2026-07": 0.02,
+    "2026-08": 952.73,
+    "2026-09": 1510.79,
+    "2026-10": -798.84,
+    "2026-11": -589.35
+   }
+  }
+ }
+}

@@ -114,46 +114,52 @@ check("4.5 one ticket is SIZE_FRAC of the balance via sized_entry_usd",
       abs(ot.ticket_usd(10000.0, 10000.0) - 100.0) < 1e-6,
       ot.ticket_usd(10000.0, 10000.0))
 
-check("4.6 the study records the 82.3% win rate", ot.STUDY["win_pct"] == 82.3)
-check("4.7 and the positive November expectancy",
-      ot.STUDY["november"]["mean_net_pct"] > 0, ot.STUDY["november"])
-check("4.8 at 1% the path never halted and kept its room",
-      ot.STUDY["paths"]["1pct"]["halted"] is False
-      and ot.STUDY["paths"]["1pct"]["room_usd"] > 0)
-check("4.9 at 5% it earns more and nearly dies: size is the risk control",
-      ot.STUDY["paths"]["5pct"]["profit_usd"] > ot.STUDY["paths"]["1pct"]["profit_usd"]
-      and ot.STUDY["paths"]["5pct"]["room_usd"] < 0)
-check("4.10 real orders are OFF", ot.ARMED is False)
+check("4.6 the study records the RUNNING band, not the study's band",
+      "SMA20 mid" in ot.STUDY["config"] and ot.STUDY["trades"] == 15877,
+      ot.STUDY["config"])
+check("4.7 and the 84.1% win rate that band actually produces",
+      ot.STUDY["win_pct"] == 84.1, ot.STUDY["win_pct"])
+check("4.8 November is NEGATIVE and significant — the reason it is not armable",
+      ot.STUDY["november"]["mean_net_pct"] < 0 and ot.STUDY["november"]["t"] < -2.0,
+      ot.STUDY["november"])
+check("4.9 even a 1% ticket breaches the halt line on this tape",
+      ot.STUDY["paths"]["1pct"]["halted"] is True
+      and ot.STUDY["paths"]["1pct"]["room_usd"] < 0)
+check("4.10 the superseded study band is kept, and labelled as not implemented",
+      ot.STUDY["superseded"]["win_pct"] == 82.3
+      and ot.STUDY["superseded"]["trades"] == 8304
+      and "never implemented" in ot.STUDY["superseded"]["why"])
+check("4.11 real orders are OFF", ot.ARMED is False)
 
 empty_arm, empty_why = ot.should_arm({}, ctx)
-check("4.11 with no record the gate refuses and names what is missing",
+check("4.12 with no record the gate refuses and names what is missing",
       empty_arm is False and "0/200 shadow trades" in empty_why, empty_why)
 
 at_floor, floor_why = ot.should_arm({}, ot.death_context(
     {"start_balance": 10000.0, "current_balance": 9850.0}))
-check("4.12 at the halt line nothing new is risked, whatever the record says",
+check("4.13 at the halt line nothing new is risked, whatever the record says",
       at_floor is False and "halt line" in floor_why, floor_why)
 
 thin, thin_why = ot.should_arm({"trades": 250, "win_pct": 90.0, "mean_net_pct": 0.1,
                                 "min_headroom_usd": 200.0},
                                ot.death_context({"start_balance": 10000.0,
                                                  "current_balance": 9930.0}))
-check("4.13 a buffer under the floor stops it, even on a winning record",
+check("4.14 a buffer under the floor stops it, even on a winning record",
       thin is False and "buffer" in thin_why, thin_why)
 
 proven = {"trades": 250, "win_pct": 85.0, "mean_net_pct": 0.10,
           "min_headroom_usd": 200.0}
 met_arm, met_why = ot.should_arm(proven, ctx)
-check("4.14 a passing record still needs the single execution path",
+check("4.15 a passing record still needs the single execution path",
       met_arm is False and "single execution path" in met_why, met_why)
 
 bad = {"trades": 250, "win_pct": 70.0, "mean_net_pct": -0.02, "min_headroom_usd": 40.0}
 bad_arm, bad_why = ot.should_arm(bad, ctx)
-check("4.15 a failing record is refused on every count",
+check("4.16 a failing record is refused on every count",
       bad_arm is False and "win" in bad_why and "room" in bad_why, bad_why)
 
 verdict = ot.shadow_verdict(proven, ctx)
-check("4.16 the plate carries the buffer, the lines, the room and the size",
+check("4.17 the plate carries the buffer, the lines, the room and the size",
       verdict["state"] == "shadow" and verdict["buffer_usd"] == 281.96
       and verdict["death_line_usd"] == 9700.0 and verdict["halt_line_usd"] == 9850.0
       and verdict["record_low_room_usd"] == 200.0 and verdict["size_frac"] == 0.01

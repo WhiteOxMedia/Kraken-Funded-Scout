@@ -221,69 +221,54 @@ with `should_arm()` now reporting both rejections in one line. An edge here woul
 have to come from data the repo does not collect (funding, open interest, live
 book/depth), which cannot be backtested on history that was never written down.
 
-## The trend-ride shape: 82.3% wins, and the drawdown that still says no
+## The trend-ride shape: what the running code actually does
 
 The fixed-target grid could not express "cut the loser fast, let the winner run".
-`scratch/trendride_study.py` implements the rule as stated instead: enter the
-pullback in an uptrend, a losing trade leaves at a small stop, a winning trade is
-never capped (the stop ratchets behind the peak, at most `GIVE_PCT` off it), and the
-trend breaking ends the trade.
+`scratch/trendride_study.py` implements the rule instead — band-pullback entry, small
+stop, an uncapped winner with a ratcheting trail — and `overwatch_timing.py` is that
+engine in production form.
 
-Two implementation facts mattered and both are in the code:
+**The numbers below are the running code's, not the study's.** The study measured a
+band with EMA20 as the mid and the sd taken around the SMA; `band_lower()` implements
+the textbook SMA20 mid, and `scratch/trendride_parity.py` proved the two differ by
+firing 8,304 vs 15,877 times on the same tape. `scratch/remeasure_live_config.py` then
+re-measured exactly what `entry_ok` (320-bar window) + `manage` (no hold cap) do:
 
-* a trail measured from the entry bar's high is *tighter than the hard stop*, so the
-  first version exited on the first wobble — 30% wins, median hold 12 minutes. The
-  trail now arms only after +0.4% and only ever ratchets up.
-* a trend-break exit measured on EMA20 fires the bar after a pullback entry, because
-  a pullback entry is *by definition* below the fast mean. It is off; the ratchet is
-  what protects the profit.
+| | running config | (superseded) study band |
+|---|---|---|
+| trades | **15,877** | 8,304 |
+| win rate | **84.1%** | 82.3% |
+| expectancy | **+0.0269%** | +0.0178% |
+| train May–Oct | +0.0355%/trade, t **+4.58** | +0.0178% |
+| **November** | **−0.1294%/trade, 77.2% wins, t −3.40** | +0.0379%, t 0.79 |
+| monthly positive | 4 of 7 | 5 of 7 |
+| worst loss streak | **19** | 13 |
 
-`scratch/trendride_verdict.py` then took the surviving shape and asked the questions a
-two-way split cannot:
+The train/November split is the whole story: **+4.58 on the train, −3.40 on November.**
+That is a regime flip, not a weak edge, and it is why the study's small positive
+November (t = 0.79, inside noise) was never evidence for the shipped code.
 
-| | value |
-|---|---|
-| win rate | **82.3%** of 8,304 trades |
-| expectancy | **+0.0178%** per trade |
-| November (holdout) | **+0.0379%** per trade, 80.8% wins, n=442, **t = 0.79** |
-| monthly positive | 5 of 7 — June −0.064%, October −0.051% |
-| worst loss streak | 13 in a row |
+### The death line, on the running config
 
-### The risk question, asked correctly
+Walked forward from the live balance with `contest_account.sized_entry_usd` and
+`death_floor.halt_line()` ($9,850; death line $9,700):
 
-An earlier pass asked the wrong question — "is the peak-to-trough drawdown bigger than
-the $300 of room left?" The buffer itself is real and it is `contest_account.buffer()`
-= balance − death line: **$300 at the start, $281.96 now, and it grows with every
-winning trade**. What was wrong was the *measure*: drawdown from a peak is not the
-buffer, because the peak is not the line. The death line is
-`start_balance * (1 - MAX_LOSS_PCT/100)` = **$9,700**, it never moves, so the test is
-the lowest point the balance path reaches, against `death_floor.halt_line()` = $9,850.
-
-Re-run with `contest_account.sized_entry_usd` pricing every ticket (the repo's single
-sizing rule — no second copy of the arithmetic in the study):
-
-| size of one ticket | profit over the sample | lowest balance | room above the halt line |
+| size | profit over the sample | lowest balance | room above the halt line |
 |---|---|---|---|
-| **1% of balance** | **+$148.45** | **$9,910.66** | **+$60.66 — never halted** |
-| 2% | +$298.33 | $9,839.67 | −$10.33 — halted |
-| 3% | +$449.66 | $9,769.00 | −$81.00 — halted |
-| 5% | +$700.95 | $9,701.20 | −$148.80 — halted, **$1.20 above death** |
-| 10% | −$177.48 | $9,700.00 | −$150.00 — halted |
+| 1% | +$435.30 | $9,817.48 | **−$32.52 — halted** |
+| 2% | +$867.54 | $9,700.21 | −$149.79 — halted at the death line |
+| 5% | +$795.09 | $9,700.00 | −$150.00 — halted |
 
-So the shape **does not die** — the sizing does. At 1% of the balance the 82.3% shape
-made **+$148.45 over six months** and never came closer than **$60.66** to the halt
-line. At 5% it makes $701 and passes within **$1.20 of dying**: the profit was luck,
-not skill, and the death line was one bad sequence away. Size is the risk control; the
-2% stop is not.
+Every size breaches. On this tape the running config cannot be armed at any ticket
+size that is worth a fill, which is exactly what `STUDY["verdict"]` now says.
 
-The other candidates, largest size that never touches the halt line:
-`S2.5/A0.4/G0.15` (84.6% wins) 2% → +$405.70, room $27.33; `S3.0/A0.25/G0.15`
-(90.6% wins) 5% → +$670.55, room $16.58 but **November −0.073%**; `S1.5` 1% →
-+$94.94. The 82.3% shape at 1% is the only one that is positive out of sample *and*
-comfortably above the floor.
+### What is left to decide
 
-`test_overwatch_timing.py`: 27/27. Shadow process: **pid 26524**, no orders, no
-balance arithmetic.
+The divergence is a design question, not a tuning one: whether the live engine should
+use the textbook SMA band (what runs) or the study's EMA-mid band (which produced the
+82.3% / November-positive record). Whichever is chosen must be re-measured on its own
+terms; the two are not interchangeable, and the older numbers are kept only under
+`STUDY["superseded"]` so they cannot be quoted as if they were live.
 
 ## The binding constraint, named
 
