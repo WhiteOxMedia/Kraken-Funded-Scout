@@ -1,0 +1,754 @@
+{
+ "measured_at": "2026-11-15T18:54:41",
+ "assumption_check": {
+  "rows": 2594,
+  "median_ratio_cost_rt_over_0.08pct": 1.0,
+  "median_implied_cost_pct": 0.08,
+  "p05_ratio": 0.947,
+  "p95_ratio": 1.191,
+  "journal_gross_mean_pct": -0.0334,
+  "journal_gross_median_pct": 0.0,
+  "journal_gross_n": 2709
+ },
+ "summary": {
+  "pairs_quoted": 57,
+  "pairs_failed": 0,
+  "median_spread_rt_pct": 0.0752,
+  "mean_spread_rt_pct": 0.1564,
+  "assumed_pct": 0.08,
+  "cheap": [
+   "AVAX/USD",
+   "BNB/USD",
+   "BTC/USD",
+   "DOGE/USD",
+   "ETH/USD",
+   "HYPE/USD",
+   "LTC/USD",
+   "NEAR/USD",
+   "ONDO/USD",
+   "PEPE/USD",
+   "POL/USD",
+   "SOL/USD",
+   "SUI/USD",
+   "TIA/USD",
+   "TRX/USD",
+   "WLD/USD",
+   "XRP/USD"
+  ],
+  "at_assumption": [
+   "AAVE/USD",
+   "ADA/USD",
+   "ASTER/USD",
+   "BCH/USD",
+   "DOT/USD",
+   "HBAR/USD",
+   "INJ/USD",
+   "LINK/USD",
+   "TAO/USD",
+   "UNI/USD",
+   "VVV/USD",
+   "WIF/USD",
+   "ZEC/USD"
+  ],
+  "expensive": [
+   "ALGO/USD",
+   "APT/USD",
+   "ARB/USD",
+   "ATOM/USD",
+   "CRV/USD",
+   "DRV/USD",
+   "ETC/USD",
+   "FIL/USD",
+   "GRASS/USD",
+   "JTO/USD",
+   "JUP/USD",
+   "MOODENG/USD",
+   "OP/USD",
+   "PENGU/USD",
+   "PUMP/USD",
+   "RENDER/USD",
+   "STX/USD"
+  ],
+  "untradeable": [
+   "AIXBT/USD",
+   "FARTCOIN/USD",
+   "KAITO/USD",
+   "LDO/USD",
+   "PNUT/USD",
+   "POPCAT/USD",
+   "S/USD",
+   "TRUMP/USD",
+   "VIRTUAL/USD",
+   "XPL/USD"
+  ],
+  "spread_exceeds_avg_win": [
+   "AIXBT/USD",
+   "KAITO/USD",
+   "LDO/USD",
+   "S/USD"
+  ],
+  "spread_exceeds_needed_edge": [
+   "AIXBT/USD",
+   "KAITO/USD",
+   "LDO/USD",
+   "S/USD"
+  ],
+  "cheap_median_spread_pct": 0.0208,
+  "gross_edge_pct": -0.0119,
+  "pooled_gross_by_class": {
+   "cheap": {
+    "n": 587,
+    "mean_pct": -0.0119,
+    "median_pct": 0.0117
+   },
+   "at the assumption": {
+    "n": 483,
+    "mean_pct": -0.0314,
+    "median_pct": 0.0031
+   },
+   "expensive": {
+    "n": 968,
+    "mean_pct": -0.035,
+    "median_pct": 0.0
+   },
+   "untradeable": {
+    "n": 667,
+    "mean_pct": -0.053,
+    "median_pct": 0.0
+   }
+  },
+  "zero_gross_rows": 286,
+  "net_edge_on_cheap_pct": -0.0327,
+  "trades_to_target_on_cheap": null,
+  "days_at_87_per_day_on_cheap": null
+ },
+ "pairs": {
+  "BTC/USD": {
+   "spread_rt_pct": 0.0002,
+   "samples": [
+    0.0002,
+    0.0002
+   ],
+   "class": "cheap",
+   "journal_n": 30,
+   "journal_gross_pct": -0.002,
+   "net_after_spread": -0.002
+  },
+  "DOGE/USD": {
+   "spread_rt_pct": 0.0045,
+   "samples": [
+    0.0089,
+    0.0002
+   ],
+   "class": "cheap",
+   "journal_n": 49,
+   "journal_gross_pct": -0.073,
+   "net_after_spread": -0.077
+  },
+  "ETH/USD": {
+   "spread_rt_pct": 0.0064,
+   "samples": [
+    0.0122,
+    0.0006
+   ],
+   "class": "cheap",
+   "journal_n": 14,
+   "journal_gross_pct": 0.089,
+   "net_after_spread": 0.083
+  },
+  "ONDO/USD": {
+   "spread_rt_pct": 0.0066,
+   "samples": [
+    0.0033,
+    0.0098
+   ],
+   "class": "cheap",
+   "journal_n": 61,
+   "journal_gross_pct": -0.072,
+   "net_after_spread": -0.079
+  },
+  "XRP/USD": {
+   "spread_rt_pct": 0.0073,
+   "samples": [
+    0.0073,
+    0.0073
+   ],
+   "class": "cheap",
+   "journal_n": 24,
+   "journal_gross_pct": -0.123,
+   "net_after_spread": -0.131
+  },
+  "TRX/USD": {
+   "spread_rt_pct": 0.0109,
+   "samples": [
+    0.0129,
+    0.0089
+   ],
+   "class": "cheap",
+   "journal_n": 24,
+   "journal_gross_pct": -0.002,
+   "net_after_spread": -0.013
+  },
+  "SOL/USD": {
+   "spread_rt_pct": 0.014,
+   "samples": [
+    0.014,
+    0.014
+   ],
+   "class": "cheap",
+   "journal_n": 21,
+   "journal_gross_pct": 0.063,
+   "net_after_spread": 0.049
+  },
+  "BNB/USD": {
+   "spread_rt_pct": 0.0144,
+   "samples": [
+    0.0136,
+    0.0152
+   ],
+   "class": "cheap",
+   "journal_n": 18,
+   "journal_gross_pct": 0.041,
+   "net_after_spread": 0.027
+  },
+  "SUI/USD": {
+   "spread_rt_pct": 0.0208,
+   "samples": [
+    0.0277,
+    0.0139
+   ],
+   "class": "cheap",
+   "journal_n": 28,
+   "journal_gross_pct": 0.018,
+   "net_after_spread": -0.003
+  },
+  "HYPE/USD": {
+   "spread_rt_pct": 0.0226,
+   "samples": [
+    0.0151,
+    0.0301
+   ],
+   "class": "cheap",
+   "journal_n": 38,
+   "journal_gross_pct": 0.14,
+   "net_after_spread": 0.118
+  },
+  "TIA/USD": {
+   "spread_rt_pct": 0.0282,
+   "samples": [
+    0.0282,
+    0.0282
+   ],
+   "class": "cheap",
+   "journal_n": 64,
+   "journal_gross_pct": 0.108,
+   "net_after_spread": 0.08
+  },
+  "LTC/USD": {
+   "spread_rt_pct": 0.0335,
+   "samples": [
+    0.0447,
+    0.0223
+   ],
+   "class": "cheap",
+   "journal_n": 35,
+   "journal_gross_pct": 0.077,
+   "net_after_spread": 0.044
+  },
+  "AVAX/USD": {
+   "spread_rt_pct": 0.0348,
+   "samples": [
+    0.0279,
+    0.0418
+   ],
+   "class": "cheap",
+   "journal_n": 25,
+   "journal_gross_pct": 0.046,
+   "net_after_spread": 0.011
+  },
+  "POL/USD": {
+   "spread_rt_pct": 0.0375,
+   "samples": [
+    0.0375,
+    0.0375
+   ],
+   "class": "cheap",
+   "journal_n": 68,
+   "journal_gross_pct": 0.057,
+   "net_after_spread": 0.02
+  },
+  "WLD/USD": {
+   "spread_rt_pct": 0.0379,
+   "samples": [
+    0.0379,
+    0.0379
+   ],
+   "class": "cheap",
+   "journal_n": 58,
+   "journal_gross_pct": -0.031,
+   "net_after_spread": -0.069
+  },
+  "NEAR/USD": {
+   "spread_rt_pct": 0.0382,
+   "samples": [
+    0.0096,
+    0.0669
+   ],
+   "class": "cheap",
+   "journal_n": 29,
+   "journal_gross_pct": 0.321,
+   "net_after_spread": 0.283
+  },
+  "PEPE/USD": {
+   "spread_rt_pct": 0.0392,
+   "samples": [
+    0.0523,
+    0.0261
+   ],
+   "class": "cheap",
+   "journal_n": 1,
+   "journal_gross_pct": 0.0,
+   "net_after_spread": -0.039
+  },
+  "LINK/USD": {
+   "spread_rt_pct": 0.0413,
+   "samples": [
+    0.0427,
+    0.0399
+   ],
+   "class": "at the assumption",
+   "journal_n": 35,
+   "journal_gross_pct": 0.076,
+   "net_after_spread": 0.035
+  },
+  "HBAR/USD": {
+   "spread_rt_pct": 0.0427,
+   "samples": [
+    0.0683,
+    0.017
+   ],
+   "class": "at the assumption",
+   "journal_n": 58,
+   "journal_gross_pct": 0.0,
+   "net_after_spread": -0.043
+  },
+  "INJ/USD": {
+   "spread_rt_pct": 0.0442,
+   "samples": [
+    0.0589,
+    0.0294
+   ],
+   "class": "at the assumption",
+   "journal_n": 36,
+   "journal_gross_pct": 0.163,
+   "net_after_spread": 0.119
+  },
+  "BCH/USD": {
+   "spread_rt_pct": 0.0457,
+   "samples": [
+    0.0577,
+    0.0336
+   ],
+   "class": "at the assumption",
+   "journal_n": 18,
+   "journal_gross_pct": 0.019,
+   "net_after_spread": -0.027
+  },
+  "DOT/USD": {
+   "spread_rt_pct": 0.0485,
+   "samples": [
+    0.0555,
+    0.0415
+   ],
+   "class": "at the assumption",
+   "journal_n": 26,
+   "journal_gross_pct": -0.184,
+   "net_after_spread": -0.233
+  },
+  "UNI/USD": {
+   "spread_rt_pct": 0.0548,
+   "samples": [
+    0.0821,
+    0.0274
+   ],
+   "class": "at the assumption",
+   "journal_n": 56,
+   "journal_gross_pct": 0.023,
+   "net_after_spread": -0.032
+  },
+  "ADA/USD": {
+   "spread_rt_pct": 0.0579,
+   "samples": [
+    0.0546,
+    0.0611
+   ],
+   "class": "at the assumption",
+   "journal_n": 73,
+   "journal_gross_pct": -0.013,
+   "net_after_spread": -0.071
+  },
+  "TAO/USD": {
+   "spread_rt_pct": 0.0592,
+   "samples": [
+    0.0531,
+    0.0654
+   ],
+   "class": "at the assumption",
+   "journal_n": 35,
+   "journal_gross_pct": 0.031,
+   "net_after_spread": -0.029
+  },
+  "ZEC/USD": {
+   "spread_rt_pct": 0.0599,
+   "samples": [
+    0.0654,
+    0.0543
+   ],
+   "class": "at the assumption",
+   "journal_n": 33,
+   "journal_gross_pct": 0.053,
+   "net_after_spread": -0.007
+  },
+  "AAVE/USD": {
+   "spread_rt_pct": 0.0646,
+   "samples": [
+    0.0739,
+    0.0553
+   ],
+   "class": "at the assumption",
+   "journal_n": 28,
+   "journal_gross_pct": -0.031,
+   "net_after_spread": -0.095
+  },
+  "ASTER/USD": {
+   "spread_rt_pct": 0.0752,
+   "samples": [
+    0.0938,
+    0.0567
+   ],
+   "class": "at the assumption",
+   "journal_n": 18,
+   "journal_gross_pct": 0.027,
+   "net_after_spread": -0.049
+  },
+  "VVV/USD": {
+   "spread_rt_pct": 0.0752,
+   "samples": [
+    0.0601,
+    0.0902
+   ],
+   "class": "at the assumption",
+   "journal_n": 1,
+   "journal_gross_pct": -1.858,
+   "net_after_spread": -1.933
+  },
+  "WIF/USD": {
+   "spread_rt_pct": 0.0763,
+   "samples": [
+    0.0762,
+    0.0763
+   ],
+   "class": "at the assumption",
+   "journal_n": 66,
+   "journal_gross_pct": 0.051,
+   "net_after_spread": -0.025
+  },
+  "PUMP/USD": {
+   "spread_rt_pct": 0.0868,
+   "samples": [
+    0.1042,
+    0.0693
+   ],
+   "class": "expensive",
+   "journal_n": 88,
+   "journal_gross_pct": 0.0,
+   "net_after_spread": -0.087
+  },
+  "ALGO/USD": {
+   "spread_rt_pct": 0.0952,
+   "samples": [
+    0.1016,
+    0.0888
+   ],
+   "class": "expensive",
+   "journal_n": 66,
+   "journal_gross_pct": 0.049,
+   "net_after_spread": -0.046
+  },
+  "CRV/USD": {
+   "spread_rt_pct": 0.0985,
+   "samples": [
+    0.0888,
+    0.1082
+   ],
+   "class": "expensive",
+   "journal_n": 98,
+   "journal_gross_pct": 0.004,
+   "net_after_spread": -0.095
+  },
+  "JTO/USD": {
+   "spread_rt_pct": 0.1041,
+   "samples": [
+    0.0947,
+    0.1134
+   ],
+   "class": "expensive",
+   "journal_n": 62,
+   "journal_gross_pct": 0.043,
+   "net_after_spread": -0.061
+  },
+  "RENDER/USD": {
+   "spread_rt_pct": 0.1093,
+   "samples": [
+    0.1458,
+    0.0729
+   ],
+   "class": "expensive",
+   "journal_n": 61,
+   "journal_gross_pct": 0.0,
+   "net_after_spread": -0.109
+  },
+  "APT/USD": {
+   "spread_rt_pct": 0.1114,
+   "samples": [
+    0.1338,
+    0.089
+   ],
+   "class": "expensive",
+   "journal_n": 31,
+   "journal_gross_pct": 0.035,
+   "net_after_spread": -0.076
+  },
+  "JUP/USD": {
+   "spread_rt_pct": 0.1118,
+   "samples": [
+    0.0811,
+    0.1426
+   ],
+   "class": "expensive",
+   "journal_n": 88,
+   "journal_gross_pct": 0.009,
+   "net_after_spread": -0.102
+  },
+  "ARB/USD": {
+   "spread_rt_pct": 0.1122,
+   "samples": [
+    0.0749,
+    0.1496
+   ],
+   "class": "expensive",
+   "journal_n": 112,
+   "journal_gross_pct": 0.0,
+   "net_after_spread": -0.112
+  },
+  "STX/USD": {
+   "spread_rt_pct": 0.1135,
+   "samples": [
+    0.1135,
+    0.1134
+   ],
+   "class": "expensive",
+   "journal_n": 75,
+   "journal_gross_pct": 0.028,
+   "net_after_spread": -0.085
+  },
+  "ATOM/USD": {
+   "spread_rt_pct": 0.1197,
+   "samples": [
+    0.1159,
+    0.1235
+   ],
+   "class": "expensive",
+   "journal_n": 25,
+   "journal_gross_pct": -0.072,
+   "net_after_spread": -0.191
+  },
+  "MOODENG/USD": {
+   "spread_rt_pct": 0.1297,
+   "samples": [
+    0.1112,
+    0.1481
+   ],
+   "class": "expensive",
+   "journal_n": 53,
+   "journal_gross_pct": 0.0,
+   "net_after_spread": -0.13
+  },
+  "DRV/USD": {
+   "spread_rt_pct": 0.1402,
+   "samples": [
+    0.1297,
+    0.1507
+   ],
+   "class": "expensive",
+   "journal_n": 1,
+   "journal_gross_pct": null,
+   "net_after_spread": null
+  },
+  "PENGU/USD": {
+   "spread_rt_pct": 0.1535,
+   "samples": [
+    0.1228,
+    0.1841
+   ],
+   "class": "expensive",
+   "journal_n": 50,
+   "journal_gross_pct": -0.028,
+   "net_after_spread": -0.181
+  },
+  "GRASS/USD": {
+   "spread_rt_pct": 0.1636,
+   "samples": [
+    0.1513,
+    0.1759
+   ],
+   "class": "expensive",
+   "journal_n": 37,
+   "journal_gross_pct": -0.271,
+   "net_after_spread": -0.435
+  },
+  "FIL/USD": {
+   "spread_rt_pct": 0.1665,
+   "samples": [
+    0.1668,
+    0.1663
+   ],
+   "class": "expensive",
+   "journal_n": 35,
+   "journal_gross_pct": 0.095,
+   "net_after_spread": -0.071
+  },
+  "ETC/USD": {
+   "spread_rt_pct": 0.1853,
+   "samples": [
+    0.2024,
+    0.1683
+   ],
+   "class": "expensive",
+   "journal_n": 11,
+   "journal_gross_pct": 0.044,
+   "net_after_spread": -0.142
+  },
+  "OP/USD": {
+   "spread_rt_pct": 0.1868,
+   "samples": [
+    0.1246,
+    0.2491
+   ],
+   "class": "expensive",
+   "journal_n": 75,
+   "journal_gross_pct": -0.148,
+   "net_after_spread": -0.335
+  },
+  "TRUMP/USD": {
+   "spread_rt_pct": 0.2162,
+   "samples": [
+    0.2162,
+    0.2162
+   ],
+   "class": "untradeable",
+   "journal_n": 22,
+   "journal_gross_pct": 0.081,
+   "net_after_spread": -0.135
+  },
+  "XPL/USD": {
+   "spread_rt_pct": 0.232,
+   "samples": [
+    0.2317,
+    0.2323
+   ],
+   "class": "untradeable",
+   "journal_n": 88,
+   "journal_gross_pct": 0.0,
+   "net_after_spread": -0.232
+  },
+  "VIRTUAL/USD": {
+   "spread_rt_pct": 0.2475,
+   "samples": [
+    0.2249,
+    0.27
+   ],
+   "class": "untradeable",
+   "journal_n": 31,
+   "journal_gross_pct": -0.015,
+   "net_after_spread": -0.263
+  },
+  "FARTCOIN/USD": {
+   "spread_rt_pct": 0.2664,
+   "samples": [
+    0.2134,
+    0.3193
+   ],
+   "class": "untradeable",
+   "journal_n": 89,
+   "journal_gross_pct": 0.063,
+   "net_after_spread": -0.203
+  },
+  "PNUT/USD": {
+   "spread_rt_pct": 0.349,
+   "samples": [
+    0.349,
+    0.349
+   ],
+   "class": "untradeable",
+   "journal_n": 52,
+   "journal_gross_pct": 0.0,
+   "net_after_spread": -0.349
+  },
+  "POPCAT/USD": {
+   "spread_rt_pct": 0.3578,
+   "samples": [
+    0.3578,
+    0.3578
+   ],
+   "class": "untradeable",
+   "journal_n": 61,
+   "journal_gross_pct": 0.0,
+   "net_after_spread": -0.358
+  },
+  "S/USD": {
+   "spread_rt_pct": 0.4543,
+   "samples": [
+    0.6061,
+    0.3026
+   ],
+   "class": "untradeable",
+   "journal_n": 91,
+   "journal_gross_pct": 0.0,
+   "net_after_spread": -0.454
+  },
+  "LDO/USD": {
+   "spread_rt_pct": 0.5458,
+   "samples": [
+    0.3643,
+    0.7273
+   ],
+   "class": "untradeable",
+   "journal_n": 69,
+   "journal_gross_pct": 0.0,
+   "net_after_spread": -0.546
+  },
+  "KAITO/USD": {
+   "spread_rt_pct": 0.7783,
+   "samples": [
+    1.0375,
+    0.5192
+   ],
+   "class": "untradeable",
+   "journal_n": 86,
+   "journal_gross_pct": 0.0,
+   "net_after_spread": -0.778
+  },
+  "AIXBT/USD": {
+   "spread_rt_pct": 2.1758,
+   "samples": [
+    1.1552,
+    3.1963
+   ],
+   "class": "untradeable",
+   "journal_n": 78,
+   "journal_gross_pct": 0.0,
+   "net_after_spread": -2.176
+  }
+ }
+}
