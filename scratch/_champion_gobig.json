@@ -1,0 +1,186 @@
+{
+ "R1": {
+  "kraken_5m_long.json": {
+   "A shipped all-in": {
+    "trades": 8,
+    "final": 11239.41,
+    "ret_pct": 12.39,
+    "low": 10000.0,
+    "dead": false
+   },
+   "B frac 0.5  100/500": {
+    "trades": 12,
+    "final": 11760.15,
+    "ret_pct": 17.6,
+    "low": 10000.0,
+    "dead": false
+   },
+   "C frac 0.5   50/250": {
+    "trades": 12,
+    "final": 11793.02,
+    "ret_pct": 17.93,
+    "low": 10000.0,
+    "dead": false
+   },
+   "G abs 10k/5k 100/500": {
+    "trades": 14,
+    "final": 11800.79,
+    "ret_pct": 18.01,
+    "low": 10000.0,
+    "dead": false
+   },
+   "H abs 10k/5k  50/250": {
+    "trades": 14,
+    "final": 11690.92,
+    "ret_pct": 16.91,
+    "low": 10000.0,
+    "dead": false
+   },
+   "champion ladder": {
+    "trades": 226,
+    "final": 11715.38,
+    "ret_pct": 17.15,
+    "low": 9998.7,
+    "dead": false,
+    "by_tag": {
+     "normal": {
+      "n": 214,
+      "pnl": -43.15
+     },
+     "bounce": {
+      "n": 3,
+      "pnl": 772.98
+     },
+     "half": {
+      "n": 4,
+      "pnl": 502.39
+     },
+     "GO BIG": {
+      "n": 5,
+      "pnl": 483.16
+     }
+    }
+   }
+  },
+  "kraken_5m_long_183d_aligned.json": {
+   "A shipped all-in": {
+    "trades": 2,
+    "final": 9584.49,
+    "ret_pct": -4.16,
+    "low": 9584.49,
+    "dead": true
+   },
+   "B frac 0.5  100/500": {
+    "trades": 2,
+    "final": 9584.49,
+    "ret_pct": -4.16,
+    "low": 9584.49,
+    "dead": true
+   },
+   "C frac 0.5   50/250": {
+    "trades": 2,
+    "final": 9584.49,
+    "ret_pct": -4.16,
+    "low": 9584.49,
+    "dead": true
+   },
+   "G abs 10k/5k 100/500": {
+    "trades": 2,
+    "final": 9584.49,
+    "ret_pct": -4.16,
+    "low": 9584.49,
+    "dead": true
+   },
+   "H abs 10k/5k  50/250": {
+    "trades": 2,
+    "final": 9584.49,
+    "ret_pct": -4.16,
+    "low": 9584.49,
+    "dead": true
+   },
+   "champion ladder": {
+    "trades": 564,
+    "final": 9539.85,
+    "ret_pct": -4.6,
+    "low": 9539.85,
+    "dead": true,
+    "by_tag": {
+     "normal": {
+      "n": 562,
+      "pnl": -46.57
+     },
+     "bounce": {
+      "n": 2,
+      "pnl": -413.58
+     }
+    }
+   }
+  }
+ },
+ "R2": {
+  "champion_fires": 32,
+  "priced": 6,
+  "skipped": {
+   "open": 13,
+   "no_bar": 13
+  },
+  "start_equity": 9981.96,
+  "final_equity": 9985.09,
+  "low_equity": 9981.96,
+  "ret_pct": 0.03,
+  "died": false,
+  "won": false,
+  "by_tag": {
+   "normal": {
+    "n": 6,
+    "pnl": 3.13
+   }
+  },
+  "win_pct": 100.0,
+  "mean_net_pct": 0.5234,
+  "gobig_declines": {
+   "rotation tide is FLAT, not RISING or FLAT >= 50%": 3,
+   "book carries $67 of the $9,983 account": 1,
+   "book carries $43 of the $9,984 account": 1,
+   "book carries $3,528 of the $9,984 account": 1,
+   "book carries $1,298 of the $9,985 account": 1
+  }
+ },
+ "R3": {
+  "1%": {
+   "theta": 586.2,
+   "pass_prob": 1.0,
+   "trades_to_target": 42800,
+   "worst_trade_pct_of_balance": 0.021,
+   "buffer_pct_of_balance": 2.82
+  },
+  "2%": {
+   "theta": 293.1,
+   "pass_prob": 1.0,
+   "trades_to_target": 21400,
+   "worst_trade_pct_of_balance": 0.042,
+   "buffer_pct_of_balance": 2.82
+  },
+  "5%": {
+   "theta": 117.2,
+   "pass_prob": 0.965,
+   "trades_to_target": 8560,
+   "worst_trade_pct_of_balance": 0.104,
+   "buffer_pct_of_balance": 2.82
+  },
+  "50%": {
+   "theta": 11.7,
+   "pass_prob": 0.35,
+   "trades_to_target": 856,
+   "worst_trade_pct_of_balance": 1.04,
+   "buffer_pct_of_balance": 2.82
+  },
+  "100%": {
+   "theta": 5.9,
+   "pass_prob": 0.271,
+   "trades_to_target": 428,
+   "worst_trade_pct_of_balance": 2.079,
+   "buffer_pct_of_balance": 2.82
+  }
+ }
+}

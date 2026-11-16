@@ -1,0 +1,44 @@
+
+== R1 on kraken_5m_long.json
+    book carry at the 228 signals: max $39,021, median $1,208 -> GO BIG supported 6 times against a $10,000 account
+
+R1  kraken_5m_long.json  (12,097 bars, 231 events)
+   A shipped all-in        8 trades  $ 11,239.41  +12.39%  low $10,000.00  alive
+   B frac 0.5  100/500    12 trades  $ 11,760.15  +17.60%  low $10,000.00  alive
+   C frac 0.5   50/250    12 trades  $ 11,793.02  +17.93%  low $10,000.00  alive
+   G abs 10k/5k 100/500   14 trades  $ 11,800.79  +18.01%  low $10,000.00  alive
+   H abs 10k/5k  50/250   14 trades  $ 11,690.92  +16.91%  low $10,000.00  alive
+   champion ladder    226 trades  $ 11,715.38  +17.15%  low $ 9,998.70  alive
+      normal 214 ($-43)  bounce 3 ($+773)  half 4 ($+502)  GO BIG 5 ($+483)
+
+== R1 on kraken_5m_long_183d_aligned.json
+    book carry at the 1035 signals: max $39,021, median $848 -> GO BIG supported 6 times against a $10,000 account
+
+R1  kraken_5m_long_183d_aligned.json  (52,705 bars, 1055 events)
+   A shipped all-in        2 trades  $  9,584.49   -4.16%  low $ 9,584.49  DEATH
+   B frac 0.5  100/500     2 trades  $  9,584.49   -4.16%  low $ 9,584.49  DEATH
+   C frac 0.5   50/250     2 trades  $  9,584.49   -4.16%  low $ 9,584.49  DEATH
+   G abs 10k/5k 100/500    2 trades  $  9,584.49   -4.16%  low $ 9,584.49  DEATH
+   H abs 10k/5k  50/250    2 trades  $  9,584.49   -4.16%  low $ 9,584.49  DEATH
+   champion ladder    564 trades  $  9,539.85   -4.60%  low $ 9,539.85  DEATH
+      normal 562 ($-47)  bounce 2 ($-414)
+
+R2  champion fires today: 32 advertised, 6 priced ({'open': 13, 'no_bar': 13})
+    equity $9,981.96 -> $9,985.09 (+0.03%), low $9,981.96, alive
+      normal  n= 6  $+3.13
+      win 100.0%  net/trade +0.5234%
+      GO BIG declined  3x  rotation tide is FLAT, not RISING or FLAT >= 50%
+      GO BIG declined  1x  book carries $67 of the $9,983 account
+      GO BIG declined  1x  book carries $43 of the $9,984 account
+      GO BIG declined  1x  book carries $3,528 of the $9,984 account
+      GO BIG declined  1x  book carries $1,298 of the $9,985 account
+
+R3  contest maths by ticket size (measured edge 0.0269%, sd 0.958%)
+      size    theta  P(pass)   trades  worst trade   buffer
+        1%      586   100.0%   42,800        0.02%    2.82%
+        2%      293   100.0%   21,400        0.04%    2.82%
+        5%      117    96.5%    8,560        0.10%    2.82%
+       50%       12    35.0%      856        1.04%    2.82%
+      100%        6    27.1%      428        2.08%    2.82%
+
+wrote C:\Users\birds\Workspace\kraken_scout\scratch\_champion_gobig.json
