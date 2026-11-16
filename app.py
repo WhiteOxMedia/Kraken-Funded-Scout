@@ -11545,6 +11545,20 @@ def main():
                   f"LIVE EDGE: {_edge_status['active']} · LONG ONLY"
                   f" · {_edge_chain.get('passes', 0)}/3 profitable"
                   f" · {_edge_status.get('promoted', 0)} promoted", "g")
+              # the paper lane's own money sits next to the policy name: a
+              # backtest that cleared 3/3 is not evidence it survives contact
+              _edge_fwd = _edge_status.get("forward") or {}
+              _edge_fwd_ok = bool(_edge_status.get("forward_ok"))
+              _rec_line += "<br>" + led(
+                  f"PAPER LANE {_rm(_edge_fwd.get('net'))}"
+                  f" · {int(_edge_fwd.get('trades') or 0)} trades"
+                  f" · {int(_edge_fwd.get('wins') or 0)} wins"
+                  f" · {int(_edge_fwd.get('scratch') or 0)} scratch"
+                  f" · {'ROUTABLE' if _edge_fwd_ok else 'LIVE RISK REFUSED'}",
+                  "g" if _edge_fwd_ok else "r")
+              if not _edge_fwd_ok and _edge_status.get("forward_refusal"):
+                  _rec_line += "<br>" + led(
+                      f"WHY: {_edge_status['forward_refusal']}", "r")
               _rec_line += "<br>" + led(
                   f"EVIDENCE: {_edge_chain.get('trades', 0)} trades"
                   f" · {float(_edge_chain.get('win_rate') or 0) * 100:.0f}% win"
