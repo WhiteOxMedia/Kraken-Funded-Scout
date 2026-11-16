@@ -935,6 +935,10 @@ DUD_TOLL_FALLBACK_PCT = 0.08     # round trip, the same basis as BREAKOUT_STUDY
 DUD_HARD_STOP_PCT = 2.5          # the hard stop on a healthy book
 DUD_GOAL_ARM_FRAC = 0.5          # the trail arms at half the goal
 DUD_GOAL_FALLBACK_PCT = 1.5      # _rotation_goal_pct's own default
+# THE EXIT THAT PRICED EACH DUD (user ask, Nov 16): the net alone says what the
+# dud side cost, never HOW it got there - a stop-out and a window hold are the
+# same row and opposite stories. These are the labels _dud_exit returns.
+DUD_EXIT_LABELS = ("goal bank", "armed trail", "hard stop", "window end")
 
 
 def _dud_trail_pct(entry: float, peak: float) -> float:
@@ -1054,12 +1058,27 @@ def _burial_net(system_burial: list, system_duds: list) -> tuple[float, dict]:
     gross = sum(float(p.get("usd", 0) or 0) for p in system_burial)
     priced = [d for d in system_duds if d.get("usd") is not None]
     dud_usd = sum(float(d["usd"]) for d in priced)
+    # WHICH EXIT PRICED WHICH DUD: a stop-out and a window hold are the same
+    # number and opposite stories, so the row carries the split beside the net.
+    # A priced dud from before the exit was recorded lands in 'unrecorded' —
+    # named, never folded into an exit it did not take.
+    by_exit = {label: 0 for label in DUD_EXIT_LABELS}
+    unrecorded = 0
+    for d in system_duds:
+        label = str(d.get("exit") or "")
+        if label in by_exit:
+            by_exit[label] += 1
+        elif d.get("usd") is not None:
+            unrecorded += 1
+    if unrecorded:
+        by_exit["unrecorded"] = unrecorded
     accounting = {
         "payers": len(system_burial),
         "payers_usd": round(gross, 2),
         "duds": len(system_duds),
         "duds_priced": len(priced),
         "duds_usd": round(dud_usd, 2),
+        "duds_by_exit": by_exit,
         "unpriced_duds": len(system_duds) - len(priced),
         "net_usd": round(gross + dud_usd, 2),
         "caveat": ("duds are priced on the same 1h candles and the same size as the "
@@ -1068,6 +1087,18 @@ def _burial_net(system_burial: list, system_duds: list) -> tuple[float, dict]:
                    "fires first, net of the measured round trip"),
     }
     return gross + dud_usd, accounting
+
+
+def _dud_exit_txt(accounting: dict) -> str:
+    """The exit split as the lesson speaks it: '8 armed trail, 11 hard stop'.
+
+    Zeros are dropped (a zero is not a story), the order is the stack's own
+    judge order, and an empty string comes back when nothing was priced.
+    """
+    by = (accounting or {}).get("duds_by_exit") or {}
+    bits = [f"{n} {label}" for label in DUD_EXIT_LABELS + ("unrecorded",)
+            if (n := int(by.get(label) or 0)) > 0]
+    return (": " + ", ".join(bits)) if bits else ""
 
 
 def evaluate_rotation(exchange, rot_key: str, when=None, speak=True,
@@ -1915,7 +1946,8 @@ def _learn(state: dict, result: dict) -> str:
         _gates = sorted({str(p.get("gate") or "?") for p in result["system_pairs"]})
         _ba = result.get("burial_accounting") or {}
         _duds_txt = (f"net of {_ba.get('duds', 0)} buried duds "
-                     f"(${_ba.get('duds_usd', 0):+,.0f})"
+                     f"(${_ba.get('duds_usd', 0):+,.0f}"
+                     f"{_dud_exit_txt(_ba)})"
                      + (f", {_ba['unpriced_duds']} unpriced"
                         if _ba.get("unpriced_duds") else ""))
         lesson = (f"The funnel buried {_ba.get('payers', len(result['system_pairs']))} "

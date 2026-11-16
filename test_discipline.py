@@ -745,6 +745,40 @@ check("the caveat names the shipped exit stack, not a window hold",
       "SHIPPED exit stack" in _a3["caveat"] and "goal bank" in _a3["caveat"],
       _a3["caveat"])
 
+# ── the row says WHICH exit priced the dud side, not only the net ────────
+_ge, _ae = dc._burial_net(
+    [{"usd": 100.0}],
+    [{"usd": -5.0, "exit": "hard stop"},
+     {"usd": 3.0, "exit": "armed trail"},
+     {"usd": 4.0, "exit": "goal bank"},
+     {"usd": -2.0, "exit": "window end"},
+     {"usd": -1.0, "exit": "window end"},
+     {"usd": None, "exit": None}])
+check("the accounting counts duds per exit",
+      _ae["duds_by_exit"] == {"goal bank": 1, "armed trail": 1,
+                              "hard stop": 1, "window end": 2},
+      _ae["duds_by_exit"])
+check("the per-exit counts add up to the priced duds",
+      sum(_ae["duds_by_exit"].values()) == _ae["duds_priced"] == 5,
+      (_ae["duds_by_exit"], _ae["duds_priced"]))
+check("an unpriced dud is in NO exit bucket",
+      sum(_ae["duds_by_exit"].values()) + _ae["unpriced_duds"] == _ae["duds"],
+      (_ae["duds"], _ae["unpriced_duds"]))
+check("the exits are reported beside the net, not instead of it",
+      _ae["net_usd"] == 99.0 and _ae["duds_usd"] == -1.0, _ae["net_usd"])
+_gu, _au = dc._burial_net([{"usd": 10.0}], [{"usd": -2.0}])
+check("a priced dud from before the exit was recorded is named, not guessed",
+      _au["duds_by_exit"].get("unrecorded") == 1
+      and _au["duds_by_exit"]["hard stop"] == 0, _au["duds_by_exit"])
+check("the lesson text names the exits that priced the duds, zeros dropped",
+      dc._dud_exit_txt(_ae) == ": 1 goal bank, 1 armed trail, 1 hard stop, 2 window end",
+      dc._dud_exit_txt(_ae))
+check("an all-zero split says nothing at all",
+      dc._dud_exit_txt({"duds_by_exit": {"goal bank": 0}}) == "",
+      dc._dud_exit_txt({"duds_by_exit": {"goal bank": 0}}))
+check("the lead-less accounting still speaks when there is no dud",
+      dc._dud_exit_txt({}) == "")
+
 scratch_space.report_temp('_discipline_check.txt').write_text("\n".join(lines), encoding="utf-8")
 
 
