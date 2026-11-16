@@ -1,0 +1,99 @@
+entries 15,877 across 30 pairs (64s)
+   1/64 stop  1.0 arm  0.2 give  0.1  win  83.1%  e +0.0092%  sd 0.5457%  theta    615.5  Nov -0.0336%
+   2/64 stop  1.0 arm  0.2 give 0.15  win  72.1%  e -0.0006%  sd 0.5535%  theta    -39.1  Nov -0.0452%
+   3/64 stop  1.0 arm  0.2 give  0.3  win  50.8%  e -0.0200%  sd 0.5979%  theta  -1119.7  Nov -0.0735%
+   4/64 stop  1.0 arm  0.2 give  0.6  win  39.9%  e -0.0219%  sd 0.8000%  theta   -683.3  Nov -0.1055%
+   5/64 stop  1.0 arm  0.4 give  0.1  win  72.2%  e +0.0168%  sd 0.7185%  theta    650.8  Nov -0.0145%
+   6/64 stop  1.0 arm  0.4 give 0.15  win  72.2%  e +0.0046%  sd 0.7182%  theta    178.6  Nov -0.0242%
+   7/64 stop  1.0 arm  0.4 give  0.3  win  72.2%  e -0.0136%  sd 0.7434%  theta   -491.2  Nov -0.0589%
+   8/64 stop  1.0 arm  0.4 give  0.6  win  46.7%  e -0.0160%  sd 0.8949%  theta   -399.6  Nov -0.1052%
+   9/64 stop  1.0 arm  0.8 give  0.1  win  56.1%  e +0.0124%  sd 0.9896%  theta    252.7  Nov -0.1067%
+  10/64 stop  1.0 arm  0.8 give 0.15  win  56.1%  e +0.0018%  sd 0.9876%  theta     37.8  Nov -0.1175%
+  11/64 stop  1.0 arm  0.8 give  0.3  win  56.1%  e -0.0174%  sd 0.9940%  theta   -352.3  Nov -0.1553%
+  12/64 stop  1.0 arm  0.8 give  0.6  win  56.1%  e -0.0189%  sd 1.0887%  theta   -319.5  Nov -0.1900%
+  13/64 stop  1.0 arm  1.5 give  0.1  win  40.4%  e -0.0078%  sd 1.3194%  theta    -89.1  Nov -0.2807%
+  14/64 stop  1.0 arm  1.5 give 0.15  win  40.4%  e -0.0148%  sd 1.3137%  theta   -171.1  Nov -0.2867%
+  15/64 stop  1.0 arm  1.5 give  0.3  win  40.4%  e -0.0292%  sd 1.3166%  theta   -337.2  Nov -0.3015%
+  16/64 stop  1.0 arm  1.5 give  0.6  win  40.4%  e -0.0303%  sd 1.3698%  theta   -323.4  Nov -0.3180%
+  17/64 stop  1.5 arm  0.2 give  0.1  win  88.2%  e +0.0205%  sd 0.6324%  theta   1025.2  Nov -0.0687%
+  18/64 stop  1.5 arm  0.2 give 0.15  win  76.6%  e +0.0095%  sd 0.6393%  theta    466.8  Nov -0.0809%
+  19/64 stop  1.5 arm  0.2 give  0.3  win  54.0%  e -0.0112%  sd 0.6810%  theta   -483.2  Nov -0.1103%
+  20/64 stop  1.5 arm  0.2 give  0.6  win  42.4%  e -0.0152%  sd 0.8720%  theta   -398.8  Nov -0.1456%
+  21/64 stop  1.5 arm  0.4 give  0.1  win  79.4%  e +0.0294%  sd 0.8482%  theta    816.2  Nov -0.0658%
+  22/64 stop  1.5 arm  0.4 give 0.15  win  79.4%  e +0.0159%  sd 0.8481%  theta    441.2  Nov -0.0726%
+  23/64 stop  1.5 arm  0.4 give  0.3  win  79.4%  e -0.0045%  sd 0.8722%  theta   -118.5  Nov -0.1096%
+  24/64 stop  1.5 arm  0.4 give  0.6  win  51.5%  e -0.0100%  sd 1.0130%  theta   -194.4  Nov -0.1634%
+  25/64 stop  1.5 arm  0.8 give  0.1  win  65.4%  e +0.0270%  sd 1.1838%  theta    385.4  Nov -0.1919%
+  26/64 stop  1.5 arm  0.8 give 0.15  win  65.4%  e +0.0139%  sd 1.1808%  theta    198.7  Nov -0.2046%
+  27/64 stop  1.5 arm  0.8 give  0.3  win  65.4%  e -0.0086%  sd 1.1884%  theta   -121.4  Nov -0.2462%
+  28/64 stop  1.5 arm  0.8 give  0.6  win  65.4%  e -0.0141%  sd 1.2757%  theta   -173.2  Nov -0.2948%
+  29/64 stop  1.5 arm  1.5 give  0.1  win  49.5%  e -0.0079%  sd 1.5870%  theta    -62.9  Nov -0.4653%
+  30/64 stop  1.5 arm  1.5 give 0.15  win  49.5%  e -0.0161%  sd 1.5823%  theta   -128.5  Nov -0.4716%
+  31/64 stop  1.5 arm  1.5 give  0.3  win  49.5%  e -0.0350%  sd 1.5821%  theta   -279.9  Nov -0.4904%
+  32/64 stop  1.5 arm  1.5 give  0.6  win  49.5%  e -0.0412%  sd 1.6288%  theta   -310.7  Nov -0.5180%
+  33/64 stop  2.0 arm  0.2 give  0.1  win  90.8%  e +0.0266%  sd 0.7065%  theta   1064.0  Nov -0.0914%
+  34/64 stop  2.0 arm  0.2 give 0.15  win  78.9%  e +0.0152%  sd 0.7130%  theta    596.1  Nov -0.1019%
+  35/64 stop  2.0 arm  0.2 give  0.3  win  55.7%  e -0.0059%  sd 0.7522%  theta   -206.8  Nov -0.1320%
+  36/64 stop  2.0 arm  0.2 give  0.6  win  43.8%  e -0.0098%  sd 0.9334%  theta   -224.2  Nov -0.1718%
+  37/64 stop  2.0 arm  0.4 give  0.1  win  83.6%  e +0.0397%  sd 0.9542%  theta    871.1  Nov -0.1013%
+  38/64 stop  2.0 arm  0.4 give 0.15  win  83.6%  e +0.0254%  sd 0.9544%  theta    557.3  Nov -0.1085%
+  39/64 stop  2.0 arm  0.4 give  0.3  win  83.6%  e +0.0037%  sd 0.9772%  theta     77.7  Nov -0.1464%
+  40/64 stop  2.0 arm  0.4 give  0.6  win  54.4%  e -0.0025%  sd 1.1101%  theta    -41.2  Nov -0.2075%
+  41/64 stop  2.0 arm  0.8 give  0.1  win  71.1%  e +0.0377%  sd 1.3428%  theta    417.7  Nov -0.2697%
+  42/64 stop  2.0 arm  0.8 give 0.15  win  71.1%  e +0.0236%  sd 1.3402%  theta    262.7  Nov -0.2803%
+  43/64 stop  2.0 arm  0.8 give  0.3  win  71.1%  e -0.0008%  sd 1.3480%  theta     -8.3  Nov -0.3248%
+  44/64 stop  2.0 arm  0.8 give  0.6  win  71.1%  e -0.0107%  sd 1.4274%  theta   -104.8  Nov -0.3810%
+  45/64 stop  2.0 arm  1.5 give  0.1  win  55.8%  e -0.0087%  sd 1.8058%  theta    -53.5  Nov -0.6374%
+  46/64 stop  2.0 arm  1.5 give 0.15  win  55.8%  e -0.0177%  sd 1.8016%  theta   -109.0  Nov -0.6422%
+  47/64 stop  2.0 arm  1.5 give  0.3  win  55.8%  e -0.0379%  sd 1.8016%  theta   -233.7  Nov -0.6626%
+  48/64 stop  2.0 arm  1.5 give  0.6  win  55.8%  e -0.0482%  sd 1.8449%  theta   -283.3  Nov -0.6990%
+  49/64 stop  3.0 arm  0.2 give  0.1  win  93.4%  e +0.0321%  sd 0.8314%  theta    930.1  Nov -0.1440%
+  50/64 stop  3.0 arm  0.2 give 0.15  win  81.2%  e +0.0204%  sd 0.8372%  theta    582.8  Nov -0.1549%
+  51/64 stop  3.0 arm  0.2 give  0.3  win  57.2%  e -0.0015%  sd 0.8719%  theta    -39.2  Nov -0.1878%
+  52/64 stop  3.0 arm  0.2 give  0.6  win  45.1%  e -0.0059%  sd 1.0370%  theta   -110.6  Nov -0.2296%
+  53/64 stop  3.0 arm  0.4 give  0.1  win  87.8%  e +0.0480%  sd 1.1334%  theta    748.1  Nov -0.1645%
+  54/64 stop  3.0 arm  0.4 give 0.15  win  87.8%  e +0.0329%  sd 1.1337%  theta    512.2  Nov -0.1733%
+  55/64 stop  3.0 arm  0.4 give  0.3  win  87.8%  e +0.0096%  sd 1.1538%  theta    144.9  Nov -0.2156%
+  56/64 stop  3.0 arm  0.4 give  0.6  win  57.2%  e +0.0024%  sd 1.2751%  theta     29.6  Nov -0.2807%
+  57/64 stop  3.0 arm  0.8 give  0.1  win  77.2%  e +0.0393%  sd 1.6024%  theta    306.1  Nov -0.4516%
+  58/64 stop  3.0 arm  0.8 give 0.15  win  77.2%  e +0.0256%  sd 1.6019%  theta    199.8  Nov -0.4639%
+  59/64 stop  3.0 arm  0.8 give  0.3  win  77.2%  e -0.0019%  sd 1.6078%  theta    -14.4  Nov -0.5126%
+  60/64 stop  3.0 arm  0.8 give  0.6  win  77.2%  e -0.0151%  sd 1.6793%  theta   -107.3  Nov -0.5717%
+  61/64 stop  3.0 arm  1.5 give  0.1  win  63.1%  e -0.0141%  sd 2.1602%  theta    -60.6  Nov -0.9601%
+  62/64 stop  3.0 arm  1.5 give 0.15  win  63.1%  e -0.0238%  sd 2.1571%  theta   -102.5  Nov -0.9671%
+  63/64 stop  3.0 arm  1.5 give  0.3  win  63.1%  e -0.0476%  sd 2.1556%  theta   -205.1  Nov -0.9879%
+  64/64 stop  3.0 arm  1.5 give  0.6  win  63.1%  e -0.0616%  sd 2.1938%  theta   -255.8  Nov -1.0225%
+
+TOP 12 BY THETA  (64 cells, 112s)
+   stop   arm  give   win%       e%     sd%     theta  Pfree     Nov%  hold h
+    2.0   0.2   0.1   90.8  +0.0266  0.7065    1064.0 100.0%  -0.0914    0.50
+    1.5   0.2   0.1   88.2  +0.0205  0.6324    1025.2 100.0%  -0.0687    0.50
+    3.0   0.2   0.1   93.4  +0.0321  0.8314     930.1 100.0%  -0.1440    0.50
+    2.0   0.4   0.1   83.6  +0.0397  0.9542     871.1 100.0%  -0.1013    1.17
+    1.5   0.4   0.1   79.4  +0.0294  0.8482     816.2 100.0%  -0.0658    1.00
+    3.0   0.4   0.1   87.8  +0.0480  1.1334     748.1 100.0%  -0.1645    1.25
+    1.0   0.4   0.1   72.2  +0.0168  0.7185     650.8 100.0%  -0.0145    0.83
+    1.0   0.2   0.1   83.1  +0.0092  0.5457     615.5 100.0%  -0.0336    0.42
+    2.0   0.2  0.15   78.9  +0.0152  0.7130     596.1 100.0%  -0.1019    0.50
+    3.0   0.2  0.15   81.2  +0.0204  0.8372     582.8 100.0%  -0.1549    0.50
+    2.0   0.4  0.15   83.6  +0.0254  0.9544     557.3 100.0%  -0.1085    1.17
+    3.0   0.4  0.15   87.8  +0.0329  1.1337     512.2 100.0%  -0.1733    1.25
+
+BOTTOM 5
+  stop  1.0 arm  0.4 give  0.6 win  46.7% e -0.0160% theta   -399.6
+  stop  1.5 arm  0.2 give  0.3 win  54.0% e -0.0112% theta   -483.2
+  stop  1.0 arm  0.4 give  0.3 win  72.2% e -0.0136% theta   -491.2
+  stop  1.0 arm  0.2 give  0.6 win  39.9% e -0.0219% theta   -683.3
+  stop  1.0 arm  0.2 give  0.3 win  50.8% e -0.0200% theta  -1119.7
+
+SHIPPED (2.0 / 0.4 / 0.15) ranks 11 of 64
+
+HORIZON P(pass) for the top cells (bootstrap, 87 trades/day)
+  2.0/0.2/0.1: theta  1064.0  90d 0%/0%  180d 0%/0%  365d 0%/0%
+  1.5/0.2/0.1: theta  1025.2  90d 0%/0%  180d 0%/0%  365d 0%/0%
+  3.0/0.2/0.1: theta   930.1  90d 0%/0%  180d 0%/0%  365d 0%/0%
+  2.0/0.4/0.1: theta   871.1  90d 0%/0%  180d 0%/0%  365d 1%/0%
+  1.5/0.4/0.1: theta   816.2  90d 0%/0%  180d 0%/0%  365d 0%/0%
+  3.0/0.4/0.1: theta   748.1  90d 0%/0%  180d 0%/0%  365d 16%/0%
+
+wrote C:\Users\birds\Workspace\kraken_scout\scratch\_exit_theta_sweep.json
