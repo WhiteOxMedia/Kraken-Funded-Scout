@@ -12,6 +12,9 @@ Faithful to `edge_forward`:
   * exits resolved by edge_forward.exit_fill_policy (breakeven moves the stop to
     entry after +1R; stop wins an ambiguous candle; 336-bar time exit),
   * no trade on a pair's still-forming last bar,
+  * a pair that stops printing closes at its last printed close with
+    why="stale" once it is `edge_forward.STALE_AFTER_HOURS` behind the tape,
+    so a delisted pair cannot hold the single slot forever,
   * +12% rebases the paper start, -3% retires the candidate.
 
 Read-only.  Usage: python scratch/_lane_sim.py [policy_id] [--fixed]
@@ -74,9 +77,29 @@ def simulate(pol, rows, pairs, cfg, mode: str, start_ts, end_ts):
 
     equity, mark, trades, why_hist = START, START, [], {}
     pos, retired, passes, deaths = None, False, 0, 0
+    last_bar = {p: (df.index[-1], float(df["close"].iloc[-1]))
+                for p, df in pairs.items() if len(df)}
     marks: list = []                                    # (ts, equity) clock
     clock = sorted({ts for df in pairs.values() for ts in df.index
                     if ts >= start_ts and (end_ts is None or ts <= end_ts)})
+    def close_pos(px: float, why: str, ts) -> None:
+        """Book the open position out at `px` and free the single slot."""
+        nonlocal pos, equity, mark, passes, deaths, retired
+        fee = float(pos["size"]) * FEE_PCT / 100.0
+        pnl = float(pos["qty"]) * (px - float(pos["entry"])) - fee
+        equity += pnl
+        why_hist[why] = why_hist.get(why, 0) + 1
+        trades.append({"ts": str(ts), "entry_ts": str(pos.get("entry_ts")),
+                       "pair": pos["pair"], "why": why,
+                       "pnl": round(pnl, 2), "equity": round(equity, 2)})
+        if equity <= mark * DEATH:
+            deaths += 1
+            retired = True
+        elif equity >= mark * WIN:
+            passes += 1
+            mark = equity
+        pos = None
+
     for ts in clock:
         if pos is not None:
             op, lo, hi, cl, idx = arr[pos["pair"]]
@@ -88,22 +111,12 @@ def simulate(pol, rows, pairs, cfg, mode: str, start_ts, end_ts):
                                            bars)
                 pos["j"] = j
                 if fill is not None:
-                    px, why, _peak = fill
-                    fee = float(pos["size"]) * FEE_PCT / 100.0
-                    pnl = float(pos["qty"]) * (px - float(pos["entry"])) - fee
-                    equity += pnl
-                    why_hist[why] = why_hist.get(why, 0) + 1
-                    trades.append({"ts": str(ts), "pair": pos["pair"],
-                                   "why": why, "pnl": round(pnl, 2),
-                                   "equity": round(equity, 2)})
-                    if equity <= mark * DEATH:
-                        deaths += 1
-                        retired = True
-                        pos = None
-                    elif equity >= mark * WIN:
-                        passes += 1
-                        mark = equity
-                    pos = None
+                    close_pos(fill[0], fill[1], ts)
+            if pos is not None:
+                # the pair has gone silent: nothing it prints can close this
+                lb_ts, lb_px = last_bar[pos["pair"]]
+                if lb_ts < ts - pd.Timedelta(hours=ef.STALE_AFTER_HOURS):
+                    close_pos(lb_px, "stale", lb_ts)
         if pos is None and not retired:
             for r in by_ts.get(ts, ()):
                 if not pol.rule(r["f"]):
@@ -117,6 +130,7 @@ def simulate(pol, rows, pairs, cfg, mode: str, start_ts, end_ts):
                     tp = float("inf")
                 size = equity * float(pol.size_frac)
                 pos = {"pair": r["pair"], "i": r["i"], "j": r["i"],
+                       "entry_ts": ts,
                        "entry": entry, "stop": stop, "tp": tp, "size": size,
                        "qty": size / entry, "atr": atr,
                        "risk": abs(entry - stop), "side": "long",
@@ -125,7 +139,7 @@ def simulate(pol, rows, pairs, cfg, mode: str, start_ts, end_ts):
         marks.append((ts, equity))
     return {"trades": trades, "why": why_hist, "equity": round(equity, 2),
             "passes": passes, "deaths": deaths, "retired": retired,
-            "marks": marks}
+            "marks": marks, "open": pos}
 
 
 def main() -> int:
@@ -156,7 +170,8 @@ def main() -> int:
         print(f"\n  LANE SIM [{mode}]: trades={n} wins={w} "
               f"({w / n:.0%}) final=${sim['equity']:,.2f} "
               f"passes={sim['passes']} deaths={sim['deaths']} "
-              f"retired={sim['retired']}")
+              f"retired={sim['retired']} "
+              f"open={((sim.get('open') or {}).get('pair'), (sim.get('open') or {}).get('i')) if sim.get('open') else None}")
         print(f"    exits={sim['why']}")
         print(f"    windows={wr}")
 
