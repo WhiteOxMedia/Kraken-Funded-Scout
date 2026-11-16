@@ -689,11 +689,8 @@ check("a buried dud is priced on the shipped hard stop, not at the window close"
       _walk is not None and _walk["reason"] == "hard stop", _walk)
 check("the hard stop caps the dud at -2.5% minus the round trip",
       abs(_walk["pct"] - (-2.5 - 0.08)) < 0.02, _walk["pct"])
-_dud_loss = dc._dud_counterfactual(_fall, "T/USD", _alert, _end, 1000.0)
-check("the dud price is that pct of the size (still a real loss, never zero)",
-      abs(_dud_loss - (-25.80)) < 0.5, _dud_loss)
-check("the hold-to-close loss is worse than the stop the machine ships",
-      _dud_loss > 1000.0 * ((0.96 / 1.00 - 1.0) * 100.0 - 0.08) / 100.0, _dud_loss)
+check("the stop the machine ships beats the hold-to-close loss it avoids",
+      _walk["pct"] > ((0.96 / 1.00 - 1.0) * 100.0 - 0.08), _walk["pct"])
 
 # a bar that reaches the goal without dipping under the armed net -> BANK
 goal_bar = BarExchange([(_H(10, 0), 1.0, 1.0, 1.0, 1.00),
@@ -702,24 +699,169 @@ _g = dc._dud_exit(goal_bar, "T/USD", _alert, _end, 1.5)
 check("a dud that reaches the goal is booked at the goal, not the peak",
       _g["reason"] == "goal bank" and abs(_g["pct"] - (1.5 - 0.08)) < 0.02, _g)
 
-# the armed trail: arms at half the goal, then the turn is taken at the net
+# the armed trail: arms at half the goal, then a turn that never gets to the
+# goal is taken at the net (goal 3.0 so the bar can turn UNDER the bank)
 turn = BarExchange([(_H(10, 0), 1.0, 1.0, 1.0, 1.00),
-                    (_H(11, 0), 1.02, 1.030, 1.010, 1.012)])
-_t = dc._dud_exit(turn, "T/USD", _alert, _end, 1.5)
+                    (_H(11, 0), 1.0, 1.022, 1.000, 1.001)])
+_t = dc._dud_exit(turn, "T/USD", _alert, _end, 3.0)
 check("a dud that ran and turned is booked on the armed trail",
       _t["reason"] == "armed trail", _t)
 check("the armed trail exit keeps the locked gain (above entry + costs)",
       _t["pct"] > 0.5, _t["pct"])
 check("the trail net is better than the window close for the same bar",
-      _t["pct"] > ((1.012 / 1.00 - 1.0) * 100.0 - 0.08), _t["pct"])
+      _t["pct"] > ((1.001 / 1.00 - 1.0) * 100.0 - 0.08), _t["pct"])
+
+# THE BANK BEFORE THE TRAIL (Nov 16): the trail level is derived from the bar's
+# OWN high, so judging it first was circular - every bar that touched the goal
+# also "reached" the trail it implied, and the bank was never booked.
+_bank_bar = BarExchange([(_H(10, 0), 1.0, 1.0, 1.0, 1.00),
+                         (_H(11, 0), 1.02, 1.030, 1.010, 1.012)])
+_bb = dc._dud_exit(_bank_bar, "T/USD", _alert, _end, 1.5)
+check("a bar that touches the goal banks it even when its own trail sits under "
+      "the high (the goal is a resting limit)",
+      _bb["reason"] == "goal bank" and abs(_bb["pct"] - (1.5 - 0.08)) < 0.02, _bb)
+
+# the stop still judges FIRST, so the reach rule holds in the order it was
+# written: a bar that hits both in one hour is the stop, never the bank
+_both = BarExchange([(_H(10, 0), 1.0, 1.0, 1.0, 1.00),
+                     (_H(11, 0), 1.0, 1.020, 0.970, 0.980)])
+_bw = dc._dud_exit(_both, "T/USD", _alert, _end, 1.5)
+check("a bar that hits the stop and the goal in one hour is the STOP",
+      _bw is not None and _bw["reason"] == "hard stop", _bw)
+
+# THE PAYER GATE: the trail can take a candidate BEFORE the goal's high prints,
+# and then the coin test's "some high reached the goal" is not money.
+_late = BarExchange([(_H(10, 0), 1.0, 1.0, 1.0, 1.00),
+                     (_H(11, 0), 1.0, 1.008, 0.996, 0.999),
+                     (_H(11, 30), 0.999, 1.030, 0.999, 1.020)])
+_lw = dc._dud_exit(_late, "T/USD", _alert, _end, 1.5)
+check("a goal that only prints after the trail took the trade is NOT a payer "
+      "(the old coin touch would have paid it)",
+      _lw is not None and _lw["reason"] == "armed trail"
+      and dc._banks_goal(_lw) is False
+      and max(r[2] for r in _late.rows) >= 1.015, _lw)
+check("the bank test is three-valued - an unreadable walk never demotes a payer",
+      dc._banks_goal(None) is None
+      and dc._banks_goal({"reason": "goal bank"}) is True
+      and dc._banks_goal({"reason": "hard stop"}) is False, None)
+check("a demoted candidate becomes an unpriced dud row, never a zero",
+      dc._buried_dud_row("X/USD", "g", None, 100.0)["usd"] is None
+      and dc._buried_dud_row("X/USD", "g",
+                             {"pct": -2.58, "reason": "hard stop"}, 1000.0)
+      == {"pair": "X/USD", "gate": "g", "usd": -25.8,
+          "exit": "hard stop"}, None)
+
+# ── THE PAYER GATE, END TO END (Nov 16) ─────────────────────────────────
+# Every check above stubs the exchange, so the walk returns None and the old
+# coin verdict survives by design - the gate itself is never exercised. This
+# drives evaluate_rotation through the MOVER path with REAL bars: only the
+# journal seams are stubbed, so the gate has to bite on candles alone. Both
+# candidates ride the SAME window, so ONE evaluation must split them.
+class PairBars:
+    """Per-pair OHLC: rows of (ts, open, high, low, close)."""
+    def __init__(self, paths):
+        self.paths = paths
+    def fetch_ohlcv(self, pair, timeframe="1h", since=None, limit=12):
+        return [[int(ts.timestamp() * 1000), o, h, l, c, 100]
+                for ts, o, h, l, c in self.paths.get(pair, [])]
+
+
+def _mover_eval(exchange, supp_rows):
+    """evaluate_rotation over a silent 12-16 window with the given burials.
+
+    The exchange's candles are the ONLY evidence (_entry_at, _coin_paid and
+    _dud_exit all run for real); state/voice/suppression files are temporary,
+    the winners table is empty and the dock is a spy, so nothing touches disk.
+    """
+    import tempfile
+    with tempfile.TemporaryDirectory() as _td:
+        _keep = (dc.STATE_FILE, dc.SUPPRESSION_FILE, dc.VOICE_FILE)
+        _ca = __import__("contest_account")
+        _db = __import__("db")
+        _ml = __import__("meta_layers")
+        _ca_real, _db_real = _ca.load_state, _db.get_tournament_winners
+        _dock_real = getattr(_ml, "dock_silent_rotation", None)
+        try:
+            dc.STATE_FILE = Path(_td) / "disc.json"
+            dc.save_state({"weights": dict(dc.DEFAULT_WEIGHTS),
+                           "history": [], "lessons": []})
+            dc.SUPPRESSION_FILE = Path(_td) / "supp.jsonl"
+            dc.SUPPRESSION_FILE.write_text(
+                chr(10).join(json.dumps(r) for r in supp_rows) + chr(10),
+                encoding="utf-8")
+            dc.VOICE_FILE = Path(_td) / "voice.jsonl"
+            dc.VOICE_FILE.write_text("", encoding="utf-8")
+            _ca.load_state = lambda: {"current_balance": 10000.0,
+                                      "start_balance": 10000.0}
+            _db.get_tournament_winners = lambda limit=200: []
+            if _dock_real is not None:
+                _ml.dock_silent_rotation = lambda *a, **k: {"docked": 0.0,
+                                                            "reason": "spy"}
+            return dc.evaluate_rotation(exchange, "12-16",
+                                        when=_PAY_NOW, speak=False,
+                                        watch_file=str(Path(_td) / "w.json"))
+        finally:
+            dc.STATE_FILE, dc.SUPPRESSION_FILE, dc.VOICE_FILE = _keep
+            _ca.load_state, _db.get_tournament_winners = _ca_real, _db_real
+            if _dock_real is not None:
+                _ml.dock_silent_rotation = _dock_real
+
+
+_PAY_NOW = datetime(2026, 11, 16, 12, 5, tzinfo=MST)
+_PAY_TS = datetime(2026, 11, 16, 12, 30, tzinfo=MST)
+_PAY_END = datetime(2026, 11, 16, 16, 0, tzinfo=MST)
+_PH = lambda h, m: datetime(2026, 11, 16, h, m, tzinfo=MST)
+_PAY_SCHED = "weekend" if datetime(2026, 11, 16).weekday() >= 5 else "weekday"
+_goal_a = float(dc._rotation_goal_pct("MOVER/USD", "12-16", _PAY_SCHED))
+_goal_b = float(dc._rotation_goal_pct("PAYER/USD", "12-16", _PAY_SCHED))
+try:
+    import spread_table as _st_pay
+    _toll_b = float(_st_pay.roundtrip_pct("PAYER/USD"))
+except Exception:
+    _toll_b = dc.DUD_TOLL_FALLBACK_PCT
+
+_ex = PairBars({
+    # (a) the trail takes it BEFORE the goal prints
+    "MOVER/USD": [(_PH(12, 0), 1.0, 1.0, 1.0, 1.0),
+                  (_PH(13, 0), 1.0, 1.0 + (_goal_a * 0.5 + 0.05) / 100.0,
+                   0.9995, 1.0),
+                  (_PH(13, 30), 1.0, 1.0 + (_goal_a + 1.0) / 100.0, 1.0, 1.0)],
+    # (b) the goal banks first, then a crash that cannot undo the bank
+    "PAYER/USD": [(_PH(12, 0), 1.0, 1.0, 1.0, 1.0),
+                  (_PH(13, 0), 1.0, 1.0 + (_goal_b * 0.3) / 100.0, 1.0, 1.0),
+                  (_PH(13, 30), 1.0, 1.0 + (_goal_b + 0.4) / 100.0, 1.0, 1.0),
+                  (_PH(14, 0), 1.0, 1.0 + (_goal_b + 0.5) / 100.0, 0.96, 0.97)],
+})
+_walk_a = dc._dud_exit(_ex, "MOVER/USD", _PAY_TS, _PAY_END, _goal_a)
+check("(a) the fixture really is a coin touch the OLD gate would have paid",
+      dc._coin_paid(_ex, "MOVER/USD", 1.0, _goal_a, _PAY_TS, _PAY_END) is True
+      and _walk_a is not None and _walk_a["reason"] == "armed trail"
+      and dc._banks_goal(_walk_a) is False, _walk_a)
+_r = _mover_eval(_ex, [{"ts": _PAY_TS.isoformat(), "pair": "MOVER/USD",
+                        "gate": "tide-out", "quick": 55.0},
+                       {"ts": _PAY_TS.isoformat(), "pair": "PAYER/USD",
+                        "gate": "tide-out", "quick": 55.0}])
+_pairs = {p["pair"]: p for p in (_r.get("system_pairs") or [])}
+_duds = {d["pair"]: d for d in (_r.get("system_duds") or [])}
+check("(a) END TO END: a trail-stolen candidate is NOT counted as a buried "
+      "payer - evaluate_rotation prices it as a dud instead",
+      "MOVER/USD" not in _pairs
+      and _duds.get("MOVER/USD", {}).get("exit") == "armed trail",
+      (_pairs, _duds))
+check("(b) END TO END: a goal the stack BANKS is a payer, priced at the goal "
+      "net of the round trip (the later crash cannot undo the bank)",
+      _pairs.get("PAYER/USD", {}).get("usd")
+      == round(10000.0 * (_goal_b - _toll_b) / 100.0, 2)
+      and "PAYER/USD" not in _duds, (_pairs.get("PAYER/USD"), _duds))
+check("one evaluation splits the cohort: exactly one payer, exactly one dud",
+      (_r.get("burial_accounting") or {}).get("payers") == 1
+      and len(_duds) == 1, _r.get("burial_accounting"))
 
 _rise = BarExchange([(_H(10, 0), 1.0, 1.0, 1.0, 1.00),
                      (_H(11, 0), 1.0, 1.010, 1.004, 1.010)])
-_dud_gain = dc._dud_counterfactual(_rise, "T/USD", _alert, _end, 1000.0)
+_rise_w = dc._dud_exit(_rise, "T/USD", _alert, _end, 1.5)
 check("a dud that ROSE is booked as a gain (both sides, both directions)",
-      _dud_gain is not None and 0 < _dud_gain < 10.0, _dud_gain)
-check("an unreadable dud is unpriced, never zero",
-      dc._dud_counterfactual(BrokenExchange(), "T/USD", _alert, _end, 1000.0) is None)
+      _rise_w is not None and 0 < _rise_w["pct"] < 5.0, _rise_w)
 check("the exit ratchet matches the scanner's 3/2/1.5 widths",
       (dc._dud_trail_pct(1.0, 1.005), dc._dud_trail_pct(1.0, 1.015),
        dc._dud_trail_pct(1.0, 1.03)) == (3.0, 2.0, 1.5),
@@ -778,6 +920,71 @@ check("an all-zero split says nothing at all",
       dc._dud_exit_txt({"duds_by_exit": {"goal bank": 0}}))
 check("the lead-less accounting still speaks when there is no dud",
       dc._dud_exit_txt({}) == "")
+
+# ── the journal still writes its plain per-gate dud counts ────────────────
+_led_state = {}
+_led_result = {"date": "2026-11-16", "rot": "04-08", "ts": "2026-11-16T08:00:00-07:00",
+               "system_pairs": [{"pair": "A", "gate": "breakout-gate", "usd": 200.0},
+                                {"pair": "B", "gate": "breakout-gate", "usd": 150.0}],
+               "system_duds": [{"pair": "C", "gate": "breakout-gate", "usd": -5.0,
+                                "exit": "hard stop"},
+                               {"pair": "D", "gate": "breakout-gate", "usd": -1.0,
+                                "exit": "window end"},
+                               {"pair": "E", "gate": "quality-floor", "usd": None,
+                                "exit": None}]}
+dc.record_burial_ledger(_led_state, _led_result)
+_entry = (_led_state.get("burial_ledger") or [{}])[-1]
+check("the journal writes the per-gate dud counts the charge reads",
+      _entry.get("duds") == {"breakout-gate": 2, "quality-floor": 1},
+      _entry.get("duds"))
+check("the journal records no exit mix the charge does not read",
+      "dud_exits" not in _entry, sorted(_entry))
+
+# ── a gate that buried ONLY duds is charged (the `if not g: continue` fix) ──
+_gs_now = datetime(2026, 11, 16, 9, 0, tzinfo=MST)
+_gs_led = [
+    {"date": "2026-11-16", "rot": "04-08", "ts": "2026-11-16T08:00:00-07:00",
+     "gates": {"G": {"n": 4, "usd": 800.0}}, "duds": {}},
+    {"date": "2026-11-16", "rot": "08-12", "ts": "2026-11-16T08:30:00-07:00",
+     "gates": {}, "duds": {"G": 4}},
+]
+_gs_orig = dc.load_state
+dc.load_state = lambda: {"burial_ledger": _gs_led}
+try:
+    _gs_relief = dc.gate_relief("G", now=_gs_now)
+    _gs_sens = dc._gate_sens("G", _gs_led)
+finally:
+    dc.load_state = _gs_orig
+check("a dud-only rotation lowers the relief (it used to be skipped entirely)",
+      _gs_sens == 1.25 and _gs_relief == 2.62, (_gs_sens, _gs_relief))
+check("without the fix the same ledger keeps the capped relief (4.0 x 7/8 decay)",
+      round(min(dc.SEAM_RELIEF_MAX_PTS, 4 * _gs_sens) * 0.875, 2) == 3.5,
+      round(min(dc.SEAM_RELIEF_MAX_PTS, 4 * _gs_sens) * 0.875, 2))
+
+# the decay anchor stays the last PAYMENT: a dud-only row must not refresh it
+_anc_led = [
+    {"date": "2026-11-16", "rot": "00-04", "ts": "2026-11-16T02:00:00-07:00",
+     "gates": {"G": {"n": 4, "usd": 800.0}}, "duds": {}},
+    {"date": "2026-11-16", "rot": "04-08", "ts": "2026-11-16T08:00:00-07:00",
+     "gates": {}, "duds": {"G": 4}},
+]
+dc.load_state = lambda: {"burial_ledger": _anc_led}
+try:
+    _anc = dc.gate_relief("G", now=datetime(2026, 11, 16, 9, 0, tzinfo=MST))
+finally:
+    dc.load_state = _gs_orig
+check("a dud-only rotation does not refresh the decay clock (7h old payment -> 1/8 left)",
+      _anc == 0.38, _anc)
+
+# a rotation with neither payers nor duds still contributes nothing
+_empty_led = [{"date": "2026-11-16", "rot": "04-08", "ts": "2026-11-16T08:00:00-07:00",
+               "gates": {}, "duds": {}}]
+dc.load_state = lambda: {"burial_ledger": _empty_led}
+try:
+    _empty = dc.gate_relief("G", now=_gs_now)
+finally:
+    dc.load_state = _gs_orig
+check("an empty rotation still charges nothing", _empty == 0.0, _empty)
 
 scratch_space.report_temp('_discipline_check.txt').write_text("\n".join(lines), encoding="utf-8")
 

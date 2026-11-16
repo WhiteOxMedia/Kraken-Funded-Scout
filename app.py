@@ -4532,6 +4532,14 @@ def _discipline_plate() -> str:
         dud_n = int(_ba.get("duds") or 0)
         dud_usd = float(_ba.get("duds_usd") or 0)
         payer_gross = float(_ba.get("payers_usd") or 0)
+        # WHICH EXIT PRICED THE DUD SIDE (Nov 16): the console speaks the same
+        # split the lesson does, from the same helper - one renderer, so the
+        # plate and the lesson cannot drift on what the duds cost or how they
+        # got there (a stop-out and a window hold are opposite stories).
+        try:
+            dud_exit_txt = _disc._dud_exit_txt(_ba)
+        except Exception:
+            dud_exit_txt = ""
         user_left = max(left - sys_left, 0.0)
         top_gate = str(_last.get("top_gate") or "")
         pnl_col = "#4be38a" if pnl > 0 else ("#ff6b5e" if pnl < 0 else "#9a9a9a")
@@ -4582,7 +4590,7 @@ def _discipline_plate() -> str:
       <div style='color:{'#ff6b5e' if left > 1 else '#4be38a'};font-size:14px;'>
         ${left:,.0f} left on the table</div>
       {f"<div style='color:#ffc36b;font-size:12px;'>${sys_left:,.0f} by the gates "
-       f"(net of {dud_n} duds ${dud_usd:+,.0f}; gross ${payer_gross:,.0f})"
+       f"(net of {dud_n} duds ${dud_usd:+,.0f}{dud_exit_txt}; gross ${payer_gross:,.0f})"
        + (f" · {top_gate}" if top_gate else "")
        + f" — user left ${user_left:,.0f}</div>"
        if (sys_left > 1 or payer_gross > 1 or dud_n) else

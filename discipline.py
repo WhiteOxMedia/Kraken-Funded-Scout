@@ -197,7 +197,8 @@ def save_state(state: dict) -> None:
 #       fired. Buried duds ease the relief back down; a silent journal
 #       (a gate behaving) gives nothing. Fail-closed everywhere.
 SEAM_RELIEF_MAX_PTS = 4.0    # hard cap: never wider than 4 popup-floor pts
-SEAM_RELIEF_DECAY_H = 8.0    # relief fades to zero 8h after the last lesson
+SEAM_RELIEF_DECAY_H = 8.0    # relief fades to zero 8h after the last PAID burial
+                             # (a dud never refreshes it - see gate_relief)
 SEAM_RELEASE_SLACK = 5.0     # the journal release: a candidate within 5 pts
                              # of the gate's bar is a near-miss it may re-see
 
@@ -262,9 +263,16 @@ def gate_relief(gate: str, now=None) -> float:
     """Relief in popup-floor points for ONE gate, from the journal: 1 pt
     per buried payer that rotation (the PER-GATE DIAL prices it: sens =
     retired, the study's cure), capped at SEAM_RELIEF_MAX_PTS, decaying linearly to zero
-    over SEAM_RELIEF_DECAY_H since the last burial entry. A gate that
+    over SEAM_RELIEF_DECAY_H since the last PAID burial. A gate that
     buried only duds gets nothing — the dud entries drive the relief
-    DOWN (each buried-and-not-paid candidate claws back 0.5 pts)."""
+    DOWN (each buried-and-not-paid candidate claws back 0.5 pts).
+
+    The decay anchor is the last PAYMENT, not the last dud. Relief is a
+    claim about mispricing made by payments; a dud is evidence AGAINST
+    that claim, so it must never refresh the clock - anchoring on any
+    burial would let a dud buried an hour ago keep alive the relief a
+    payer earned twenty hours ago, which is the opposite of the charge.
+    Fixing the charge below therefore only ever tightens."""
     try:
         st = load_state()
         led = st.get("burial_ledger") or []
@@ -276,14 +284,16 @@ def gate_relief(gate: str, now=None) -> float:
         sens = _gate_sens(gate, led)   # ONE ratio for the whole window
         for h in led[-5:]:   # recent rotations only
             g = (h.get("gates") or {}).get(gate)
-            if not g:
-                continue
-            pts += float(g.get("n") or 0) * sens
-            dud_n = float((h.get("duds") or {}).get(gate) or 0)
-            pts -= 0.5 * dud_n   # buried duds claw the relief back
-            ts = h.get("ts")
-            if ts:
-                last_ts = ts if last_ts is None else max(last_ts, ts)
+            if g:            # a paid burial: relief, and the decay anchor
+                pts += float(g.get("n") or 0) * sens
+                ts = h.get("ts")
+                if ts:
+                    last_ts = ts if last_ts is None else max(last_ts, ts)
+            # THE CHARGE IS NOT CONTINGENT ON A PAYMENT (Nov 16): the old
+            # `if not g: continue` skipped the rotation where the gate buried
+            # no payers - the one rotation whose duds are its only evidence.
+            # A rotation with neither contributes nothing: this subtracts 0.
+            pts -= 0.5 * float((h.get("duds") or {}).get(gate) or 0)
         if pts <= 0:
             return 0.0
         if last_ts:
@@ -954,17 +964,18 @@ def _dud_trail_pct(entry: float, peak: float) -> float:
 
 def _dud_exit(exchange, pair: str, when: datetime, window_end: datetime,
               goal_pct: float | None = None) -> dict | None:
-    """Walk the window under the SHIPPED exit stack: (pct, reason, bars).
+    """Walk the window under the SHIPPED exit stack: (pct, reason).
 
-    Three ways out, in the order the scanner judges them inside one candle
-    (stop first - the conservative ordering, so a bar that spikes and sinks
-    cannot be booked as a bank):
+    Four ways out, judged inside one candle in the order a resting order book
+    would see them (stop first - the conservative ordering, so a bar that spikes
+    and sinks cannot be booked as a bank - then the goal's own limit, then the
+    trail, which is only reachable if the bar never got to the goal):
 
       hard stop    -DUD_HARD_STOP_PCT of the position (the tail is capped)
+      goal bank    the goal is a BANK: a high at/above it is taken at the goal
       armed trail  arms at half the goal, then sits min(ratchet,
                    max(goal*0.5, 1.0))% under the running peak, never below
                    entry + 2x the round trip (the scanner's price floor)
-      goal bank    the goal is a BANK: a high at/above it is taken at the goal
       window end   nothing fired - the last in-window close (end-exclusive)
 
     Returns None when the candles cannot be read.
@@ -1011,49 +1022,56 @@ def _dud_exit(exchange, pair: str, when: datetime, window_end: datetime,
         if armed:
             width = min(_dud_trail_pct(entry, bar_peak), cap_pct)
             trail_px = max(bar_peak * (1.0 - width / 100.0), lock_floor)
-        for px, why in ((hard_px, "hard stop"), (trail_px, "armed trail")):
-            if px is not None and low <= px:
-                return {"pct": (px / entry - 1.0) * 100.0 - toll_pct,
-                        "reason": why, "entry": entry, "exit": px,
-                        "bars": len(bars)}
+        if low <= hard_px:                 # the stop first: a tail is a tail
+            return {"pct": (hard_px / entry - 1.0) * 100.0 - toll_pct,
+                    "reason": "hard stop"}
+        # THE GOAL IS A RESTING LIMIT, so it fills on the TOUCH and comes before
+        # the trail (Nov 16): judging the trail first was circular - its level is
+        # derived from this bar's own high, so every bar that made the goal also
+        # "reached" the trail it implied and the bank was never booked at all.
+        # A trail may only pre-empt the goal when the bar did not reach it.
         if high >= goal_px:
-            return {"pct": goal - toll_pct, "reason": "goal bank",
-                    "entry": entry, "exit": goal_px, "bars": len(bars)}
+            return {"pct": goal - toll_pct, "reason": "goal bank"}
+        if trail_px is not None and low <= trail_px:
+            return {"pct": (trail_px / entry - 1.0) * 100.0 - toll_pct,
+                    "reason": "armed trail"}
         peak = bar_peak
     return {"pct": (bars[-1][2] / entry - 1.0) * 100.0 - toll_pct,
-            "reason": "window end", "entry": entry, "exit": bars[-1][2],
-            "bars": len(bars)}
+            "reason": "window end"}
 
 
-def _dud_counterfactual(exchange, pair: str, when: datetime, window_end: datetime,
-                        size_usd: float, goal_pct: float | None = None):
-    """What a buried DUD would have returned had it been taken.
+def _banks_goal(walk: dict | None):
+    """Does the SHIPPED stack bank the goal? None = candles unreadable.
 
-    The ledger used to count only the buried candidates that paid, so 'left on
-    the table' was the sum of the winners of a cohort and said nothing about the
-    losers beside them. This prices the other side on the same 1h candles the
-    coin test reads - but on the EXIT THE MACHINE ACTUALLY TRADES (goal bank,
-    armed trail, hard stop; see _dud_exit), net of the pair's measured round
-    trip, at the size the burial would have used.
-
-    Returns None when the candles cannot be read. An unmeasurable dud is
-    COUNTED and reported as unpriced, never priced at zero - a zero would
-    quietly flatter the net toward the old one-sided number.
+    'goal bank' is the only exit that collects the goal. The None case is
+    distinct from False on purpose: an unreadable bar must not demote a payer
+    the coin test did see.
     """
-    walk = _dud_exit(exchange, pair, when, window_end, goal_pct)
-    if walk is None:
-        return None
-    return size_usd * (float(walk["pct"]) / 100.0)
+    return None if walk is None else walk.get("reason") == "goal bank"
+
+
+def _buried_dud_row(pair: str, gate: str, walk: dict | None,
+                    size_usd: float) -> dict:
+    """A buried candidate the shipped stack does NOT bank: priced on its walk.
+
+    Same shape and same size as every other dud row; an unreadable walk is
+    COUNTED with usd None, never priced at zero (see _burial_net).
+    """
+    return {"pair": pair, "gate": gate,
+            "usd": None if walk is None
+            else round(size_usd * float(walk["pct"]) / 100.0, 2),
+            "exit": None if walk is None else walk["reason"]}
 
 
 def _burial_net(system_burial: list, system_duds: list) -> tuple[float, dict]:
     """LEFT ON THE TABLE, both sides of the cohort (Nov 16).
 
-    The payers are what the funnel cost; the duds are what taking them would
-    have cost. Returns (net_usd, accounting) where accounting names the counts,
-    the two sides and how many duds could not be priced at all - an unpriced
-    dud is COUNTED, never priced at zero, because a zero would quietly restore
-    the old one-sided figure.
+    The payers are the buried candidates the SHIPPED exit would have BANKED;
+    the duds are the rest of the cohort, priced on the same walk. Returns
+    (net_usd, accounting) where accounting names the counts, the two sides and
+    how many duds could not be priced at all - an unpriced dud is COUNTED,
+    never priced at zero, because a zero would quietly restore the old
+    one-sided figure.
     """
     gross = sum(float(p.get("usd", 0) or 0) for p in system_burial)
     priced = [d for d in system_duds if d.get("usd") is not None]
@@ -1081,10 +1099,11 @@ def _burial_net(system_burial: list, system_duds: list) -> tuple[float, dict]:
         "duds_by_exit": by_exit,
         "unpriced_duds": len(system_duds) - len(priced),
         "net_usd": round(gross + dud_usd, 2),
-        "caveat": ("duds are priced on the same 1h candles and the same size as the "
-                   "payers, but on the SHIPPED exit stack - entry at the burial "
-                   "close, then hard stop / armed trail / goal bank, whichever "
-                   "fires first, net of the measured round trip"),
+        "caveat": ("both sides are priced on the same 1h candles, the same size and "
+                   "the SHIPPED exit stack - entry at the burial close, then hard "
+                   "stop / armed trail / goal bank, whichever fires first, net of "
+                   "the measured round trip; a candidate whose goal only prints "
+                   "after the stop is a dud, not a payer"),
     }
     return gross + dud_usd, accounting
 
@@ -1137,6 +1156,7 @@ def evaluate_rotation(exchange, rot_key: str, when=None, speak=True,
     # ── the components ───────────────────────────────────────────────
     missed, giveback, missed_exit, early_exit = [], [], [], []
     system_burial = []
+    system_duds = []
     bonuses = 0.0
     sched = "weekend" if start.weekday() >= 5 else "weekday"
     for p in popups:
@@ -1165,13 +1185,28 @@ def evaluate_rotation(exchange, rot_key: str, when=None, speak=True,
         p["paid"] = paid
         p["taken"] = taken
         buried = (p["pair"] in supp and p["pair"] not in fired)
-        if paid and not taken:
-            p["usd"] = balance * goal / 100.0
-            if buried:
-                p["gate"] = supp[p["pair"]]["gate"]
-                system_burial.append(p)
+        if paid and not taken and buried:
+            # THE PAYER SIDE ON THE SHIPPED EXIT (Nov 16): the coin touching the
+            # goal is not the money the funnel cost - only a goal the stack
+            # BANKS is. So the paying candidate is priced on its own walk
+            # (goal - toll when banked), and one whose high only prints after
+            # the hard stop (or after the armed trail took the trade) is not a
+            # payer at all: it is the cohort's other side and is priced as one.
+            _walk = _dud_exit(exchange, p["pair"], p["ts"], end, goal)
+            _size = balance * goal / 100.0
+            p["gate"] = supp[p["pair"]]["gate"]
+            if _banks_goal(_walk) is False:
+                system_duds.append(_buried_dud_row(p["pair"], p["gate"],
+                                                   _walk, _size))
             else:
-                missed.append(p)
+                # the payer's own basis (a full-balance position at the goal),
+                # net of the round trip the bank pays
+                p["usd"] = (_size if _walk is None else
+                            round(balance * float(_walk["pct"]) / 100.0, 2))
+                system_burial.append(p)
+        elif paid and not taken:
+            p["usd"] = balance * goal / 100.0
+            missed.append(p)
         elif paid and taken:
             bonuses += 2.0    # took a popup that paid — discipline
 
@@ -1180,7 +1215,6 @@ def evaluate_rotation(exchange, rot_key: str, when=None, speak=True,
     # (pairs it buried that DIDN'T pay are the gate being RIGHT — they
     # become system_duds and claw the relief back down)
     popup_pairs = {p["pair"] for p in popups}
-    system_duds = []
     # THE RIGHT-CENSORING RULE (Oct 1, the operator's confirm): a burial
     # evaluated with less than the payer horizon left in its window had
     # almost no chance to prove itself — the 1h-candle coin test read
@@ -1199,12 +1233,21 @@ def evaluate_rotation(exchange, rot_key: str, when=None, speak=True,
         entry = _entry_at(exchange, pair, s["ts"])
         paid = (entry > 0
                 and _coin_paid(exchange, pair, entry, goal, s["ts"], end))
-        if paid:
+        _censored = (end - s["ts"]).total_seconds() < BURIAL_HORIZON_HOURS * 3600
+        # a pending candidate is priced by nobody, so it is not walked
+        _walk = None if _censored and not paid \
+            else _dud_exit(exchange, pair, s["ts"], end, goal)
+        _size = balance * goal / 100.0
+        if paid and _banks_goal(_walk) is not False:
+            # ... and the same SHIPPED-EXIT price as the dud side (Nov 16): the
+            # payer is what the stack would have banked, not the goal it aimed
+            # at. An unreadable walk keeps the coin verdict at the goal price.
             system_burial.append({"pair": pair, "gate": s["gate"],
-                                  "usd": balance * goal / 100.0,
+                                  "usd": (_size if _walk is None else
+                                          round(balance * float(_walk["pct"]) / 100.0, 2)),
                                   "goal_pct": goal, "paid": True,
                                   "taken": False, "entry": entry})
-        elif (end - s["ts"]).total_seconds() < BURIAL_HORIZON_HOURS * 3600:
+        elif _censored:
             # no evidence AND almost no horizon to find any — unjudged
             system_pending.append(
                 {"pair": pair, "gate": s["gate"],
@@ -1214,13 +1257,7 @@ def evaluate_rotation(exchange, rot_key: str, when=None, speak=True,
             # THE OTHER SIDE OF THE COHORT (Nov 16): a dud is not free. Priced
             # at the same size the burial would have used, so the net is a
             # like-for-like counterfactual and not a sum of the winners.
-            _dud_size = balance * goal / 100.0
-            _dud_walk = _dud_exit(exchange, pair, s["ts"], end, goal)
-            system_duds.append({"pair": pair, "gate": s["gate"],
-                                "usd": None if _dud_walk is None
-                                else round(_dud_size * float(_dud_walk["pct"]) / 100.0, 2),
-                                "exit": None if _dud_walk is None
-                                else _dud_walk["reason"]})
+            system_duds.append(_buried_dud_row(pair, s["gate"], _walk, _size))
     for t in sold:
         entry, exitp = float(t.get("entry") or 0), float(t.get("exit") or 0)
         size, realized = float(t.get("size") or 0), float(t.get("pnl_net") or 0)
