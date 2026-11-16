@@ -1,5 +1,5 @@
 {
- "generated_at": "2026-11-16T13:46:20.298177+00:00",
+ "generated_at": "2026-11-16T14:07:21.724066+00:00",
  "1_best_config": {
   "name": "wide",
   "cfg": [
@@ -57,36 +57,45 @@
      "final_log": 0.0576
     },
     "regime_holdout": {
-     "base": 0.6033,
+     "base": 0.6122,
+     "base_death": 0.0,
      "holdouts": [
       {
        "regime": 0,
        "trades": 4067,
        "p_pass": 0.0,
-       "loss": 0.6033
+       "loss": 0.6122,
+       "p_death": 0.0,
+       "se": 0.0
       },
       {
        "regime": 1,
        "trades": 7021,
        "p_pass": 0.0,
-       "loss": 0.6033
+       "loss": 0.6122,
+       "p_death": 0.0,
+       "se": 0.0
       },
       {
        "regime": 2,
        "trades": 6277,
        "p_pass": 1.0,
-       "loss": -0.3967
+       "loss": -0.3878,
+       "p_death": 0.0,
+       "se": 0.0
       }
      ],
      "worst": {
       "regime": 0,
       "trades": 4067,
       "p_pass": 0.0,
-      "loss": 0.6033
+      "loss": 0.6122,
+      "p_death": 0.0,
+      "se": 0.0
      },
-     "loss": 0.6033,
+     "loss": 0.6122,
      "horizon_days": 365,
-     "paths": 300
+     "paths": 900
     },
     "disqualified": [
      [
@@ -102,7 +111,7 @@
      [
       "3. single-regime dependence",
       true,
-      "holding out regime 0 takes P(pass) 60% -> 0% (-60 pts) on the 4067 remaining trades"
+      "holding out regime 0 takes P(pass) 61% -> 0% (-61 pts) on the 4067 remaining trades"
      ],
      [
       "4. profit dies under realistic costs",
@@ -150,36 +159,45 @@
      "final_log": 0.0671
     },
     "regime_holdout": {
-     "base": 0.9133,
+     "base": 0.9244,
+     "base_death": 0.0,
      "holdouts": [
       {
        "regime": 0,
        "trades": 3781,
        "p_pass": 0.0,
-       "loss": 0.9133
+       "loss": 0.9244,
+       "p_death": 0.0,
+       "se": 0.0
       },
       {
        "regime": 1,
        "trades": 6499,
-       "p_pass": 0.03,
-       "loss": 0.8833
+       "p_pass": 0.0322,
+       "loss": 0.8922,
+       "p_death": 0.0,
+       "se": 0.0059
       },
       {
        "regime": 2,
        "trades": 7085,
        "p_pass": 1.0,
-       "loss": -0.0867
+       "loss": -0.0756,
+       "p_death": 0.0,
+       "se": 0.0
       }
      ],
      "worst": {
       "regime": 0,
       "trades": 3781,
       "p_pass": 0.0,
-      "loss": 0.9133
+      "loss": 0.9244,
+      "p_death": 0.0,
+      "se": 0.0
      },
-     "loss": 0.9133,
+     "loss": 0.9244,
      "horizon_days": 365,
-     "paths": 300
+     "paths": 900
     },
     "disqualified": [
      [
@@ -195,7 +213,7 @@
      [
       "3. single-regime dependence",
       true,
-      "holding out regime 0 takes P(pass) 91% -> 0% (-91 pts) on the 3781 remaining trades"
+      "holding out regime 0 takes P(pass) 92% -> 0% (-92 pts) on the 3781 remaining trades"
      ],
      [
       "4. profit dies under realistic costs",
@@ -243,36 +261,45 @@
      "final_log": 0.0737
     },
     "regime_holdout": {
-     "base": 0.9333,
+     "base": 0.9367,
+     "base_death": 0.0,
      "holdouts": [
       {
        "regime": 0,
        "trades": 4471,
        "p_pass": 0.0,
-       "loss": 0.9333
+       "loss": 0.9367,
+       "p_death": 1.0,
+       "se": 0.0
       },
       {
        "regime": 1,
        "trades": 4650,
        "p_pass": 1.0,
-       "loss": -0.0667
+       "loss": -0.0633,
+       "p_death": 0.0,
+       "se": 0.0
       },
       {
        "regime": 2,
        "trades": 8244,
        "p_pass": 1.0,
-       "loss": -0.0667
+       "loss": -0.0633,
+       "p_death": 0.0,
+       "se": 0.0
       }
      ],
      "worst": {
       "regime": 0,
       "trades": 4471,
       "p_pass": 0.0,
-      "loss": 0.9333
+      "loss": 0.9367,
+      "p_death": 1.0,
+      "se": 0.0
      },
-     "loss": 0.9333,
+     "loss": 0.9367,
      "horizon_days": 365,
-     "paths": 300
+     "paths": 900
     },
     "disqualified": [
      [
@@ -288,7 +315,7 @@
      [
       "3. single-regime dependence",
       true,
-      "holding out regime 0 takes P(pass) 93% -> 0% (-93 pts) on the 4471 remaining trades"
+      "holding out regime 0 takes P(pass) 94% -> 0% (-94 pts) on the 4471 remaining trades"
      ],
      [
       "4. profit dies under realistic costs",
@@ -336,36 +363,45 @@
      "final_log": 0.0859
     },
     "regime_holdout": {
-     "base": 0.9733,
+     "base": 0.9767,
+     "base_death": 0.0011,
      "holdouts": [
       {
        "regime": 0,
        "trades": 3624,
        "p_pass": 0.0,
-       "loss": 0.9733
+       "loss": 0.9767,
+       "p_death": 0.8233,
+       "se": 0.0
       },
       {
        "regime": 1,
        "trades": 6535,
-       "p_pass": 0.09,
-       "loss": 0.8833
+       "p_pass": 0.0956,
+       "loss": 0.8811,
+       "p_death": 0.0978,
+       "se": 0.0098
       },
       {
        "regime": 2,
        "trades": 7206,
        "p_pass": 1.0,
-       "loss": -0.0267
+       "loss": -0.0233,
+       "p_death": 0.0,
+       "se": 0.0
       }
      ],
      "worst": {
       "regime": 0,
       "trades": 3624,
       "p_pass": 0.0,
-      "loss": 0.9733
+      "loss": 0.9767,
+      "p_death": 0.8233,
+      "se": 0.0
      },
-     "loss": 0.9733,
+     "loss": 0.9767,
      "horizon_days": 365,
-     "paths": 300
+     "paths": 900
     },
     "disqualified": [
      [
@@ -381,7 +417,7 @@
      [
       "3. single-regime dependence",
       true,
-      "holding out regime 0 takes P(pass) 97% -> 0% (-97 pts) on the 3624 remaining trades"
+      "holding out regime 0 takes P(pass) 98% -> 0% (-98 pts) on the 3624 remaining trades"
      ],
      [
       "4. profit dies under realistic costs",
@@ -590,9 +626,9 @@
      "pair": "AIXBT",
      "rt": 2.349375,
      "avg": 2.349375,
-     "day": 1.384322,
+     "day": 1.410031,
      "stability": 1.26,
-     "shock": 0.59,
+     "shock": 0.6,
      "cost_of_edge": 26.104,
      "verdict": "refuse",
      "why": "measured round trip 2.349% is past the 1% sanity ceiling \u2014 a book, not a spread"
@@ -601,9 +637,9 @@
      "pair": "KAITO",
      "rt": 0.628392,
      "avg": 0.628392,
-     "day": 0.384734,
+     "day": 0.373085,
      "stability": 1.55,
-     "shock": 0.61,
+     "shock": 0.59,
      "cost_of_edge": 6.982,
      "verdict": "refuse",
      "why": "measured round trip 0.628% equals or exceeds the 0.090% edge it must clear"
@@ -612,9 +648,9 @@
      "pair": "LDO",
      "rt": 0.357782,
      "avg": 0.357782,
-     "day": 0.419804,
+     "day": 0.415692,
      "stability": 1.05,
-     "shock": 1.17,
+     "shock": 1.16,
      "cost_of_edge": 3.975,
      "verdict": "refuse",
      "why": "measured round trip 0.358% equals or exceeds the 0.090% edge it must clear"
@@ -623,9 +659,9 @@
      "pair": "POPCAT",
      "rt": 0.356506,
      "avg": 0.356506,
-     "day": 0.537576,
+     "day": 0.552223,
      "stability": 1.08,
-     "shock": 1.51,
+     "shock": 1.55,
      "cost_of_edge": 3.961,
      "verdict": "refuse",
      "why": "measured round trip 0.357% equals or exceeds the 0.090% edge it must clear"
@@ -634,9 +670,9 @@
      "pair": "PNUT",
      "rt": 0.343053,
      "avg": 0.343053,
-     "day": 0.485907,
+     "day": 0.475679,
      "stability": 1.04,
-     "shock": 1.42,
+     "shock": 1.39,
      "cost_of_edge": 3.812,
      "verdict": "refuse",
      "why": "measured round trip 0.343% equals or exceeds the 0.090% edge it must clear"
@@ -645,9 +681,9 @@
      "pair": "S",
      "rt": 0.298063,
      "avg": 0.298063,
-     "day": 0.39317,
-     "stability": 1.06,
-     "shock": 1.32,
+     "day": 0.398535,
+     "stability": 1.08,
+     "shock": 1.34,
      "cost_of_edge": 3.312,
      "verdict": "refuse",
      "why": "measured round trip 0.298% equals or exceeds the 0.090% edge it must clear"
@@ -656,9 +692,9 @@
      "pair": "XPL",
      "rt": 0.229621,
      "avg": 0.229621,
-     "day": 0.279519,
+     "day": 0.275941,
      "stability": 1.04,
-     "shock": 1.22,
+     "shock": 1.2,
      "cost_of_edge": 2.551,
      "verdict": "refuse",
      "why": "measured round trip 0.230% equals or exceeds the 0.090% edge it must clear"
@@ -667,7 +703,7 @@
      "pair": "TRUMP",
      "rt": 0.212314,
      "avg": 0.212314,
-     "day": 0.115657,
+     "day": 0.115068,
      "stability": 0.52,
      "shock": 0.54,
      "cost_of_edge": 2.359,
@@ -678,9 +714,9 @@
      "pair": "FIL",
      "rt": 0.164339,
      "avg": 0.164339,
-     "day": 0.208336,
+     "day": 0.211489,
      "stability": 1.06,
-     "shock": 1.27,
+     "shock": 1.29,
      "cost_of_edge": 1.826,
      "verdict": "refuse",
      "why": "measured round trip 0.164% equals or exceeds the 0.090% edge it must clear"
@@ -689,7 +725,7 @@
      "pair": "DRV",
      "rt": 0.151337,
      "avg": 0.151337,
-     "day": 0.153864,
+     "day": 0.154946,
      "stability": 1.08,
      "shock": 1.02,
      "cost_of_edge": 1.682,
@@ -700,9 +736,9 @@
      "pair": "WIF",
      "rt": 0.151172,
      "avg": 0.151172,
-     "day": 0.093978,
+     "day": 0.095467,
      "stability": 0.52,
-     "shock": 0.62,
+     "shock": 0.63,
      "cost_of_edge": 1.68,
      "verdict": "refuse",
      "why": "measured round trip 0.151% equals or exceeds the 0.090% edge it must clear"
@@ -711,7 +747,7 @@
      "pair": "MOODENG",
      "rt": 0.147221,
      "avg": 0.147221,
-     "day": 0.171363,
+     "day": 0.171168,
      "stability": 0.77,
      "shock": 1.16,
      "cost_of_edge": 1.636,
@@ -722,7 +758,7 @@
      "pair": "JUP",
      "rt": 0.144624,
      "avg": 0.144624,
-     "day": 0.128901,
+     "day": 0.128019,
      "stability": 0.68,
      "shock": 0.89,
      "cost_of_edge": 1.607,
@@ -733,9 +769,9 @@
      "pair": "RENDER",
      "rt": 0.144404,
      "avg": 0.144404,
-     "day": 0.105005,
+     "day": 0.1081,
      "stability": 0.52,
-     "shock": 0.73,
+     "shock": 0.75,
      "cost_of_edge": 1.604,
      "verdict": "refuse",
      "why": "measured round trip 0.144% equals or exceeds the 0.090% edge it must clear"
@@ -744,9 +780,9 @@
      "pair": "PENGU",
      "rt": 0.141457,
      "avg": 0.141457,
-     "day": 0.091347,
+     "day": 0.093715,
      "stability": 1.16,
-     "shock": 0.65,
+     "shock": 0.66,
      "cost_of_edge": 1.572,
      "verdict": "refuse",
      "why": "measured round trip 0.141% equals or exceeds the 0.090% edge it must clear"
@@ -755,7 +791,7 @@
      "pair": "VIRTUAL",
      "rt": 0.133363,
      "avg": 0.133363,
-     "day": 0.099505,
+     "day": 0.099685,
      "stability": 1.85,
      "shock": 0.75,
      "cost_of_edge": 1.482,
@@ -766,9 +802,9 @@
      "pair": "GRASS",
      "rt": 0.124766,
      "avg": 0.124766,
-     "day": 0.164388,
+     "day": 0.161696,
      "stability": 1.45,
-     "shock": 1.32,
+     "shock": 1.3,
      "cost_of_edge": 1.386,
      "verdict": "refuse",
      "why": "measured round trip 0.125% equals or exceeds the 0.090% edge it must clear"
@@ -777,9 +813,9 @@
      "pair": "OP",
      "rt": 0.123229,
      "avg": 0.123229,
-     "day": 0.155194,
+     "day": 0.157648,
      "stability": 1.04,
-     "shock": 1.26,
+     "shock": 1.28,
      "cost_of_edge": 1.369,
      "verdict": "refuse",
      "why": "measured round trip 0.123% equals or exceeds the 0.090% edge it must clear"
@@ -788,9 +824,9 @@
      "pair": "CRV",
      "rt": 0.112632,
      "avg": 0.112632,
-     "day": 0.098863,
+     "day": 0.098158,
      "stability": 0.93,
-     "shock": 0.88,
+     "shock": 0.87,
      "cost_of_edge": 1.251,
      "verdict": "refuse",
      "why": "measured round trip 0.113% equals or exceeds the 0.090% edge it must clear"
@@ -799,9 +835,9 @@
      "pair": "JTO",
      "rt": 0.107302,
      "avg": 0.107302,
-     "day": 0.09174,
+     "day": 0.092724,
      "stability": 0.8,
-     "shock": 0.85,
+     "shock": 0.86,
      "cost_of_edge": 1.192,
      "verdict": "refuse",
      "why": "measured round trip 0.107% equals or exceeds the 0.090% edge it must clear"
@@ -810,9 +846,9 @@
      "pair": "FARTCOIN",
      "rt": 0.105208,
      "avg": 0.105208,
-     "day": 0.218303,
+     "day": 0.214078,
      "stability": 2.07,
-     "shock": 2.07,
+     "shock": 2.03,
      "cost_of_edge": 1.169,
      "verdict": "refuse",
      "why": "measured round trip 0.105% equals or exceeds the 0.090% edge it must clear"
@@ -821,9 +857,9 @@
      "pair": "ETC",
      "rt": 0.100217,
      "avg": 0.100217,
-     "day": 0.102735,
+     "day": 0.10271,
      "stability": 1.51,
-     "shock": 1.03,
+     "shock": 1.02,
      "cost_of_edge": 1.114,
      "verdict": "refuse",
      "why": "measured round trip 0.100% equals or exceeds the 0.090% edge it must clear"
@@ -832,9 +868,9 @@
      "pair": "ONDO",
      "rt": 0.09117,
      "avg": 0.09117,
-     "day": 0.018053,
+     "day": 0.020753,
      "stability": 0.96,
-     "shock": 0.2,
+     "shock": 0.23,
      "cost_of_edge": 1.013,
      "verdict": "refuse",
      "why": "measured round trip 0.091% equals or exceeds the 0.090% edge it must clear"
@@ -843,9 +879,9 @@
      "pair": "VVV",
      "rt": 0.089951,
      "avg": 0.089951,
-     "day": 0.082546,
+     "day": 0.081628,
      "stability": 1.33,
-     "shock": 0.92,
+     "shock": 0.91,
      "cost_of_edge": 0.999,
      "verdict": "thin",
      "why": "only 0.000% of the 0.090% edge survives the 0.090% toll"
@@ -854,7 +890,7 @@
      "pair": "TAO",
      "rt": 0.083063,
      "avg": 0.083063,
-     "day": 0.069683,
+     "day": 0.069923,
      "stability": 0.85,
      "shock": 0.84,
      "cost_of_edge": 0.923,
@@ -865,7 +901,7 @@
      "pair": "ALGO",
      "rt": 0.0757,
      "avg": 0.0757,
-     "day": 0.074353,
+     "day": 0.074007,
      "stability": 0.85,
      "shock": 0.98,
      "cost_of_edge": 0.841,
@@ -876,9 +912,9 @@
      "pair": "STX",
      "rt": 0.075103,
      "avg": 0.075103,
-     "day": 0.087301,
+     "day": 0.087992,
      "stability": 0.56,
-     "shock": 1.16,
+     "shock": 1.17,
      "cost_of_edge": 0.834,
      "verdict": "thin",
      "why": "only 0.015% of the 0.090% edge survives the 0.075% toll"
@@ -887,9 +923,9 @@
      "pair": "ARB",
      "rt": 0.074322,
      "avg": 0.074322,
-     "day": 0.09035,
+     "day": 0.089262,
      "stability": 1.05,
-     "shock": 1.22,
+     "shock": 1.2,
      "cost_of_edge": 0.826,
      "verdict": "thin",
      "why": "only 0.016% of the 0.090% edge survives the 0.074% toll"
@@ -898,9 +934,9 @@
      "pair": "ATOM",
      "rt": 0.069042,
      "avg": 0.069042,
-     "day": 0.088986,
-     "stability": 1.01,
-     "shock": 1.29,
+     "day": 0.091415,
+     "stability": 1.31,
+     "shock": 1.32,
      "cost_of_edge": 0.767,
      "verdict": "thin",
      "why": "only 0.021% of the 0.090% edge survives the 0.069% toll"
@@ -909,9 +945,9 @@
      "pair": "PUMP",
      "rt": 0.068966,
      "avg": 0.068966,
-     "day": 0.08494,
-     "stability": 1.02,
-     "shock": 1.23,
+     "day": 0.085216,
+     "stability": 1.04,
+     "shock": 1.24,
      "cost_of_edge": 0.766,
      "verdict": "thin",
      "why": "only 0.021% of the 0.090% edge survives the 0.069% toll"
@@ -920,7 +956,7 @@
      "pair": "HBAR",
      "rt": 0.067808,
      "avg": 0.067808,
-     "day": 0.038656,
+     "day": 0.038357,
      "stability": 0.77,
      "shock": 0.57,
      "cost_of_edge": 0.753,
@@ -931,9 +967,9 @@
      "pair": "LINK",
      "rt": 0.062452,
      "avg": 0.062452,
-     "day": 0.035447,
+     "day": 0.034618,
      "stability": 0.84,
-     "shock": 0.57,
+     "shock": 0.55,
      "cost_of_edge": 0.694,
      "verdict": "ok",
      "why": "0.028% of the 0.090% edge survives the 0.062% toll"
@@ -942,9 +978,9 @@
      "pair": "ASTER",
      "rt": 0.05888,
      "avg": 0.05888,
-     "day": 0.082513,
+     "day": 0.081815,
      "stability": 6.65,
-     "shock": 1.4,
+     "shock": 1.39,
      "cost_of_edge": 0.654,
      "verdict": "ok",
      "why": "0.031% of the 0.090% edge survives the 0.059% toll"
@@ -953,9 +989,9 @@
      "pair": "DOT",
      "rt": 0.054817,
      "avg": 0.054817,
-     "day": 0.030347,
+     "day": 0.03115,
      "stability": 1.76,
-     "shock": 0.55,
+     "shock": 0.57,
      "cost_of_edge": 0.609,
      "verdict": "ok",
      "why": "0.035% of the 0.090% edge survives the 0.055% toll"
@@ -964,9 +1000,9 @@
      "pair": "BCH",
      "rt": 0.052736,
      "avg": 0.052736,
-     "day": 0.043328,
+     "day": 0.044426,
      "stability": 1.29,
-     "shock": 0.82,
+     "shock": 0.84,
      "cost_of_edge": 0.586,
      "verdict": "ok",
      "why": "0.037% of the 0.090% edge survives the 0.053% toll"
@@ -975,9 +1011,9 @@
      "pair": "AAVE",
      "rt": 0.045836,
      "avg": 0.045836,
-     "day": 0.049295,
+     "day": 0.049765,
      "stability": 1.42,
-     "shock": 1.08,
+     "shock": 1.09,
      "cost_of_edge": 0.509,
      "verdict": "ok",
      "why": "0.044% of the 0.090% edge survives the 0.046% toll"
@@ -986,9 +1022,9 @@
      "pair": "LTC",
      "rt": 0.044573,
      "avg": 0.044573,
-     "day": 0.02882,
+     "day": 0.030025,
      "stability": 0.52,
-     "shock": 0.65,
+     "shock": 0.67,
      "cost_of_edge": 0.495,
      "verdict": "ok",
      "why": "0.045% of the 0.090% edge survives the 0.045% toll"
@@ -997,9 +1033,9 @@
      "pair": "INJ",
      "rt": 0.043805,
      "avg": 0.043805,
-     "day": 0.056896,
+     "day": 0.056547,
      "stability": 1.73,
-     "shock": 1.3,
+     "shock": 1.29,
      "cost_of_edge": 0.487,
      "verdict": "ok",
      "why": "0.046% of the 0.090% edge survives the 0.044% toll"
@@ -1008,9 +1044,9 @@
      "pair": "APT",
      "rt": 0.043764,
      "avg": 0.043764,
-     "day": 0.111904,
+     "day": 0.113309,
      "stability": 4.0,
-     "shock": 2.56,
+     "shock": 2.59,
      "cost_of_edge": 0.486,
      "verdict": "ok",
      "why": "0.046% of the 0.090% edge survives the 0.044% toll"
@@ -1019,7 +1055,7 @@
      "pair": "UNI",
      "rt": 0.042469,
      "avg": 0.042469,
-     "day": 0.045976,
+     "day": 0.045711,
      "stability": 2.18,
      "shock": 1.08,
      "cost_of_edge": 0.472,
@@ -1030,9 +1066,9 @@
      "pair": "AVAX",
      "rt": 0.041786,
      "avg": 0.041786,
-     "day": 0.042705,
+     "day": 0.043708,
      "stability": 1.68,
-     "shock": 1.02,
+     "shock": 1.05,
      "cost_of_edge": 0.464,
      "verdict": "ok",
      "why": "0.048% of the 0.090% edge survives the 0.042% toll"
@@ -1041,7 +1077,7 @@
      "pair": "ADA",
      "rt": 0.039637,
      "avg": 0.039637,
-     "day": 0.040084,
+     "day": 0.04014,
      "stability": 1.16,
      "shock": 1.01,
      "cost_of_edge": 0.44,
@@ -1052,9 +1088,9 @@
      "pair": "WLD",
      "rt": 0.037376,
      "avg": 0.037376,
-     "day": 0.062231,
+     "day": 0.063268,
      "stability": 2.07,
-     "shock": 1.66,
+     "shock": 1.69,
      "cost_of_edge": 0.415,
      "verdict": "ok",
      "why": "0.053% of the 0.090% edge survives the 0.037% toll"
@@ -1063,9 +1099,9 @@
      "pair": "POL",
      "rt": 0.037372,
      "avg": 0.037372,
-     "day": 0.061185,
+     "day": 0.060875,
      "stability": 1.38,
-     "shock": 1.64,
+     "shock": 1.63,
      "cost_of_edge": 0.415,
      "verdict": "ok",
      "why": "0.053% of the 0.090% edge survives the 0.037% toll"
@@ -1074,9 +1110,9 @@
      "pair": "NEAR",
      "rt": 0.031367,
      "avg": 0.031367,
-     "day": 0.042653,
+     "day": 0.042325,
      "stability": 2.43,
-     "shock": 1.36,
+     "shock": 1.35,
      "cost_of_edge": 0.349,
      "verdict": "ok",
      "why": "0.059% of the 0.090% edge survives the 0.031% toll"
@@ -1085,9 +1121,9 @@
      "pair": "TIA",
      "rt": 0.027992,
      "avg": 0.027992,
-     "day": 0.040249,
+     "day": 0.040478,
      "stability": 2.07,
-     "shock": 1.44,
+     "shock": 1.45,
      "cost_of_edge": 0.311,
      "verdict": "ok",
      "why": "0.062% of the 0.090% edge survives the 0.028% toll"
@@ -1096,9 +1132,9 @@
      "pair": "PEPE",
      "rt": 0.02625,
      "avg": 0.02625,
-     "day": 0.046764,
+     "day": 0.046213,
      "stability": 2.06,
-     "shock": 1.78,
+     "shock": 1.76,
      "cost_of_edge": 0.292,
      "verdict": "ok",
      "why": "0.064% of the 0.090% edge survives the 0.026% toll"
@@ -1107,9 +1143,9 @@
      "pair": "BNB",
      "rt": 0.022005,
      "avg": 0.022005,
-     "day": 0.02084,
+     "day": 0.02062,
      "stability": 0.86,
-     "shock": 0.95,
+     "shock": 0.94,
      "cost_of_edge": 0.245,
      "verdict": "ok",
      "why": "0.068% of the 0.090% edge survives the 0.022% toll"
@@ -1118,9 +1154,9 @@
      "pair": "HYPE",
      "rt": 0.015068,
      "avg": 0.015068,
-     "day": 0.020512,
+     "day": 0.020121,
      "stability": 1.98,
-     "shock": 1.36,
+     "shock": 1.34,
      "cost_of_edge": 0.167,
      "verdict": "ok",
      "why": "0.075% of the 0.090% edge survives the 0.015% toll"
@@ -1129,9 +1165,9 @@
      "pair": "DOGE",
      "rt": 0.014944,
      "avg": 0.014944,
-     "day": 0.005835,
+     "day": 0.006853,
      "stability": 3.34,
-     "shock": 0.39,
+     "shock": 0.46,
      "cost_of_edge": 0.166,
      "verdict": "ok",
      "why": "0.075% of the 0.090% edge survives the 0.015% toll"
@@ -1140,9 +1176,9 @@
      "pair": "SOL",
      "rt": 0.013938,
      "avg": 0.013938,
-     "day": 0.01578,
+     "day": 0.015656,
      "stability": 2.05,
-     "shock": 1.13,
+     "shock": 1.12,
      "cost_of_edge": 0.155,
      "verdict": "ok",
      "why": "0.076% of the 0.090% edge survives the 0.014% toll"
@@ -1151,9 +1187,9 @@
      "pair": "SUI",
      "rt": 0.013747,
      "avg": 0.013747,
-     "day": 0.018918,
+     "day": 0.018554,
      "stability": 2.05,
-     "shock": 1.38,
+     "shock": 1.35,
      "cost_of_edge": 0.153,
      "verdict": "ok",
      "why": "0.076% of the 0.090% edge survives the 0.014% toll"
@@ -1162,9 +1198,9 @@
      "pair": "XRP",
      "rt": 0.010394,
      "avg": 0.010394,
-     "day": 0.007877,
+     "day": 0.007683,
      "stability": 2.22,
-     "shock": 0.76,
+     "shock": 0.74,
      "cost_of_edge": 0.115,
      "verdict": "ok",
      "why": "0.080% of the 0.090% edge survives the 0.010% toll"
@@ -1173,9 +1209,9 @@
      "pair": "TRX",
      "rt": 0.008888,
      "avg": 0.008888,
-     "day": 0.005585,
+     "day": 0.00522,
      "stability": 1.75,
-     "shock": 0.63,
+     "shock": 0.59,
      "cost_of_edge": 0.099,
      "verdict": "ok",
      "why": "0.081% of the 0.090% edge survives the 0.009% toll"
@@ -1184,9 +1220,9 @@
      "pair": "ZEC",
      "rt": 0.00112,
      "avg": 0.00112,
-     "day": 0.043419,
+     "day": 0.043809,
      "stability": 85.66,
-     "shock": 38.77,
+     "shock": 39.12,
      "cost_of_edge": 0.012,
      "verdict": "ok",
      "why": "0.089% of the 0.090% edge survives the 0.001% toll"
@@ -1195,9 +1231,9 @@
      "pair": "ETH",
      "rt": 0.000549,
      "avg": 0.000549,
-     "day": 0.002199,
+     "day": 0.002468,
      "stability": 29.37,
-     "shock": 4.01,
+     "shock": 4.5,
      "cost_of_edge": 0.006,
      "verdict": "ok",
      "why": "0.089% of the 0.090% edge survives the 0.001% toll"
@@ -1206,9 +1242,9 @@
      "pair": "BTC",
      "rt": 0.000154,
      "avg": 0.000154,
-     "day": 0.000454,
+     "day": 0.000432,
      "stability": 48.38,
-     "shock": 2.95,
+     "shock": 2.81,
      "cost_of_edge": 0.002,
      "verdict": "ok",
      "why": "0.090% of the 0.090% edge survives the 0.000% toll"

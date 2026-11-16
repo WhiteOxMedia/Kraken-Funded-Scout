@@ -468,7 +468,7 @@ def replay_tape(nets, ts, size=0.01):
             "final_log": round(float(L[-1]), 4)}
 
 
-def regime_holdout(nets, ts, pace, size=0.01, paths=300, seed=13):
+def regime_holdout(nets, ts, pace, size=0.01, paths=900, seed=13):
     """Leave one regime out, at a time, and RE-MEASURE the pass probability.
 
     Drift totals cannot answer this: a regime can be worth little in summed
@@ -485,7 +485,8 @@ def regime_holdout(nets, ts, pace, size=0.01, paths=300, seed=13):
     if a.size == 0 or len(ids) < 2:
         return None
     n = int(pace * SECONDARY_DAYS)
-    base = float(block_mc(a, size, n, 50, paths=paths, seed=seed)["pass"])
+    _b = block_mc(a, size, n, 50, paths=paths, seed=seed)
+    base = float(_b["pass"])
     holdouts = []
     for j in ids:
         sub = a[labels != j]
@@ -493,12 +494,16 @@ def regime_holdout(nets, ts, pace, size=0.01, paths=300, seed=13):
             holdouts.append({"regime": j, "trades": int(sub.size),
                              "p_pass": None, "loss": None})
             continue
-        p = float(block_mc(sub, size, n, 50, paths=paths, seed=seed)["pass"])
+        _r = block_mc(sub, size, n, 50, paths=paths, seed=seed)
+        p = float(_r["pass"])
         holdouts.append({"regime": j, "trades": int(sub.size),
-                         "p_pass": round(p, 4), "loss": round(base - p, 4)})
+                         "p_pass": round(p, 4), "loss": round(base - p, 4),
+                         "p_death": round(float(_r["death"]), 4),
+                         "se": round(math.sqrt(max(p * (1 - p), 1e-12) / paths), 4)})
     meas = [h for h in holdouts if h["loss"] is not None]
     worst = min(meas, key=lambda h: h["p_pass"]) if meas else None
-    return {"base": round(base, 4), "holdouts": holdouts, "worst": worst,
+    return {"base": round(base, 4), "base_death": round(float(_b["death"]), 4),
+            "holdouts": holdouts, "worst": worst,
             "loss": round(worst["loss"], 4) if worst else 0.0,
             "horizon_days": SECONDARY_DAYS, "paths": paths}
 
