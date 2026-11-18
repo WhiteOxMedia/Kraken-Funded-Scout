@@ -1,0 +1,586 @@
+{
+ "rule": {
+  "promotion": "+12% week, clean chain, AND entry timing + sell quality both in the top third of clean rows",
+  "entry_quantile": 0.5,
+  "exit_quantile": 0.5,
+  "bars": {
+   "entry": 0.9112,
+   "exit": 0.3342,
+   "entry_quantile": 0.5,
+   "exit_quantile": 0.5,
+   "n_entry": 1632,
+   "n_exit": 1632
+  },
+  "source": "edge_timing_tournament.json",
+  "swapped_for_timing": false
+ },
+ "champion_status": "timing-first shortlist (no +12% week on this tape)",
+ "counts": {
+  "rows": 2270,
+  "clean": 1632,
+  "with_12pct_week": 0,
+  "contenders": 1632,
+  "timing_gated": 398,
+  "promoted": 0
+ },
+ "champion": {
+  "config": {
+   "id": "L.dip.trend.scalp.6.any.us",
+   "entry_max": 0.5,
+   "mover": "leader",
+   "sell_high": 0.5,
+   "size": 0.12,
+   "slots": 4,
+   "breadth": 12,
+   "bank_r": null,
+   "trim_rollover": false,
+   "risk_cap": 2.0
+  },
+  "evidence": {
+   "weeks_12": 0,
+   "forward_ret_pct": 1.038,
+   "per_trade_points": 0.0413,
+   "win_rate": 0.5263,
+   "best_week": 0.787,
+   "trades_per_week": 2.38,
+   "entry_timing_score": 0.9185,
+   "sell_high_score": 0.4496,
+   "timing_score": 0.7075
+  }
+ },
+ "previous_champion": null,
+ "top_by_timing": [
+  {
+   "config": {
+    "id": "L.dip.trend.scalp.6.any.us",
+    "entry_max": 0.5,
+    "mover": "leader",
+    "sell_high": 0.5,
+    "size": 0.12,
+    "slots": 4,
+    "breadth": 12,
+    "bank_r": null,
+    "trim_rollover": false,
+    "risk_cap": 2.0
+   },
+   "evidence": {
+    "weeks_12": 0,
+    "forward_ret_pct": 1.038,
+    "per_trade_points": 0.0413,
+    "win_rate": 0.5263,
+    "best_week": 0.787,
+    "trades_per_week": 2.38,
+    "entry_timing_score": 0.9185,
+    "sell_high_score": 0.4496,
+    "timing_score": 0.7075
+   }
+  },
+  {
+   "config": {
+    "id": "L.dip.trend.scalp.6.any.us",
+    "entry_max": 0.5,
+    "mover": "leader",
+    "sell_high": 0.5,
+    "size": 0.12,
+    "slots": 4,
+    "breadth": 10,
+    "bank_r": null,
+    "trim_rollover": false,
+    "risk_cap": 2.0
+   },
+   "evidence": {
+    "weeks_12": 0,
+    "forward_ret_pct": 1.038,
+    "per_trade_points": 0.0413,
+    "win_rate": 0.5263,
+    "best_week": 0.787,
+    "trades_per_week": 2.38,
+    "entry_timing_score": 0.9185,
+    "sell_high_score": 0.4496,
+    "timing_score": 0.7075
+   }
+  },
+  {
+   "config": {
+    "id": "L.dip.trend.scalp.6.any.us",
+    "entry_max": 0.5,
+    "mover": "leader",
+    "sell_high": 0.5,
+    "size": 0.12,
+    "slots": 4,
+    "breadth": 12,
+    "bank_r": null,
+    "trim_rollover": true,
+    "risk_cap": 2.0
+   },
+   "evidence": {
+    "weeks_12": 0,
+    "forward_ret_pct": 1.038,
+    "per_trade_points": 0.0413,
+    "win_rate": 0.5263,
+    "best_week": 0.787,
+    "trades_per_week": 2.38,
+    "entry_timing_score": 0.9185,
+    "sell_high_score": 0.4496,
+    "timing_score": 0.7075
+   }
+  },
+  {
+   "config": {
+    "id": "L.dip.trend.scalp.6.any.us",
+    "entry_max": 0.5,
+    "mover": "leader",
+    "sell_high": 0.5,
+    "size": 0.12,
+    "slots": 4,
+    "breadth": 10,
+    "bank_r": null,
+    "trim_rollover": true,
+    "risk_cap": 2.0
+   },
+   "evidence": {
+    "weeks_12": 0,
+    "forward_ret_pct": 1.038,
+    "per_trade_points": 0.0413,
+    "win_rate": 0.5263,
+    "best_week": 0.787,
+    "trades_per_week": 2.38,
+    "entry_timing_score": 0.9185,
+    "sell_high_score": 0.4496,
+    "timing_score": 0.7075
+   }
+  },
+  {
+   "config": {
+    "id": "L.dip.trend.scalp.6.any.us",
+    "entry_max": 0.5,
+    "mover": "leader",
+    "sell_high": 0.5,
+    "size": 0.06,
+    "slots": 8,
+    "breadth": 12,
+    "bank_r": null,
+    "trim_rollover": false,
+    "risk_cap": 2.0
+   },
+   "evidence": {
+    "weeks_12": 0,
+    "forward_ret_pct": 1.43,
+    "per_trade_points": 0.0283,
+    "win_rate": 0.6061,
+    "best_week": 0.717,
+    "trades_per_week": 4.12,
+    "entry_timing_score": 0.9136,
+    "sell_high_score": 0.4534,
+    "timing_score": 0.7065
+   }
+  },
+  {
+   "config": {
+    "id": "L.dip.trend.scalp.6.any.us",
+    "entry_max": 0.5,
+    "mover": "leader",
+    "sell_high": 0.5,
+    "size": 0.06,
+    "slots": 8,
+    "breadth": 12,
+    "bank_r": null,
+    "trim_rollover": true,
+    "risk_cap": 2.0
+   },
+   "evidence": {
+    "weeks_12": 0,
+    "forward_ret_pct": 1.43,
+    "per_trade_points": 0.0283,
+    "win_rate": 0.6061,
+    "best_week": 0.717,
+    "trades_per_week": 4.12,
+    "entry_timing_score": 0.9136,
+    "sell_high_score": 0.4534,
+    "timing_score": 0.7065
+   }
+  },
+  {
+   "config": {
+    "id": "L.dip.trend.scalp.6.any.us",
+    "entry_max": 0.5,
+    "mover": "leader",
+    "sell_high": 0.5,
+    "size": 0.06,
+    "slots": 8,
+    "breadth": 10,
+    "bank_r": null,
+    "trim_rollover": false,
+    "risk_cap": 2.0
+   },
+   "evidence": {
+    "weeks_12": 0,
+    "forward_ret_pct": 0.802,
+    "per_trade_points": 0.025,
+    "win_rate": 0.5926,
+    "best_week": 0.647,
+    "trades_per_week": 3.38,
+    "entry_timing_score": 0.9186,
+    "sell_high_score": 0.4455,
+    "timing_score": 0.7057
+   }
+  },
+  {
+   "config": {
+    "id": "L.dip.trend.scalp.6.any.us",
+    "entry_max": 0.5,
+    "mover": "leader",
+    "sell_high": 0.5,
+    "size": 0.06,
+    "slots": 8,
+    "breadth": 10,
+    "bank_r": null,
+    "trim_rollover": true,
+    "risk_cap": 2.0
+   },
+   "evidence": {
+    "weeks_12": 0,
+    "forward_ret_pct": 0.802,
+    "per_trade_points": 0.025,
+    "win_rate": 0.5926,
+    "best_week": 0.647,
+    "trades_per_week": 3.38,
+    "entry_timing_score": 0.9186,
+    "sell_high_score": 0.4455,
+    "timing_score": 0.7057
+   }
+  },
+  {
+   "config": {
+    "id": "L.dip.trend.scalp.6.any.us",
+    "entry_max": 0.5,
+    "mover": "leader",
+    "sell_high": 0.5,
+    "size": 0.09,
+    "slots": 5,
+    "breadth": 10,
+    "bank_r": null,
+    "trim_rollover": false,
+    "risk_cap": 2.0
+   },
+   "evidence": {
+    "weeks_12": 0,
+    "forward_ret_pct": 0.844,
+    "per_trade_points": 0.0273,
+    "win_rate": 0.5417,
+    "best_week": 0.614,
+    "trades_per_week": 3.0,
+    "entry_timing_score": 0.9186,
+    "sell_high_score": 0.4455,
+    "timing_score": 0.7057
+   }
+  },
+  {
+   "config": {
+    "id": "L.dip.trend.scalp.9.any.us",
+    "entry_max": 0.5,
+    "mover": "leader",
+    "sell_high": 0.5,
+    "size": 0.09,
+    "slots": 5,
+    "breadth": 10,
+    "bank_r": null,
+    "trim_rollover": false,
+    "risk_cap": 2.0
+   },
+   "evidence": {
+    "weeks_12": 0,
+    "forward_ret_pct": 0.844,
+    "per_trade_points": 0.0273,
+    "win_rate": 0.5417,
+    "best_week": 0.614,
+    "trades_per_week": 3.0,
+    "entry_timing_score": 0.9186,
+    "sell_high_score": 0.4455,
+    "timing_score": 0.7057
+   }
+  }
+ ],
+ "top_by_old_rank": [
+  {
+   "config": {
+    "id": "L.pullback.all.fixed.9.any.any",
+    "entry_max": 0.5,
+    "mover": "leader",
+    "sell_high": null,
+    "size": 0.09,
+    "slots": 5,
+    "breadth": 10,
+    "bank_r": null,
+    "trim_rollover": false,
+    "risk_cap": 2.0
+   },
+   "evidence": {
+    "weeks_12": 0,
+    "forward_ret_pct": 0.626,
+    "per_trade_points": 0.4424,
+    "win_rate": 1.0,
+    "best_week": 0.626,
+    "trades_per_week": 0.5,
+    "entry_timing_score": 0.6176,
+    "sell_high_score": 0.8351,
+    "timing_score": 0.7155
+   }
+  },
+  {
+   "config": {
+    "id": "L.pullback.all.fixed.9.any.any",
+    "entry_max": 0.5,
+    "mover": "leader",
+    "sell_high": 0.5,
+    "size": 0.09,
+    "slots": 5,
+    "breadth": 10,
+    "bank_r": null,
+    "trim_rollover": false,
+    "risk_cap": 2.0
+   },
+   "evidence": {
+    "weeks_12": 0,
+    "forward_ret_pct": 0.626,
+    "per_trade_points": 0.4424,
+    "win_rate": 1.0,
+    "best_week": 0.626,
+    "trades_per_week": 0.5,
+    "entry_timing_score": 0.6176,
+    "sell_high_score": 0.8351,
+    "timing_score": 0.7155
+   }
+  },
+  {
+   "config": {
+    "id": "L.pullback.all.fixed.9.any.any",
+    "entry_max": 0.5,
+    "mover": "leader",
+    "sell_high": null,
+    "size": 0.09,
+    "slots": 5,
+    "breadth": 10,
+    "bank_r": null,
+    "trim_rollover": true,
+    "risk_cap": 2.0
+   },
+   "evidence": {
+    "weeks_12": 0,
+    "forward_ret_pct": 0.626,
+    "per_trade_points": 0.4424,
+    "win_rate": 1.0,
+    "best_week": 0.626,
+    "trades_per_week": 0.5,
+    "entry_timing_score": 0.6176,
+    "sell_high_score": 0.8351,
+    "timing_score": 0.7155
+   }
+  },
+  {
+   "config": {
+    "id": "L.pullback.all.fixed.9.any.any",
+    "entry_max": 0.5,
+    "mover": "leader",
+    "sell_high": null,
+    "size": 0.09,
+    "slots": 5,
+    "breadth": 10,
+    "bank_r": 2.5,
+    "trim_rollover": false,
+    "risk_cap": 2.0
+   },
+   "evidence": {
+    "weeks_12": 0,
+    "forward_ret_pct": 0.626,
+    "per_trade_points": 0.4424,
+    "win_rate": 1.0,
+    "best_week": 0.626,
+    "trades_per_week": 0.5,
+    "entry_timing_score": 0.6176,
+    "sell_high_score": 0.8351,
+    "timing_score": 0.7155
+   }
+  },
+  {
+   "config": {
+    "id": "L.pullback.all.fixed.9.any.any",
+    "entry_max": 0.5,
+    "mover": "leader",
+    "sell_high": null,
+    "size": 0.09,
+    "slots": 5,
+    "breadth": 10,
+    "bank_r": 2.5,
+    "trim_rollover": true,
+    "risk_cap": 2.0
+   },
+   "evidence": {
+    "weeks_12": 0,
+    "forward_ret_pct": 0.626,
+    "per_trade_points": 0.4424,
+    "win_rate": 1.0,
+    "best_week": 0.626,
+    "trades_per_week": 0.5,
+    "entry_timing_score": 0.6176,
+    "sell_high_score": 0.8351,
+    "timing_score": 0.7155
+   }
+  },
+  {
+   "config": {
+    "id": "L.pullback.all.fixed.9.any.any",
+    "entry_max": 0.5,
+    "mover": "leader",
+    "sell_high": 0.5,
+    "size": 0.09,
+    "slots": 5,
+    "breadth": 10,
+    "bank_r": null,
+    "trim_rollover": true,
+    "risk_cap": 2.0
+   },
+   "evidence": {
+    "weeks_12": 0,
+    "forward_ret_pct": 0.626,
+    "per_trade_points": 0.4424,
+    "win_rate": 1.0,
+    "best_week": 0.626,
+    "trades_per_week": 0.5,
+    "entry_timing_score": 0.6176,
+    "sell_high_score": 0.8351,
+    "timing_score": 0.7155
+   }
+  },
+  {
+   "config": {
+    "id": "L.pullback.all.fixed.9.any.any",
+    "entry_max": 0.5,
+    "mover": "leader",
+    "sell_high": 0.5,
+    "size": 0.09,
+    "slots": 5,
+    "breadth": 10,
+    "bank_r": 2.5,
+    "trim_rollover": false,
+    "risk_cap": 2.0
+   },
+   "evidence": {
+    "weeks_12": 0,
+    "forward_ret_pct": 0.626,
+    "per_trade_points": 0.4424,
+    "win_rate": 1.0,
+    "best_week": 0.626,
+    "trades_per_week": 0.5,
+    "entry_timing_score": 0.6176,
+    "sell_high_score": 0.8351,
+    "timing_score": 0.7155
+   }
+  },
+  {
+   "config": {
+    "id": "L.pullback.all.fixed.9.any.any",
+    "entry_max": 0.5,
+    "mover": "leader",
+    "sell_high": 0.5,
+    "size": 0.09,
+    "slots": 5,
+    "breadth": 10,
+    "bank_r": 2.5,
+    "trim_rollover": true,
+    "risk_cap": 2.0
+   },
+   "evidence": {
+    "weeks_12": 0,
+    "forward_ret_pct": 0.626,
+    "per_trade_points": 0.4424,
+    "win_rate": 1.0,
+    "best_week": 0.626,
+    "trades_per_week": 0.5,
+    "entry_timing_score": 0.6176,
+    "sell_high_score": 0.8351,
+    "timing_score": 0.7155
+   }
+  },
+  {
+   "config": {
+    "id": "L.pullback.all.fixed.9.any.any",
+    "entry_max": 0.5,
+    "mover": "leader",
+    "sell_high": null,
+    "size": 0.09,
+    "slots": 5,
+    "breadth": 12,
+    "bank_r": null,
+    "trim_rollover": false,
+    "risk_cap": 2.0
+   },
+   "evidence": {
+    "weeks_12": 0,
+    "forward_ret_pct": 0.626,
+    "per_trade_points": 0.4424,
+    "win_rate": 1.0,
+    "best_week": 0.626,
+    "trades_per_week": 0.5,
+    "entry_timing_score": 0.6176,
+    "sell_high_score": 0.8351,
+    "timing_score": 0.7155
+   }
+  },
+  {
+   "config": {
+    "id": "L.pullback.all.fixed.9.any.any",
+    "entry_max": 0.5,
+    "mover": "leader",
+    "sell_high": 0.5,
+    "size": 0.09,
+    "slots": 5,
+    "breadth": 12,
+    "bank_r": null,
+    "trim_rollover": false,
+    "risk_cap": 2.0
+   },
+   "evidence": {
+    "weeks_12": 0,
+    "forward_ret_pct": 0.626,
+    "per_trade_points": 0.4424,
+    "win_rate": 1.0,
+    "best_week": 0.626,
+    "trades_per_week": 0.5,
+    "entry_timing_score": 0.6176,
+    "sell_high_score": 0.8351,
+    "timing_score": 0.7155
+   }
+  }
+ ],
+ "selection_comparison": {
+  "old_top10_mean_forward_pct": 0.626,
+  "timing_top10_mean_forward_pct": 1.03,
+  "old_top10_mean_per_trade": 0.442,
+  "timing_top10_mean_per_trade": 0.033,
+  "old_top10_mean_win_rate": 1.0,
+  "timing_top10_mean_win_rate": 0.559,
+  "old_top10_weeks_12": 0,
+  "timing_top10_weeks_12": 0,
+  "gated_mean_forward_pct": 4.198,
+  "ungated_mean_forward_pct": 2.747,
+  "gated_mean_win_rate": 0.427,
+  "ungated_mean_win_rate": 0.435
+ },
+ "ordering": {
+  "n": 1316,
+  "top_decile_rows": 131,
+  "old_rank_definition": "weeks_12 then best_week (pre-timing rank_key)",
+  "new_rank_definition": "weeks_12, then timing_score, then best_week",
+  "spearman_timing_vs_forward": 0.4483,
+  "spearman_entry_vs_forward": 0.6152,
+  "spearman_exit_vs_forward": -0.016,
+  "spearman_old_rank_vs_forward": 0.8762,
+  "spearman_timing_vs_per_trade": 0.5303,
+  "spearman_entry_vs_per_trade": 0.0841,
+  "spearman_old_rank_vs_per_trade": 0.1976,
+  "top_decile_forward_timing": 3.648,
+  "top_decile_forward_old": 6.203,
+  "mean_forward": 2.997
+ }
+}

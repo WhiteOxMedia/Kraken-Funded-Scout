@@ -1347,6 +1347,37 @@ GO_BIG_FLAT_TIDE_MIN = 50.0   # FLAT is eligible at real-tape breadth; the
                               # RISING-only bar left GO BIG almost never firing
                               # (Nov 13 real tape: only 6 of 426 signal hours
                               # were at/above the 75% RISING line).
+GO_BIG_MIN_DAYS = 7.0         # ABOUT ONCE A WEEK (user rule, Nov 18). The
+                              # calendar belongs to the policy: the old limits
+                              # were the coin, the tide and "the book is flat",
+                              # and a flat book can come back three times in an
+                              # afternoon. Callers pass the last fire's stamp
+                              # (go_big_week.last_fire_ts()); no stamp = no
+                              # calendar = the pre-Nov-18 behavior.
+
+
+def go_big_week_ok(now_ts: float | None, last_fire_ts: float | None,
+                   min_days: float = GO_BIG_MIN_DAYS) -> tuple[bool, str]:
+    """Is the weekly GO BIG slot open? (ok, why). Never raises.
+
+    Pure arithmetic so `go_big_supported` can enforce the calendar without
+    importing the ledger: a caller that has no timestamps (a backtest, a
+    replay, the paper loop) passes None and keeps the old behavior.
+    """
+    try:
+        import time as _t
+        if now_ts is None or last_fire_ts is None:
+            return True, "no GO BIG on record — the weekly slot is open"
+        now, last = float(now_ts), float(last_fire_ts)
+        wait = max(0.0, float(min_days)) * 86400.0
+        left = wait - (now - last)
+        if left <= 0.0:
+            return True, "the weekly GO BIG slot is open"
+        when = _t.strftime("%Y-%m-%d %H:%M", _t.localtime(last))
+        return False, (f"the weekly GO BIG slot opens in {left / 86400.0:.1f}d "
+                       f"— last all-in {when}")
+    except (TypeError, ValueError) as exc:
+        return False, f"the GO BIG calendar is unreadable ({exc})"
 
 
 def go_big_supported(*, action: str, tide_state: str | None,
@@ -1354,7 +1385,10 @@ def go_big_supported(*, action: str, tide_state: str | None,
                      conviction: float,
                      floor: float = GO_BIG_MIN_CONVICTION,
                      tide_pct: float | None = None,
-                     slot_open: bool = False) -> tuple[bool, str]:
+                     slot_open: bool = False,
+                     now_ts: float | None = None,
+                     last_fire_ts: float | None = None,
+                     min_days: float = GO_BIG_MIN_DAYS) -> tuple[bool, str]:
     """Can the coin and the market rotation carry an all-in entry?
 
     Facts, all observed rather than assumed: the signal is a BUY; the fleet
@@ -1388,6 +1422,9 @@ def go_big_supported(*, action: str, tide_state: str | None,
         if conv + 1e-9 < float(floor or 0.0):
             return False, (f"conviction {conv:.0f}% is under the "
                            f"{float(floor):.0f}% GO BIG floor")
+        week_ok, week_why = go_big_week_ok(now_ts, last_fire_ts, min_days)
+        if not week_ok:
+            return False, week_why
         return True, (f"BUY {conv:.0f}% in a {tide} tide"
                       + (f" ({pct:.0f}% breadth)" if pct is not None else "")
                       + f" with ${carry:,.0f} of book carry for ${bal:,.0f}")

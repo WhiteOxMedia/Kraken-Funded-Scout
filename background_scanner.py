@@ -10557,13 +10557,23 @@ def main():
             #    that cannot carry the account.
             try:
                 import contest_account as _ca_gb
+                import go_big_week as _gbw
+                # THE WEEKLY SLOT (user rule, Nov 18): one all-in a week, and
+                # the ledger is what knows when the last one fired. No ledger
+                # entry yet = no calendar = the pre-Nov-18 behavior.
+                # The ledger follows the book: a flat contest watch closes a
+                # recorded open all-in, so the slot cannot stay spent on a
+                # position the exit monitor already sold.
+                _gbw.reconcile(book_open=bool(_load_contest_watch()))
                 _gb_ok, _gb_why = _ca_gb.go_big_supported(
                     action=signal.action, tide_state=_df_state,
                     tide_pct=_df_pct,
                     carry_usd=_carry, balance=float(_bal or 0.0),
                     conviction=float(_dc or 0.0),
                     floor=float(DESKTOP_ALERT_MIN),
-                    slot_open=bool(_load_contest_watch()))
+                    slot_open=bool(_load_contest_watch()),
+                    now_ts=time.time(),
+                    last_fire_ts=_gbw.last_fire_ts())
                 _gb_start = float(
                     _ca_gb.load_state().get("start_balance") or 0.0)
                 _gb_stop, _gb_take = _ca_gb.go_big_marks(_gb_start)
@@ -10611,6 +10621,20 @@ def main():
                 return
             if not gate_notes:
                 signal_written = _bridge_write_now(signal.action)
+            # THE WEEKLY SLOT IS SPENT ONLY WHEN THE ALL-IN ACTUALLY WROTE:
+            # a refused or duplicate signal burned nothing. Recording here (and
+            # not at the sizing decision above) is what keeps the calendar
+            # honest — the ledger counts all-ins, not intentions.
+            if _go_big and signal_written:
+                try:
+                    import go_big_week as _gbw_rec
+                    _gbw_rec.note_fire(pair=pair, usd=float(_spend or 0.0),
+                                       why=str(_go_big_why or ""))
+                    logger.info("  GO BIG WEEK: slot spent on %s ($%.0f) — "
+                                "next all-in in %.0f days", asset, _spend,
+                                _gbw_rec.MIN_DAYS)
+                except Exception:
+                    logger.debug("GO BIG week record failed", exc_info=True)
             # The bot's own answer, in plain English, right after the write
             # it describes (moved here with the write, never before it).
             bot_note = ""

@@ -8316,15 +8316,21 @@ def render_quick_check(cfg: TradingConfig, kraken):
                 _qc_go_big = False
                 try:
                     import contest_account as _ca_gbq
+                    import go_big_week as _gbw_q
+                    import time as _gb_time
                     _gb_acct = _ca_gbq.load_state()
                     _gb_bal = float(_gb_acct.get("current_balance") or 0.0)
+                    # the QC panel tells the same truth the scanner trades on:
+                    # the weekly all-in slot is one a week (user rule, Nov 18)
                     _gb_ok, _gb_why = _ca_gbq.go_big_supported(
                         action=sig.action, tide_state=_tide_state,
                         tide_pct=_tide_pct,
                         carry_usd=_carry, balance=_gb_bal,
                         conviction=float(sig.confidence),
                         floor=_ca_gbq.GO_BIG_MIN_CONVICTION,
-                        slot_open=bool(_load_watch()))
+                        slot_open=bool(_load_watch()),
+                        now_ts=_gb_time.time(),
+                        last_fire_ts=_gbw_q.last_fire_ts())
                     _gb_plan = _ca_gbq.go_big_plan(
                         _gb_bal, float(_gb_acct.get("start_balance") or 0.0),
                         supported=bool(_gb_ok and not _qc_hm
