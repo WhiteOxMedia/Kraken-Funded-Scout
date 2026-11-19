@@ -1,0 +1,73 @@
+policy                                                pre n  pre mean%
+L.pullback.risk_on.chandelier.9.any.us                   95    -0.5105  drop
+L.ignition.risk_on.fixed.9.any.any                      257     0.4653  keep
+L.dip.risk_off.fixed.9.any.us                           139     1.4524  keep
+L.pullback.risk_on.breakeven.9.any.any                  145    -0.5819  drop
+L.dip.risk_off.chandelier.9.any.us                      139     1.5884  keep
+L.pullback.risk_off.breakeven.9.any.any                  36    -1.3265  drop
+L.dip.trend.chandelier.6.any.us                         126     1.8394  keep
+L.ignition.risk_on.breakeven.9.any.any                  257     0.3888  keep
+L.pullback.trend.fixed.6.any.any                        253    -0.2068  drop
+L.range_reclaim.risk_off.fixed.9.any.us                 243     0.1518  keep
+
+signals 2,504 on liquid pairs   book kept 6/10
+train anchors 25 (09-03..09-27)   test anchors 9 (10-19..10-27)
+
+fitted 144 configs on 25 train anchors; best 6 zero-death:
+ size slots  gate  stop      won  died  flat  medN
+  18%     4  0.00    2%   5/25       0     1    26
+  18%     4  0.30    2%   3/25       0     2    14
+  18%     4  0.40    2%   3/25       0     2    14
+  18%     4  0.50    2%   3/25       0     5    14
+  18%     4  0.00    2%   3/25       0     1    14
+  18%     4  0.30    2%   3/25       0     1    14
+
+train-chosen 18% x 4, gate 0.00, stop 2%   module frozen at 18% x 3, gate 0.30, stop 2%
+largest frozen order $2,016; signals whose pair could NOT fill it: 0  (0 = no fill was filtered after the fact)
+
+IN-SAMPLE (what the fit saw)
+frozen / train             0/25  won   0 died  20 stopped   5 flat    0.0%  [0-13%]  medN 0
+
+OUT-OF-SAMPLE (untouched)
+frozen / test              0/9   won   0 died   9 stopped   0 flat    0.0%  [0-30%]  medN 0
+   2026-10-19  STOP 11-05 13:00   trades   14  final $    9,797
+   2026-10-20  STOP 11-05 15:00   trades   14  final $    9,765
+   2026-10-21  STOP 11-04 01:00   trades   10  final $    9,780
+   2026-10-22  STOP 11-05 13:00   trades    6  final $    9,774
+   2026-10-23  STOP 11-05 13:00   trades    6  final $    9,774
+   2026-10-24  STOP 11-05 13:00   trades    6  final $    9,774
+   2026-10-25  STOP 11-05 13:00   trades    6  final $    9,774
+   2026-10-26  STOP 11-05 13:00   trades    6  final $    9,774
+   2026-10-27  STOP 11-05 13:00   trades    6  final $    9,774
+
+independent, non-overlapping contests
+   09-03->09-25  STOP 09-14   trades   33  final $    9,773
+   09-25->10-17  STOP 09-28   trades    6  final $    9,791
+   10-17->11-08  STOP 11-05   trades   14  final $    9,797
+   10-19->11-10  STOP 11-05   trades   14  final $    9,797
+
+THE TRAIN-CHOSEN CONFIG, ALSO ON TEST (it was not frozen)
+train-chosen / train       5/25  won   0 died  19 stopped   1 flat   20.0%  [9-39%]  medN 26
+train-chosen / test        0/9   won   0 died   9 stopped   0 flat    0.0%  [0-30%]  medN 0
+   2026-10-19  STOP 10-24 14:00   trades   24  final $    9,783
+   2026-10-20  STOP 10-30 00:00   trades   34  final $    9,760
+   2026-10-21  STOP 10-24 09:00   trades   15  final $    9,754
+   2026-10-22  STOP 10-23 22:00   trades    8  final $    9,772
+   2026-10-23  STOP 10-24 14:00   trades    5  final $    9,768
+   2026-10-24  STOP 10-24 14:00   trades    6  final $    9,784
+   2026-10-25  STOP 10-30 00:00   trades   10  final $    9,732
+   2026-10-26  STOP 10-30 00:00   trades   10  final $    9,732
+   2026-10-27  STOP 10-30 00:00   trades   10  final $    9,732
+
+independent contests
+   09-03->09-25  STOP 09-10   trades   28  final $    9,788
+   09-25->10-17  STOP 09-27   trades    6  final $    9,794
+   10-17->11-08  STOP 10-18   trades   11  final $    9,780
+   10-19->11-10  STOP 10-24   trades   24  final $    9,783
+
+WHAT THE FOUR DROPPED POLICIES WERE WORTH (pre-cutoff), for the record
+   L.pullback.risk_on.chandelier.9.any.us               n  95  mean -0.511%
+   L.pullback.risk_on.breakeven.9.any.any               n 145  mean -0.582%
+   L.pullback.risk_off.breakeven.9.any.any              n  36  mean -1.327%
+   L.pullback.trend.fixed.6.any.any                     n 253  mean -0.207%
+exit=0

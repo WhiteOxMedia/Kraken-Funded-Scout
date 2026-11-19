@@ -1,0 +1,33 @@
+{
+ "gate": {
+  "breadth": 0.1658,
+  "gate": 0.0,
+  "open": true,
+  "bar": "2026-11-18 02:00:00+00:00",
+  "change_24h": -0.1106,
+  "change_72h": 0.0302,
+  "percentile": 30.8,
+  "mean": 0.3051,
+  "open_share_of_hours": 100.0
+ },
+ "lines": {
+  "anchor": 10000.0,
+  "balance": 9982.77,
+  "win": 11200.0,
+  "death": 9700.0,
+  "gap_to_win": 1217.23,
+  "headroom": 282.77,
+  "contest_id": "2026-11-11T10:03:49.524344-07:00"
+ },
+ "config": {
+  "size_frac": 0.18,
+  "slots": 4,
+  "book": 6,
+  "book_stop": 0.02,
+  "participation": 0.01,
+  "order_usd": 2400.0,
+  "liquid_universe": true,
+  "fitted_through": "2026-10-19"
+ },
+ "action": "deploy 18% x 4 slots on the liquid universe (breadth gate off, it did not earn one), stand down at -2%"
+}

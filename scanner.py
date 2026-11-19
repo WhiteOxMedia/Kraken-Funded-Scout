@@ -18,6 +18,7 @@ from typing import Any
 import pandas as pd
 
 import buy_low as _buy_low
+import liquid_universe as _liquid
 import spend_capacity as _spend
 from config import TradingConfig
 from entry_timing import apply as apply_entry_timing
@@ -52,6 +53,9 @@ class ScanResult:
     entry_quality: float | None = None
     # The coin's deep read + what it can carry (see spend_capacity.deep_scan).
     spend: dict | None = None
+    # What the liquid-universe rule measured here (1% capacity vs the order).
+    # None = the gate is off, or the candles were too short to measure.
+    entry_capacity: dict | None = None
 
     @property
     def actionable(self) -> bool:
@@ -511,6 +515,20 @@ def _evaluate_single(kraken: KrakenAPI, pair: str, config: TradingConfig) -> Sca
             signal.action = "hold"
             signal.reasons.append("Illiquid — filtered")
 
+    # THE LIQUID UNIVERSE (Nov 19): a signal the order cannot fill is not a
+    # signal. Judged BEFORE the bracket sees the coin, so an unfillable entry
+    # can never be crowned, deep-read, ranked or fired.
+    if getattr(config, "liquid_universe_enabled", False):
+        _ok, _ev = _liquid.check(
+            df, float(getattr(config, "liquid_universe_order_usd",
+                              _liquid.ORDER_USD)))
+        result.entry_capacity = _ev
+        if not _ok:
+            signal.action = "hold"
+            signal.reasons.append(
+                f"No fill: ${_ev['order_usd']:,.0f} order is more than 1% of "
+                f"this pair's median hourly dollars")
+
     return result
 
 
@@ -615,6 +633,19 @@ def scan_pairs(
             result.spread_pct = spread
             result.volume_24h_usd = volume
             result.liquid = is_liquid
+
+            # ── THE LIQUID UNIVERSE (Nov 19) ───────────────────────────
+            if getattr(config, "liquid_universe_enabled", False):
+                _ok, _ev = _liquid.check(
+                    df, float(getattr(config, "liquid_universe_order_usd",
+                                      _liquid.ORDER_USD)))
+                result.entry_capacity = _ev
+                if not _ok:
+                    is_liquid = False
+                    result.liquid = False
+                    signal.reasons.append(
+                        f"No fill: ${_ev['order_usd']:,.0f} order is more than "
+                        f"1% of this pair's median hourly dollars")
 
             if not is_liquid:
                 reasons = []

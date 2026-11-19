@@ -1,0 +1,38 @@
+contest universe 54 pairs, cached 54
+
+liquid contest universe ($2,400 <= 1% of pre-cutoff median hourly $): 6/54
+  KEEP BTC          $  3,003,807/h  1% $  30,038
+  KEEP ETH          $  1,200,270/h  1% $  12,003
+  KEEP XRP          $    889,543/h  1% $   8,895
+  KEEP SOL          $    768,283/h  1% $   7,683
+  KEEP ZEC          $    549,085/h  1% $   5,491
+  KEEP NEAR         $    259,393/h  1% $   2,594
+       SUI          $    206,790/h  1% $   2,068
+       HYPE         $    204,531/h  1% $   2,045
+       TAO          $    145,346/h  1% $   1,453
+       ADA          $    141,428/h  1% $   1,414
+       DOGE         $    106,407/h  1% $   1,064
+       UNI          $     84,459/h  1% $     845
+       LINK         $     79,604/h  1% $     796
+       PUMP         $     74,540/h  1% $     745
+
+building rows on the contest panel (breadth/ranks = the contest book's own)...
+   rows with a live btc24: 49,303
+   market rows 49,303
+   rows on liquid pairs 5,488
+
+policy                                                signals  trades    mean%
+L.pullback.risk_on.chandelier.9.any.us                    121     121   -0.679
+L.ignition.risk_on.fixed.9.any.any                        310     310    0.147
+L.dip.risk_off.fixed.9.any.us                             278     278    0.174
+L.pullback.risk_on.breakeven.9.any.any                    189     189   -0.690
+L.dip.risk_off.chandelier.9.any.us                        278     278    0.332
+L.pullback.risk_off.breakeven.9.any.any                    47      47   -0.835
+L.dip.trend.chandelier.6.any.us                           272     272    0.333
+L.ignition.risk_on.breakeven.9.any.any                    310     310    0.149
+L.pullback.trend.fixed.6.any.any                          310     310   -0.279
+L.range_reclaim.risk_off.fixed.9.any.us                   389     389   -0.335
+
+total trades 2,504
+pre-cutoff trades 1,690  mean +0.401%  share liquid book kept: 45.6% of liquid rows
+exit=0
