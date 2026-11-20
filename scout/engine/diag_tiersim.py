@@ -23,8 +23,11 @@ HONESTY / SCOPE
         history without substituting a venue (slow, no backfill).
     Neither resamples: a 15m/1h bar would change the detector's 24-bar
     (2h) coil into a 6h/24h structure, which is a different contract.
-  · one book: entries are sequential (no overlapping positions), which is
-    stricter than the live account and keeps a single balance path.
+  · MANY AT ONCE (Nov 20 rebuild): the live account holds every pair it
+    fired, so this book does too — a pending row and a position PER PAIR,
+    each sized from the free cash (balance - open notional) through the
+    live entry_size_usd. The old single slot starved the book on a long
+    hold, which is why the 8h/24h runs priced the model, not the strategy.
   · the champion/mover gate chains live inline in the scanner and are NOT
     replayable — this prices the coil funnel only.
   · book-carry and the rotation gate are not modelled (no depth feed); the
@@ -315,19 +318,31 @@ def _coiled(rows: list[list], idx: int) -> bool:
 
 
 class Book:
-    """One contest tier: balance, the pending row, the open position."""
+    """One contest tier: balance, the pending rows, the open positions.
+
+    MANY AT ONCE (Nov 20 rebuild): the live account holds every pair it
+    fired, so this book does too. One pending row and one position PER PAIR
+    — the scanner's own shape, where pending rows are keyed by pair and a
+    pair never doubles up — each sized against the FREE CASH the book still
+    holds (`balance - open notional`) through the same `entry_size_usd` the
+    live account uses: the min of the account, the book's carry and the 3%
+    guard. The old single slot starved the book on long holds, which is why
+    the 8h and 24h runs said more about the model than about the strategy.
+    """
 
     def __init__(self, tier: int, mode: str, stop: bool = False):
         self.tier, self.mode, self.stop = tier, mode, stop
         self.start = ca.TIERS[tier]["start"]
         self.balance = self.start
-        self.pending: dict | None = None
-        self.pos: dict | None = None
+        self.pending: dict[str, dict] = {}
+        self.pos: dict[str, dict] = {}
         self.arms = self.confirms = self.expired = 0
         self.trades = self.wins = 0
         self.net = 0.0
         self.dead = self.hit_target = False
         self.peak_bal, self.peak_at, self.tiny = self.start, 0.0, 0
+        self.peak_open = 0
+        self.last_px: dict[str, float] = {}   # each pair's own last mark
         self.armed_min: list[float] = []
         self.bar_pct: list[float] = []
         self.log: list[tuple] = []
@@ -343,15 +358,22 @@ class Book:
         """No new risk: dead, or (contest exit) already at +12%."""
         return self.dead or (self.stop and self.hit_target)
 
+    def open_notional(self) -> float:
+        return sum(float(q["size"]) for q in self.pos.values())
+
+    def carry(self) -> float:
+        """The free cash a new entry may use — what is not committed."""
+        return max(0.0, float(self.balance) - self.open_notional())
+
     def arm(self, pair: str, ts: float, px: float, ceiling: float,
             spend: float, dd: float):
-        if self.pending or self.pos or self.halted:
+        if pair in self.pending or pair in self.pos or self.halted:
             return
         entry = float(px)
         if spend <= 0 or entry <= 0:
             self.enter(pair, ts, entry, spend, dd)   # fail-open: fire now
             return
-        self.pending = {
+        self.pending[pair] = {
             "pair": pair, "entry": entry, "spend": spend, "ts": ts,
             "ceiling": float(ceiling or 0.0),
             # the gate's target: $1 of profit on THIS row's spend
@@ -359,51 +381,58 @@ class Book:
             "expires": ts + st.SURE_THING_WINDOW_MIN * 60.0,
         }
         self.arms += 1
-        self.bar_pct.append(round((self.pending["target"] / entry - 1.0) * 100.0, 3))
+        self.bar_pct.append(round((self.pending[pair]["target"] / entry - 1.0) * 100.0, 3))
 
     def enter(self, pair: str, ts: float, px: float, spend: float, dd: float):
-        if self.pos or self.halted or spend <= 0 or px <= 0:
+        if pair in self.pos or self.halted or spend <= 0 or px <= 0:
             return
         if min(spend, self.balance) < 1.0:
             self.tiny += 1          # the 3% guard has squeezed risk to nothing
-        self.pos = {
+        self.pos[pair] = {
             "pair": pair, "entry": px, "size": min(spend, self.balance),
             "goal": px * (1.0 + st.SURE_THING_GOAL_PCT / 100.0),
             "ts": ts, "deadline": ts + HOLD_MIN * 60.0,
             "peak": px,
         }
+        self.peak_open = max(self.peak_open, len(self.pos))
 
     def step(self, pair: str, ts: float, o: float, h: float, l: float,
              c: float):
-        if self.halted:
-            return
-        if self.pending and self.pending["pair"] == pair:
-            p = self.pending
+        # NO EARLY RETURN ON halted (Nov 20): a dead or stopped book takes no
+        # NEW risk (arm/enter check that), but the positions it already holds
+        # are still managed — the old early return froze them until the
+        # window's end, which is how one run reported a 27-day hold and a
+        # -5.06% book against a -3% line.
+        self.last_px[pair] = float(c)   # the book's mark for THIS pair
+        p = self.pending.get(pair)
+        if p:
             if h >= p["ceiling"] > 0 or h >= p["target"]:
                 lvls = [x for x in (p["ceiling"], p["target"]) if x > 0 and h >= x]
                 fill = max(min(lvls), o)      # the level, never a bad gap
                 self.armed_min.append(round((ts - p["ts"]) / 60.0, 1))
-                self.pending = None
+                self.pending.pop(pair, None)
                 self.confirms += 1
                 self.enter(pair, ts, fill, p["spend"], None)
             elif ts > p["expires"]:
-                self.pending = None
+                self.pending.pop(pair, None)
                 self.expired += 1
-        if self.pos and self.pos["pair"] == pair:
-            q = self.pos
+        q = self.pos.get(pair)
+        if q:
             q["peak"] = max(q["peak"], h)
             # the live ratchet: 3% off the peak, 1.5% once the run is +2%
             trail = 1.5 if (q["peak"] / q["entry"] - 1.0) * 100.0 >= 2.0 else 3.0
             stop = q["peak"] * (1.0 - trail / 100.0)
             if h >= q["goal"]:
-                self.close(max(q["goal"], o), ts, "goal")
+                self.close(pair, max(q["goal"], o), ts, "goal")
             elif q["peak"] > q["entry"] and l <= stop:
-                self.close(min(stop, o), ts, "trail")
+                self.close(pair, min(stop, o), ts, "trail")
             elif ts > q["deadline"]:
-                self.close(c, ts, "clock")
+                self.close(pair, c, ts, "clock")
 
-    def close(self, px: float, ts: float, why: str = "end"):
-        q, self.pos = self.pos, None
+    def close(self, pair: str, px: float, ts: float, why: str = "end"):
+        q = self.pos.pop(pair, None)
+        if not q:
+            return
         _g, _c, net = ca.pnl_net_usd(q["entry"], px, q["size"])
         self.balance += net
         self.net += net
@@ -416,7 +445,18 @@ class Book:
                          round((ts - q["ts"]) / 60.0, 1), net, why))
         self.log_ts.append((q["ts"], ts))
         if self.balance <= self.start * (1.0 - ca.MAX_LOSS_PCT / 100.0):
-            self.dead = True
+            if not self.dead:
+                self.dead = True
+                # THE DEATH LINE ENDS THE BOOK (Nov 20): the live account is
+                # out at -3%, so whatever is still open is closed HERE — not
+                # carried to the window's end. EACH POSITION AT ITS OWN
+                # MARK (`last_px`): closing the whole book at the price of
+                # the pair that tripped the line booked one coin's tape onto
+                # every other one (the bug that read +6,882 on a $21 CSPR
+                # position closed at ETH's price).
+                for _p in list(self.pos):
+                    self.close(_p, self.last_px.get(_p, self.pos[_p]["entry"]),
+                               ts, "death line")
         if self.balance >= self.need:
             self.hit_target = True
 
@@ -450,18 +490,20 @@ def run(pairs: list[str], candles: dict[str, list[list]]) -> dict[tuple, "Book"]
             continue
         px = float(a.get("trigger_px") or c)
         for (_tier, mode, _stop), b in books.items():
-            spend = ca.entry_size_usd(b.balance, None, dd[p], b.start)
+            # free-cash carry: what the open book has not already committed
+            spend = ca.entry_size_usd(b.balance, b.carry(), dd[p], b.start)
             if mode == "gate" and a["trigger"] == "pre-breakout":
                 b.arm(p, ts, px, a.get("zone_high") or 0.0, spend, dd[p])
             else:
                 b.enter(p, ts, px, spend, dd[p])
-    # close anything still open at the window's end
+    # close everything still open at the window's end
     for b in books.values():
-        if b.pos:
-            p = b.pos["pair"]
+        for p in list(b.pos):
             rows = candles.get(p) or []
-            b.close(float(rows[-1][4]) if rows else b.pos["entry"],
-                    float(rows[-1][0]) if rows else b.pos["ts"], "window end")
+            b.close(p,
+                    float(rows[-1][4]) if rows else b.pos[p]["entry"],
+                    float(rows[-1][0]) if rows else b.pos[p]["ts"],
+                    "window end")
     return books
 
 
@@ -478,18 +520,20 @@ def main():
                     help="kraken only: stamp today's window for repeat captures")
     ap.add_argument("--hold-min", type=float,
                     default=st.SURE_THING_WINDOW_MIN,
-                    help="how long a position may hold before the exit check "
-                         "calls the exit (the shipped contract is 240 min)")
+                    help="how long a position may hold before the clock ends "
+                         "it (the shipped contract is "
+                         f"{st.SURE_THING_WINDOW_MIN:.0f} min; 240 is the "
+                         "historical floor the old runs used)")
     ap.add_argument("--min-days", type=float, default=0.0,
                     help="drop pairs whose 5m feed covers less than this, so "
                          "late-listing coins cannot carry a result")
     args = ap.parse_args()
     global HOLD_MIN
     HOLD_MIN = args.hold_min
-    if HOLD_MIN < st.SURE_THING_WINDOW_MIN:
-        raise SystemExit("refusing to run: --hold-min below the shipped "
-                         "240-min contract is a different strategy, not "
-                         "more time")
+    if HOLD_MIN < 240.0:
+        raise SystemExit("refusing to run: --hold-min below the 240-min "
+                         "contract history is a different strategy, not "
+                         "a window")
     universe = list(json.loads(
         (ROOT / "volatility_universe.json").read_text(encoding="utf-8")))
     pairs = universe[: args.pairs] if args.pairs else universe
@@ -565,6 +609,9 @@ def main():
                    "untouched")
     out.append(f"target +{ca.PROFIT_TARGET_PCT:.0f}%  ·  death line "
                f"-{ca.MAX_LOSS_PCT:.0f}%  ·  round trip {ca.COST_ROUNDTRIP_PCT:.2f}%")
+    out.append("book: MANY AT ONCE — a pending row and a position PER PAIR, "
+               "each sized from the free cash (balance − open notional) "
+               "through the live entry_size_usd")
     if dropped:
         out.append(f"excluded for covering under {args.min_days:.0f} days of the "
                    "window (their feed only exists in its tail): "
@@ -618,6 +665,9 @@ def main():
                 out.append("       peak ${:,.2f} ({}%) on {} UTC".format(
                     b.peak_bal, f"{b.peak_bal / b.start * 100.0 - 100.0:+.2f}",
                     time.strftime("%Y-%m-%d %H:%M", time.gmtime(b.peak_at))))
+            if b.peak_open > 1:
+                out.append(f"       peak {b.peak_open} positions open at once "
+                           "(each sized from the free-cash carry)")
             if b.tiny:
                 out.append(f"       {b.tiny} of {b.trades} fires were under $1 "
                            "notional: the 3% guard had squeezed risk to "
@@ -663,9 +713,12 @@ def main():
     out.append("  · more time is not an open-ended position: the clock still")
     out.append("    calls the exit on the first bar past the hold window, so a trade")
     out.append("    that never reaches the goal is closed at the window's price.")
-    out.append("  · one position at a time (stricter than the live multi-pair")
-    out.append("    book); the 3% guard sizes every entry and the fee is charged")
-    out.append("    on both legs. Champion/mover funnels are not replayable.")
+    out.append("  · the book holds several positions at once, one per pair, so")
+    out.append("    a long hold no longer starves entries; each entry is sized")
+    out.append("    against the FREE CASH still on the book, so the account can")
+    out.append("    never be over-committed. The 3% guard sizes every entry and")
+    out.append("    the fee is charged on both legs. Champion/mover funnels are")
+    out.append("    not replayable.")
     if args.trace:
         for (tier, mode, stop), b in sorted(books.items()):
             out.append(f"")
