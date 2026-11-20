@@ -5376,12 +5376,43 @@ def contest_light(exchange, cfg):
                 logger.debug("exit-watch force gate read skipped for %s: %s",
                              pair, _exc)
 
-        # (Sep 21, user rule: the window NEVER exits by itself — "I don't
-        # want to Exit simply because 'Time's up'. Stay close, and fire a
-        # popup only when the trend watch or the exit watch fire the Get
-        # out now.") The clock only reminds (gate 6 below); the exit call
-        # belongs to the profit guard, the hard stop, the trend sell bar
-        # and the climax — never to the clock.
+        # ── 3b. THE CLOCK'S EXIT CALL (user rule, Nov 20 — SUPERSEDES the
+        # Sep 21 "the window NEVER exits by itself, I don't want to Exit
+        # simply because 'Time's up'"): the calibrated gates above still
+        # get their say first — this is the LAST gate, and it is the clock.
+        # At the end of the row's own window a position that has NOT paid
+        # its goal is closed HERE, through the same popup → push →
+        # auto-close path as every other gate, never quietly. The window is
+        # the whole contract: more time is not an open-ended hold.
+        # SCOPE: the SURE THING rows only (source "sure_thing") — that is
+        # the book being tested live and the one whose clock the tier sim
+        # priced; the champion/mover/DCA routes keep their own discipline.
+        if not should_exit:
+            try:
+                _win_c = float(w.get("window_min") or 0.0)
+                _added_c = w.get("added")
+                _goal_c = float(w.get("goal_pct") or 0.0)
+                _src_c = str(w.get("source") or "")
+                if (_src_c == "sure_thing" and _win_c > 0 and _added_c):
+                    _lapse_c = (datetime.fromisoformat(str(_added_c))
+                                + timedelta(minutes=_win_c))
+                    _pct_c = (float(live) / float(entry) - 1.0) * 100.0
+                    if _now_mst() >= _lapse_c and (_goal_c <= 0
+                                                   or _pct_c < _goal_c):
+                        should_exit = True
+                        reason = (f"Clock — the {_win_c:.0f}-min window "
+                                  f"ended without the goal "
+                                  f"({_pct_c:+.1f}% vs +{_goal_c:.1f}%)")
+                        logger.info(
+                            "⏰ CLOCK EXIT: %s — %.0f-min window ended at "
+                            "%+.1f%% (goal +%.1f%%): the clock calls the "
+                            "exit", pair, _win_c, _pct_c, _goal_c)
+            except Exception as _clk_exc:
+                # an unreadable clock never traps the position: the gates
+                # above and the hard stop still own every cycle
+                logger.debug("clock exit read skipped for %s: %s",
+                             pair, _clk_exc)
+
         if should_exit:
             # ── THE HARD-STOP INDEPENDENT JUDGE (the recovered ordering
             # majors, Sep 29: CR 09:52 on :3842 and 15:18 on :3969): the
@@ -5753,11 +5784,13 @@ def contest_light(exchange, cfg):
                 _to_goal = (_goal - pct) if pct < _goal else 0.0
                 _near = (_to_goal <= _goal * 0.15) or (_rem <= 15.0)
                 if _rem <= 0:
-                    # STAY CLOSE (user rule, Sep 21): past the window the
-                    # position stays WATCHED — she keeps talking, the exit
-                    # comes only from the trend/exit gates, never the clock.
-                    _tail = (" — time's up, stay close! I'll call the exit "
-                             "when the trend breaks")
+                    # THE CLOCK CALLS THE EXIT (user rule, Nov 20): a goal
+                    # still unpaid at the window's end was closed by gate 3b
+                    # above before this line could run. What reaches here
+                    # PAID its goal, so it stays watched — from here the
+                    # trend/exit gates own the exit.
+                    _tail = (" — the window ended with the goal paid, "
+                             "stay close!")
                 else:
                     _tail = f", about {_rem:.0f} minutes left"
                     _tail += ", stay close" if _near else ", go walk around"
@@ -8109,8 +8142,10 @@ def main():
                         f"WHEN: {_when_line}\n"
                         f"HOW LONG: out by {_out_by} (the countdown — "
                         f"the {st.SURE_THING_WINDOW_MIN:.0f}-min contract — "
-                        f"the coil's edge is a 4h structure; if it has not "
-                        f"paid the goal by then, get out)\n"
+                        f"the coil's edge is a "
+                        f"{st.SURE_THING_WINDOW_MIN / 60.0:.0f}h structure; if "
+                        f"it has not paid the goal by then, the clock calls "
+                        f"the exit)\n"
                         f"SPEND: ${_spend:,.0f} (the 3% guard cap × {_mult:.2f} probability sizing"
                         + (f" × {_st_tide_mult:.2f} FLAT tide" if _st_tide_mult < 1.0 else "")
                         + f")\n"

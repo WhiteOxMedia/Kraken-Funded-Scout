@@ -520,8 +520,8 @@ finally:
 check("the diag reads the live snapshot store path",
       dg.Path(dg.bs.SIGNAL_SNAPSHOTS_FILE).name == "signal_snapshots.jsonl")
 check("the diag grades the sure-thing window the scanner fires with "
-      "(the Sep 11 re-contract: the 4h contract the coil's edge lives on)",
-      dg.st.SURE_THING_WINDOW_MIN == 240.0)
+      "(the Nov 20 re-contract: 8h, and the clock calls the exit)",
+      dg.st.SURE_THING_WINDOW_MIN == 480.0)
 check("the diag grades the per-fire goal (fallback = the engine constant)",
       abs(dg.st.SURE_THING_GOAL_PCT - 1.5) < 1e-9)
 

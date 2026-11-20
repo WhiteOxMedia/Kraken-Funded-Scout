@@ -200,12 +200,13 @@ r = st.analyze(None)
 check("no candles at all -> a clean no-op", not r["armed"])
 
 # ── 5. THE SIZING SEAM + THE CONSTANTS ───────────────────────────────
-check("the countdown window is the 4-hour contract (re-contracted Sep 11 "
-      "per the grade's contract test: the coil's edge is a 4h structure — "
-      "+1.5%/4h pays 47.2% at bar 45 vs 16.2% on the 60-min clock; the "
-      "old 60-min promise graded 4h edge at near-noise and broke on the "
-      "crack's ~50-min pays)",
-      st.SURE_THING_WINDOW_MIN == 240.0)
+check("the countdown window is the 8-hour contract (re-contracted Nov 20 "
+      "on the user's 'give them more time' rule: 240 -> 480 min, and the "
+      "clock now CALLS the exit on the first pass past the window with the "
+      "goal unpaid — background_scanner gate 3b — instead of only "
+      "reminding; the Sep 11 4h grade still stands as the read the fires "
+      "were priced on)",
+      st.SURE_THING_WINDOW_MIN == 480.0)
 check("the pre-breakout threshold is 45 (the Sep 11 refit bar — the "
       "old 65 priced a score that ranked payers BACKWARDS; the refit's "
       "holdout shows 45 pays 17.6% under the popup's own contract)",

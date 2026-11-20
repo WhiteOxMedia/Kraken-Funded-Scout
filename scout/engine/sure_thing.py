@@ -394,7 +394,15 @@ def _score(rng_pct, tests, vol_rank, burst, vol_fading, atr_ratio,
 # 60-min contract graded the same fires at near-noise and the crack's
 # ~50-min pay routinely broke a 1-hour est promise. One contract, top
 # to bottom: the popup's clock, the est window, and the grade.
-SURE_THING_WINDOW_MIN = 240.0
+# RE-CONTRACTED AGAIN Nov 20 (user rule: "give them more time, and let the
+# exit check call the exit if they don't hit the target in the window"):
+# 240 -> 480 min. The 4h read above priced the FIRES' pay inside a 4h
+# window; the live tier sim (diag_tiersim.py, 30 days, 61 pairs) then showed
+# the clock calling time on 82-83 trades at the 5k/10k tiers — the loss
+# engine. The clock no longer only reminds: background_scanner's gate 3b
+# CALLS the exit on the first pass past this window with the goal unpaid,
+# so the window IS the contract — 8h to pay +1.5% or the clock closes it.
+SURE_THING_WINDOW_MIN = 480.0
 # the goal the fire is graded on (Sep 8): stamped into every fired
 # snapshot, so diag_surething.py grades each fire against THE goal that
 # fired it -- not whatever default the diag would assume
