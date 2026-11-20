@@ -1,0 +1,1101 @@
+TIER SIMULATION — the Sure Thing coil funnel, live 5m candles
+==============================================================================
+source: per-pair best available 5m feed — the coverage table below names each pair's venue and span, so nothing is blended in silence
+pairs 61 (skipped 5)  ·  window 30.02 days of 5m bars  ·  $1 confirm target, 1.5% goal, 480-min hold clock, 3%→1.5% trail once +2% (armed only after a green print)
+the only change from the shipped contract: a position may hold 480 min instead of 240; the exit check still CALLS the exit at the end of that clock, and the 240-min arm/confirm expiry is untouched
+target +12%  ·  death line -3%  ·  round trip 0.08%
+excluded for covering under 29 days of the window (their feed only exists in its tail): XMR/USD 2.5d, OOB/USD 2.5d, SHAPE/USD 2.5d, REPPO/USD 2.5d, KNTQ/USD 17.9d
+
+── SHIPPED (arm, then confirm) · CONTINUOUS — never stops; prices the edge ────────────
+  tier  arms fills  exp trades  win%      net $     final $       %  verdict
+$1,000    19    12    7     38    50     -31.49      968.51   -3.15  FAIL (under the death line)
+       -0.83 per fire  ·  -0.10%/day  ·  this pace never reaches +12%  ·  the $1 bar +0.455%
+       death line $970.00 (-3%)  ·  cushion $-1.49 (-0.15% of the book)
+       peak $1,016.31 (+1.63%) on 2026-10-29 00:40 UTC
+$5,000    19    13    6     38    50    -158.08    4,841.92   -3.16  FAIL (under the death line)
+       -4.16 per fire  ·  -0.11%/day  ·  this pace never reaches +12%  ·  the $1 bar +0.084%
+       death line $4,850.00 (-3%)  ·  cushion $-8.08 (-0.16% of the book)
+       peak $5,101.31 (+2.03%) on 2026-10-29 00:40 UTC
+$10,000    19    14    5     38    50    -316.26    9,683.74   -3.16  FAIL (under the death line)
+       -8.32 per fire  ·  -0.11%/day  ·  this pace never reaches +12%  ·  the $1 bar +0.042%
+       death line $9,700.00 (-3%)  ·  cushion $-16.26 (-0.16% of the book)
+       peak $10,205.71 (+2.06%) on 2026-10-29 00:40 UTC
+  armed→fill: median 5 min over 39 confirms
+  exits: clock 16  ·  goal 17  ·  trail 5
+
+── SHIPPED (arm, then confirm) · CONTEST — halts at +12% or the death line ────────────
+  tier  arms fills  exp trades  win%      net $     final $       %  verdict
+$1,000    19    12    7     38    50     -31.49      968.51   -3.15  FAIL — stopped at the -3% line
+       -0.83 per fire  ·  -0.10%/day  ·  this pace never reaches +12%  ·  the $1 bar +0.455%
+       death line $970.00 (-3%)  ·  cushion $-1.49 (-0.15% of the book)
+       peak $1,016.31 (+1.63%) on 2026-10-29 00:40 UTC
+$5,000    19    13    6     38    50    -158.08    4,841.92   -3.16  FAIL — stopped at the -3% line
+       -4.16 per fire  ·  -0.11%/day  ·  this pace never reaches +12%  ·  the $1 bar +0.084%
+       death line $4,850.00 (-3%)  ·  cushion $-8.08 (-0.16% of the book)
+       peak $5,101.31 (+2.03%) on 2026-10-29 00:40 UTC
+$10,000    19    14    5     38    50    -316.26    9,683.74   -3.16  FAIL — stopped at the -3% line
+       -8.32 per fire  ·  -0.11%/day  ·  this pace never reaches +12%  ·  the $1 bar +0.042%
+       death line $9,700.00 (-3%)  ·  cushion $-16.26 (-0.16% of the book)
+       peak $10,205.71 (+2.06%) on 2026-10-29 00:40 UTC
+  armed→fill: median 5 min over 39 confirms
+  exits: clock 16  ·  goal 17  ·  trail 5
+
+── PRE-GATE (fire at pre-breakout) · CONTINUOUS — never stops; prices the edge ────────────
+  tier  arms fills  exp trades  win%      net $     final $       %  verdict
+$1,000     0     0    0    115    48     -29.97      970.03   -3.00  open — 15.0% short
+       -0.26 per fire  ·  -0.10%/day  ·  this pace never reaches +12%
+       death line $970.00 (-3%)  ·  cushion $+0.03 (+0.00% of the book)
+       peak $1,004.83 (+0.48%) on 2026-10-22 07:55 UTC
+       9 of 115 fires were under $1 notional: the 3% guard had squeezed risk to nothing by then
+$5,000     0     0    0    115    48    -149.86    4,850.14   -3.00  open — 15.0% short
+       -1.30 per fire  ·  -0.10%/day  ·  this pace never reaches +12%
+       death line $4,850.00 (-3%)  ·  cushion $+0.14 (+0.00% of the book)
+       peak $5,024.14 (+0.48%) on 2026-10-22 07:55 UTC
+$10,000     0     0    0    115    48    -299.71    9,700.29   -3.00  open — 15.0% short
+       -2.61 per fire  ·  -0.10%/day  ·  this pace never reaches +12%
+       death line $9,700.00 (-3%)  ·  cushion $+0.29 (+0.00% of the book)
+       peak $10,048.28 (+0.48%) on 2026-10-22 07:55 UTC
+  exits: clock 35  ·  goal 53  ·  trail 26  ·  window end 1
+
+── PRE-GATE (fire at pre-breakout) · CONTEST — halts at +12% or the death line ────────────
+  tier  arms fills  exp trades  win%      net $     final $       %  verdict
+$1,000     0     0    0    115    48     -29.97      970.03   -3.00  open — 15.0% short
+       -0.26 per fire  ·  -0.10%/day  ·  this pace never reaches +12%
+       death line $970.00 (-3%)  ·  cushion $+0.03 (+0.00% of the book)
+       peak $1,004.83 (+0.48%) on 2026-10-22 07:55 UTC
+       9 of 115 fires were under $1 notional: the 3% guard had squeezed risk to nothing by then
+$5,000     0     0    0    115    48    -149.86    4,850.14   -3.00  open — 15.0% short
+       -1.30 per fire  ·  -0.10%/day  ·  this pace never reaches +12%
+       death line $4,850.00 (-3%)  ·  cushion $+0.14 (+0.00% of the book)
+       peak $5,024.14 (+0.48%) on 2026-10-22 07:55 UTC
+$10,000     0     0    0    115    48    -299.71    9,700.29   -3.00  open — 15.0% short
+       -2.61 per fire  ·  -0.10%/day  ·  this pace never reaches +12%
+       death line $9,700.00 (-3%)  ·  cushion $+0.29 (+0.00% of the book)
+       peak $10,048.28 (+0.48%) on 2026-10-22 07:55 UTC
+  exits: clock 35  ·  goal 53  ·  trail 26  ·  window end 1
+
+COVERAGE — every coin in volatility_universe.json
+------------------------------------------------------------------------------
+  feeds: coinbase 42  ·  gate 17  ·  mexc 2
+         0G/USD gate       8641 bars   30.00 days
+       AERO/USD coinbase   8602 bars   30.00 days
+        APR/USD coinbase   6568 bars   29.99 days
+        APT/USD coinbase   7197 bars   29.99 days
+         AR/USD gate       8641 bars   30.00 days
+        ARB/USD coinbase   8368 bars   29.99 days
+        AVA/USD gate       8641 bars   30.00 days
+  BABYSHARK/USD gate       8641 bars   30.00 days
+       COTI/USD coinbase   6385 bars   30.00 days
+        CRV/USD coinbase   6856 bars   30.00 days
+       CSPR/USD gate       8641 bars   30.00 days
+        CVX/USD coinbase   3883 bars   29.99 days
+       DASH/USD coinbase   6795 bars   30.00 days
+       DENT/USD gate       8641 bars   30.00 days
+       DGAI/USD gate       8641 bars   30.00 days
+        ENA/USD coinbase   8636 bars   30.00 days
+         ES/USD gate       8641 bars   30.00 days
+      ETHFI/USD coinbase   4065 bars   29.96 days
+        EUR/USD mexc       4500 bars   29.48 days
+        FIL/USD coinbase   8321 bars   30.00 days
+      FLOKI/USD coinbase   5483 bars   29.99 days
+        FLR/USD coinbase   8066 bars   30.00 days
+      FORTH/USD coinbase   4441 bars   29.96 days
+       GHST/USD coinbase   1561 bars   29.99 days
+        GRT/USD coinbase   7178 bars   30.00 days
+        HNT/USD coinbase   5562 bars   29.99 days
+        ICP/USD coinbase   8537 bars   30.00 days
+        JUP/USD gate       8641 bars   30.00 days
+        KAS/USD gate       8641 bars   30.00 days
+        KII/USD mexc       4500 bars   29.48 days
+        KTA/USD coinbase   2606 bars   29.98 days
+    LIGHTER/USD coinbase   8290 bars   29.99 days
+        LRC/USD gate       8641 bars   30.00 days
+        MET/USD coinbase   2842 bars   29.99 days
+       MINA/USD coinbase   3376 bars   29.99 days
+    MUBARAK/USD gate       8641 bars   30.00 days
+       NEAR/USD coinbase   8640 bars   30.00 days
+      NIGHT/USD gate       8641 bars   30.00 days
+        NOT/USD gate       8641 bars   30.00 days
+        NPC/USD gate       8641 bars   30.00 days
+       ORCA/USD coinbase   6679 bars   29.99 days
+        OXT/USD coinbase   3226 bars   29.99 days
+       PUMP/USD coinbase   8554 bars   30.00 days
+       PYTH/USD coinbase   6799 bars   30.00 days
+        RAY/USD coinbase   5184 bars   29.99 days
+         RE/USD coinbase   5064 bars   29.99 days
+         SC/USD gate       8641 bars   30.00 days
+        SPX/USD coinbase   6655 bars   30.00 days
+      SUSHI/USD coinbase   4862 bars   30.00 days
+      SYRUP/USD coinbase   8134 bars   30.00 days
+       TRAC/USD coinbase   3579 bars   29.99 days
+        UAI/USD gate       8641 bars   30.00 days
+        UNI/USD coinbase   8638 bars   30.00 days
+    USELESS/USD coinbase   8189 bars   30.00 days
+        VET/USD coinbase   6344 bars   30.00 days
+        VVV/USD coinbase   8523 bars   30.00 days
+        XCN/USD coinbase   7461 bars   30.00 days
+        XPL/USD coinbase   7963 bars   30.00 days
+        ZEC/USD coinbase   8640 bars   30.00 days
+       ZORA/USD coinbase   7561 bars   30.00 days
+        ZRO/USD coinbase   8587 bars   30.00 days
+
+NOTES
+------------------------------------------------------------------------------
+  · the detector sees the last 720 bars at every step, exactly
+    as the scanner feeds it; a longer window widens the EVIDENCE,
+    never the detector's own 5m / 24-bar (2h) coil contract.
+  · two views of every arm, same trades up to the point a book
+    stops: CONTINUOUS runs the window out (what the edge is),
+    CONTEST halts the book the moment it reaches +12% or the death
+    line (what the rules would have done). A 'touched +12%' book
+    is a PASS: the contest ends when the goal is reached, so what the
+    continuous view shows afterwards is a book that declined to stop,
+    not a pass that was taken back.
+  · more time is not an open-ended position: the clock still
+    calls the exit on the first bar past the hold window, so a trade
+    that never reaches the goal is closed at the window's price.
+  · one position at a time (stricter than the live multi-pair
+    book); the 3% guard sizes every entry and the fee is charged
+    on both legs. Champion/mover funnels are not replayable.
+
+── TRADES $1,000 gate ──────────────────────────────
+  LIGHTER/USD 3.66876 -> 3.72379  $     340      40m     +4.83  goal
+      APT/USD 0.777765 -> 0.768  $     395     485m     -5.27  clock
+  BABYSHARK/USD 0.003438 -> 0.003362  $     335     485m     -7.67  clock
+      NPC/USD 0.018206 -> 0.0176947  $     248     460m     -7.16  trail
+     DGAI/USD 0.8971 -> 0.89459  $     167     485m     -0.60  clock
+     CSPR/USD 0.002177 -> 0.00214079  $     160      55m     -2.79  trail
+       ES/USD 0.0008571 -> 0.000869956  $     128     190m     +1.82  goal
+       ES/USD 0.0008719 -> 0.000885  $     149      40m     +2.12  goal
+      FLR/USD 0.006038 -> 0.006023  $     173     485m     -0.57  clock
+  MUBARAK/USD 0.052124 -> 0.052053  $     167     485m     -0.36  clock
+       ES/USD 0.00084 -> 0.0008526  $     163     190m     +2.31  goal
+      EUR/USD 1.1216 -> 1.1214  $     189     485m     -0.18  clock
+      EUR/USD 1.1214 -> 1.1237  $     187     485m     +0.23  clock
+     CSPR/USD 0.00213321 -> 0.00216521  $     189      30m     +2.69  goal
+       SC/USD 0.0007852 -> 0.000796978  $     220     240m     +3.12  goal
+       SC/USD 0.0008 -> 0.000812  $     255     175m     +3.62  goal
+      XCN/USD 0.00406167 -> 0.00412259  $     296     255m     +4.21  goal
+      EUR/USD 1.1196 -> 1.1156  $     344    2635m     -1.50  clock
+     DASH/USD 53.28 -> 54.0792  $     327     195m     +4.64  goal
+      LRC/USD 0.008394 -> 0.00851991  $     379      10m     +5.39  goal
+       ES/USD 0.000811433 -> 0.000828  $     379      15m     +7.44  goal
+       ES/USD 0.0008398 -> 0.0008101  $     525     485m    -18.98  clock
+      LRC/USD 0.008354 -> 0.00813151  $     310     345m     -8.50  trail
+  BABYSHARK/USD 0.003006 -> 0.002911  $     213     290m     -6.92  trail
+     CSPR/USD 0.002041 -> 0.00207161  $     135       5m     +1.92  goal
+       ES/USD 0.0007871 -> 0.000798906  $     157     130m     +2.23  goal
+      ZEC/USD 1255.63 -> 1274.46  $     182      35m     +2.58  goal
+      XPL/USD 0.07606 -> 0.0772009  $     211     115m     +3.00  goal
+       SC/USD 0.0007632 -> 0.000774648  $     245     425m     +3.48  goal
+      FIL/USD 0.8763 -> 0.8591  $     285     485m     -5.82  clock
+      FIL/USD 0.8606 -> 0.873509  $     219     340m     +3.11  goal
+      APT/USD 0.6404 -> 0.6312  $     254     485m     -3.85  clock
+      NPC/USD 0.016016 -> 0.016141  $     210     485m     +1.47  clock
+       AR/USD 3.1811 -> 3.1256  $     227     485m     -4.14  clock
+       ES/USD 0.0008418 -> 0.0007872  $     180     485m    -11.83  clock
+      XCN/USD 0.003701 -> 0.00359482  $      46     335m     -1.36  trail
+      FLR/USD 0.006098 -> 0.006053  $      31     485m     -0.25  clock
+       ES/USD 0.0006599 -> 0.0005669  $      28     485m     -3.95  clock
+
+── TRADES $1,000 gate stop ──────────────────────────────
+  LIGHTER/USD 3.66876 -> 3.72379  $     340      40m     +4.83  goal
+      APT/USD 0.777765 -> 0.768  $     395     485m     -5.27  clock
+  BABYSHARK/USD 0.003438 -> 0.003362  $     335     485m     -7.67  clock
+      NPC/USD 0.018206 -> 0.0176947  $     248     460m     -7.16  trail
+     DGAI/USD 0.8971 -> 0.89459  $     167     485m     -0.60  clock
+     CSPR/USD 0.002177 -> 0.00214079  $     160      55m     -2.79  trail
+       ES/USD 0.0008571 -> 0.000869956  $     128     190m     +1.82  goal
+       ES/USD 0.0008719 -> 0.000885  $     149      40m     +2.12  goal
+      FLR/USD 0.006038 -> 0.006023  $     173     485m     -0.57  clock
+  MUBARAK/USD 0.052124 -> 0.052053  $     167     485m     -0.36  clock
+       ES/USD 0.00084 -> 0.0008526  $     163     190m     +2.31  goal
+      EUR/USD 1.1216 -> 1.1214  $     189     485m     -0.18  clock
+      EUR/USD 1.1214 -> 1.1237  $     187     485m     +0.23  clock
+     CSPR/USD 0.00213321 -> 0.00216521  $     189      30m     +2.69  goal
+       SC/USD 0.0007852 -> 0.000796978  $     220     240m     +3.12  goal
+       SC/USD 0.0008 -> 0.000812  $     255     175m     +3.62  goal
+      XCN/USD 0.00406167 -> 0.00412259  $     296     255m     +4.21  goal
+      EUR/USD 1.1196 -> 1.1156  $     344    2635m     -1.50  clock
+     DASH/USD 53.28 -> 54.0792  $     327     195m     +4.64  goal
+      LRC/USD 0.008394 -> 0.00851991  $     379      10m     +5.39  goal
+       ES/USD 0.000811433 -> 0.000828  $     379      15m     +7.44  goal
+       ES/USD 0.0008398 -> 0.0008101  $     525     485m    -18.98  clock
+      LRC/USD 0.008354 -> 0.00813151  $     310     345m     -8.50  trail
+  BABYSHARK/USD 0.003006 -> 0.002911  $     213     290m     -6.92  trail
+     CSPR/USD 0.002041 -> 0.00207161  $     135       5m     +1.92  goal
+       ES/USD 0.0007871 -> 0.000798906  $     157     130m     +2.23  goal
+      ZEC/USD 1255.63 -> 1274.46  $     182      35m     +2.58  goal
+      XPL/USD 0.07606 -> 0.0772009  $     211     115m     +3.00  goal
+       SC/USD 0.0007632 -> 0.000774648  $     245     425m     +3.48  goal
+      FIL/USD 0.8763 -> 0.8591  $     285     485m     -5.82  clock
+      FIL/USD 0.8606 -> 0.873509  $     219     340m     +3.11  goal
+      APT/USD 0.6404 -> 0.6312  $     254     485m     -3.85  clock
+      NPC/USD 0.016016 -> 0.016141  $     210     485m     +1.47  clock
+       AR/USD 3.1811 -> 3.1256  $     227     485m     -4.14  clock
+       ES/USD 0.0008418 -> 0.0007872  $     180     485m    -11.83  clock
+      XCN/USD 0.003701 -> 0.00359482  $      46     335m     -1.36  trail
+      FLR/USD 0.006098 -> 0.006053  $      31     485m     -0.25  clock
+       ES/USD 0.0006599 -> 0.0005669  $      28     485m     -3.95  clock
+
+── TRADES $1,000 pre-gate ──────────────────────────────
+  LIGHTER/USD 3.658 -> 3.71287  $     340      45m     +4.83  goal
+      APT/USD 0.7758 -> 0.7712  $     395     485m     -2.66  clock
+  BABYSHARK/USD 0.003432 -> 0.003362  $     365     485m     -7.73  clock
+     DENT/USD 4.885e-05 -> 4.95827e-05  $     277     350m     +3.93  goal
+  LIGHTER/USD 3.42 -> 3.33583  $     322     310m     -8.17  trail
+     MINA/USD 0.072 -> 0.07308  $     229     135m     +3.25  goal
+     DGAI/USD 0.8979 -> 0.89272  $     266     485m     -1.75  clock
+     DGAI/USD 0.8946 -> 0.8833  $     246     485m     -3.30  clock
+     PUMP/USD 0.004245 -> 0.004126  $     209     200m     -6.01  trail
+  MUBARAK/USD 0.052124 -> 0.052053  $     140     485m     -0.30  clock
+       ES/USD 0.00084 -> 0.0008526  $     137     195m     +1.95  goal
+      EUR/USD 1.1216 -> 1.1214  $     159     485m     -0.16  clock
+       ES/USD 0.0008413 -> 0.0008359  $     157     485m     -1.14  clock
+     CSPR/USD 0.002122 -> 0.00215383  $     144     100m     +2.05  goal
+       SC/USD 0.0007791 -> 0.0007912  $     168     200m     +2.47  goal
+       SC/USD 0.0007913 -> 0.000803169  $     196     240m     +2.78  goal
+      XCN/USD 0.004048 -> 0.00410872  $     227     295m     +3.23  goal
+      EUR/USD 1.1196 -> 1.1156  $     264    2635m     -1.15  clock
+     DASH/USD 53.28 -> 54.0792  $     251     195m     +3.56  goal
+       ES/USD 0.0008093 -> 0.000828  $     291      85m     +6.49  goal
+       ES/USD 0.0008398 -> 0.0008104  $     364     485m    -13.05  clock
+      KAS/USD 0.03601 -> 0.0365501  $     217      80m     +3.08  goal
+      LRC/USD 0.008354 -> 0.00813151  $     251     345m     -6.90  trail
+  BABYSHARK/USD 0.003006 -> 0.002911  $     173     290m     -5.61  trail
+     CSPR/USD 0.002031 -> 0.00206146  $     110      50m     +1.56  goal
+       ES/USD 0.000782 -> 0.0007943  $     127      95m     +1.90  goal
+       ES/USD 0.0007944 -> 0.000806316  $     149      40m     +2.11  goal
+      ZEC/USD 1255.63 -> 1274.46  $     173      35m     +2.45  goal
+      XPL/USD 0.07606 -> 0.0772009  $     201     115m     +2.85  goal
+    SYRUP/USD 0.1553 -> 0.1547  $     233     485m     -1.09  clock
+  USELESS/USD 0.13272 -> 0.129379  $     221     205m     -5.73  trail
+      ARB/USD 0.16018 -> 0.162583  $     156      75m     +2.21  goal
+       SC/USD 0.0007704 -> 0.0007583  $     181     485m     -2.98  clock
+      CRV/USD 0.2856 -> 0.289884  $     147      70m     +2.09  goal
+      JUP/USD 0.26016 -> 0.25901  $     170     485m     -0.89  clock
+      NPC/USD 0.016016 -> 0.016141  $     160     485m     +1.12  clock
+       AR/USD 3.1811 -> 3.1256  $     173     485m     -3.16  clock
+       ES/USD 0.0008418 -> 0.0007872  $     137     485m     -9.02  clock
+      XCN/USD 0.003701 -> 0.00359482  $      35     335m     -1.04  trail
+     COTI/USD 0.010229 -> 0.0100385  $      23     440m     -0.45  trail
+      LRC/USD 0.008049 -> 0.007847  $      18     485m     -0.47  clock
+      XPL/USD 0.06738 -> 0.06414  $      13     485m     -0.63  clock
+  MUBARAK/USD 0.039661 -> 0.0402559  $       6     350m     +0.08  goal
+      XCN/USD 0.003573 -> 0.00362659  $       7      65m     +0.09  goal
+     DGAI/USD 0.65159 -> 0.661364  $       8      40m     +0.11  goal
+     NEAR/USD 3.8428 -> 3.77766  $       9     265m     -0.16  trail
+     DENT/USD 3.3e-05 -> 3.351e-05  $       7     115m     +0.11  goal
+     DENT/USD 3.351e-05 -> 3.26502e-05  $       8     165m     -0.22  trail
+      ZEC/USD 1308.39 -> 1283.38  $       6     120m     -0.12  trail
+     ZORA/USD 0.005632 -> 0.00571648  $       5      20m     +0.06  goal
+     CSPR/USD 0.002139 -> 0.00217108  $       5     480m     +0.07  goal
+     CSPR/USD 0.002172 -> 0.00212333  $       6     360m     -0.14  trail
+     DENT/USD 3.358e-05 -> 3.425e-05  $       5      70m     +0.09  goal
+      FLR/USD 0.006102 -> 0.00588  $       5     485m     -0.20  clock
+      EUR/USD 1.1229 -> 1.1194  $       3     485m     -0.01  clock
+      NPC/USD 0.015522 -> 0.0157548  $       3     345m     +0.04  goal
+      KTA/USD 0.0518 -> 0.052577  $       4     195m     +0.05  goal
+       0G/USD 0.1514 -> 0.153671  $       4      85m     +0.06  goal
+     AERO/USD 0.60454 -> 0.613608  $       5     115m     +0.07  goal
+  BABYSHARK/USD 0.001943 -> 0.0018915  $       6     150m     -0.15  trail
+     DGAI/USD 0.75966 -> 0.739722  $       4     195m     -0.10  trail
+     AERO/USD 0.60936 -> 0.59267  $       3     485m     -0.07  trail
+      XPL/USD 0.05791 -> 0.0566577  $       2     470m     -0.04  trail
+     CSPR/USD 0.002064 -> 0.00209496  $       1      20m     +0.02  goal
+      VVV/USD 20.5661 -> 20.5041  $       2     485m     -0.01  clock
+     CSPR/USD 0.002085 -> 0.00204  $       1     415m     -0.03  trail
+     TRAC/USD 0.3384 -> 0.343476  $       1     165m     +0.02  goal
+      FLR/USD 0.005694 -> 0.005593  $       1     485m     -0.02  clock
+     CSPR/USD 0.00203 -> 0.00206045  $       1     325m     +0.01  goal
+     COTI/USD 0.009383 -> 0.00952375  $       1      15m     +0.02  goal
+  LIGHTER/USD 3.146 -> 3.19319  $       1     205m     +0.02  goal
+     DGAI/USD 0.76041 -> 0.75604  $       2     485m     -0.01  clock
+     MINA/USD 0.051 -> 0.051765  $       1     455m     +0.02  goal
+  LIGHTER/USD 3.176 -> 3.22364  $       2     130m     +0.02  goal
+       ES/USD 0.000225 -> 0.0002313  $       2      50m     +0.05  goal
+      JUP/USD 0.25366 -> 0.257465  $       3     170m     +0.04  goal
+  BABYSHARK/USD 0.00152 -> 0.001559  $       3      15m     +0.08  goal
+     DENT/USD 3.189e-05 -> 3.10012e-05  $       4      30m     -0.11  trail
+      HNT/USD 0.2525 -> 0.2505  $       3     485m     -0.02  clock
+    SYRUP/USD 0.136 -> 0.1355  $       2     485m     -0.01  clock
+      EUR/USD 1.1105 -> 1.1105  $       2     485m     -0.00  clock
+       ES/USD 0.00019164 -> 0.00019576  $       2     170m     +0.05  goal
+       ES/USD 0.00019576 -> 0.000198696  $       3      80m     +0.04  goal
+      ZEC/USD 976.2 -> 990.843  $       3     255m     +0.05  goal
+      ZEC/USD 991.85 -> 967.604  $       4     145m     -0.09  trail
+     CSPR/USD 0.001886 -> 0.00183815  $       3      70m     -0.07  trail
+       ES/USD 0.00021082 -> 0.00021928  $       2      15m     +0.07  goal
+       ES/USD 0.00021928 -> 0.000222569  $       3      55m     +0.04  goal
+       SC/USD 0.000631 -> 0.000640465  $       3     210m     +0.04  goal
+      UAI/USD 0.03598 -> 0.035114  $       4     155m     -0.09  trail
+      UAI/USD 0.03494 -> 0.0354641  $       3      10m     +0.04  goal
+      EUR/USD 1.1066 -> 1.1002  $       3    2770m     -0.02  clock
+      EUR/USD 1.0998 -> 1.0991  $       3     485m     -0.00  clock
+      VET/USD 0.004925 -> 0.004773  $       3      40m     -0.09  trail
+      NOT/USD 0.0003026 -> 0.0003019  $       2     485m     -0.01  clock
+     PYTH/USD 0.05591 -> 0.054514  $       2     205m     -0.04  trail
+  MUBARAK/USD 0.028812 -> 0.0282425  $       1     435m     -0.02  trail
+     AERO/USD 0.41567 -> 0.421905  $       1      30m     +0.01  goal
+     GHST/USD 0.0463 -> 0.0463  $       1     560m     -0.00  clock
+     GHST/USD 0.0463 -> 0.0462  $       1     505m     -0.00  clock
+      FLR/USD 0.004987 -> 0.005005  $       1     485m     +0.00  clock
+       ES/USD 0.00040136 -> 0.00040909  $       1       5m     +0.02  goal
+       ES/USD 0.00040933 -> 0.00041547  $       1      25m     +0.02  goal
+      HNT/USD 0.2296 -> 0.233044  $       1      35m     +0.02  goal
+     DENT/USD 2.992e-05 -> 3.03688e-05  $       2     240m     +0.02  goal
+       ES/USD 0.00041468 -> 0.00040019  $       2      35m     -0.07  trail
+      HNT/USD 0.2312 -> 0.2273  $       1     515m     -0.02  clock
+      VVV/USD 21.3053 -> 20.8148  $       1     265m     -0.02  trail
+       ES/USD 0.00039975 -> 0.00038222  $       1     485m     -0.03  clock
+      AVA/USD 0.2088 -> 0.2061  $       0     485m     -0.00  clock
+      CVX/USD 1.373 -> 1.347  $       0     325m     -0.01  trail
+     TRAC/USD 0.2935 -> 0.2912  $       0     490m     -0.00  clock
+       ES/USD 0.00034026 -> 0.00035215  $       0      50m     +0.01  goal
+       ES/USD 0.00035215 -> 0.000357432  $       0      85m     +0.00  goal
+      EUR/USD 1.0986 -> 1.0993  $       0     120m     -0.00  window end
+
+── TRADES $1,000 pre-gate stop ──────────────────────────────
+  LIGHTER/USD 3.658 -> 3.71287  $     340      45m     +4.83  goal
+      APT/USD 0.7758 -> 0.7712  $     395     485m     -2.66  clock
+  BABYSHARK/USD 0.003432 -> 0.003362  $     365     485m     -7.73  clock
+     DENT/USD 4.885e-05 -> 4.95827e-05  $     277     350m     +3.93  goal
+  LIGHTER/USD 3.42 -> 3.33583  $     322     310m     -8.17  trail
+     MINA/USD 0.072 -> 0.07308  $     229     135m     +3.25  goal
+     DGAI/USD 0.8979 -> 0.89272  $     266     485m     -1.75  clock
+     DGAI/USD 0.8946 -> 0.8833  $     246     485m     -3.30  clock
+     PUMP/USD 0.004245 -> 0.004126  $     209     200m     -6.01  trail
+  MUBARAK/USD 0.052124 -> 0.052053  $     140     485m     -0.30  clock
+       ES/USD 0.00084 -> 0.0008526  $     137     195m     +1.95  goal
+      EUR/USD 1.1216 -> 1.1214  $     159     485m     -0.16  clock
+       ES/USD 0.0008413 -> 0.0008359  $     157     485m     -1.14  clock
+     CSPR/USD 0.002122 -> 0.00215383  $     144     100m     +2.05  goal
+       SC/USD 0.0007791 -> 0.0007912  $     168     200m     +2.47  goal
+       SC/USD 0.0007913 -> 0.000803169  $     196     240m     +2.78  goal
+      XCN/USD 0.004048 -> 0.00410872  $     227     295m     +3.23  goal
+      EUR/USD 1.1196 -> 1.1156  $     264    2635m     -1.15  clock
+     DASH/USD 53.28 -> 54.0792  $     251     195m     +3.56  goal
+       ES/USD 0.0008093 -> 0.000828  $     291      85m     +6.49  goal
+       ES/USD 0.0008398 -> 0.0008104  $     364     485m    -13.05  clock
+      KAS/USD 0.03601 -> 0.0365501  $     217      80m     +3.08  goal
+      LRC/USD 0.008354 -> 0.00813151  $     251     345m     -6.90  trail
+  BABYSHARK/USD 0.003006 -> 0.002911  $     173     290m     -5.61  trail
+     CSPR/USD 0.002031 -> 0.00206146  $     110      50m     +1.56  goal
+       ES/USD 0.000782 -> 0.0007943  $     127      95m     +1.90  goal
+       ES/USD 0.0007944 -> 0.000806316  $     149      40m     +2.11  goal
+      ZEC/USD 1255.63 -> 1274.46  $     173      35m     +2.45  goal
+      XPL/USD 0.07606 -> 0.0772009  $     201     115m     +2.85  goal
+    SYRUP/USD 0.1553 -> 0.1547  $     233     485m     -1.09  clock
+  USELESS/USD 0.13272 -> 0.129379  $     221     205m     -5.73  trail
+      ARB/USD 0.16018 -> 0.162583  $     156      75m     +2.21  goal
+       SC/USD 0.0007704 -> 0.0007583  $     181     485m     -2.98  clock
+      CRV/USD 0.2856 -> 0.289884  $     147      70m     +2.09  goal
+      JUP/USD 0.26016 -> 0.25901  $     170     485m     -0.89  clock
+      NPC/USD 0.016016 -> 0.016141  $     160     485m     +1.12  clock
+       AR/USD 3.1811 -> 3.1256  $     173     485m     -3.16  clock
+       ES/USD 0.0008418 -> 0.0007872  $     137     485m     -9.02  clock
+      XCN/USD 0.003701 -> 0.00359482  $      35     335m     -1.04  trail
+     COTI/USD 0.010229 -> 0.0100385  $      23     440m     -0.45  trail
+      LRC/USD 0.008049 -> 0.007847  $      18     485m     -0.47  clock
+      XPL/USD 0.06738 -> 0.06414  $      13     485m     -0.63  clock
+  MUBARAK/USD 0.039661 -> 0.0402559  $       6     350m     +0.08  goal
+      XCN/USD 0.003573 -> 0.00362659  $       7      65m     +0.09  goal
+     DGAI/USD 0.65159 -> 0.661364  $       8      40m     +0.11  goal
+     NEAR/USD 3.8428 -> 3.77766  $       9     265m     -0.16  trail
+     DENT/USD 3.3e-05 -> 3.351e-05  $       7     115m     +0.11  goal
+     DENT/USD 3.351e-05 -> 3.26502e-05  $       8     165m     -0.22  trail
+      ZEC/USD 1308.39 -> 1283.38  $       6     120m     -0.12  trail
+     ZORA/USD 0.005632 -> 0.00571648  $       5      20m     +0.06  goal
+     CSPR/USD 0.002139 -> 0.00217108  $       5     480m     +0.07  goal
+     CSPR/USD 0.002172 -> 0.00212333  $       6     360m     -0.14  trail
+     DENT/USD 3.358e-05 -> 3.425e-05  $       5      70m     +0.09  goal
+      FLR/USD 0.006102 -> 0.00588  $       5     485m     -0.20  clock
+      EUR/USD 1.1229 -> 1.1194  $       3     485m     -0.01  clock
+      NPC/USD 0.015522 -> 0.0157548  $       3     345m     +0.04  goal
+      KTA/USD 0.0518 -> 0.052577  $       4     195m     +0.05  goal
+       0G/USD 0.1514 -> 0.153671  $       4      85m     +0.06  goal
+     AERO/USD 0.60454 -> 0.613608  $       5     115m     +0.07  goal
+  BABYSHARK/USD 0.001943 -> 0.0018915  $       6     150m     -0.15  trail
+     DGAI/USD 0.75966 -> 0.739722  $       4     195m     -0.10  trail
+     AERO/USD 0.60936 -> 0.59267  $       3     485m     -0.07  trail
+      XPL/USD 0.05791 -> 0.0566577  $       2     470m     -0.04  trail
+     CSPR/USD 0.002064 -> 0.00209496  $       1      20m     +0.02  goal
+      VVV/USD 20.5661 -> 20.5041  $       2     485m     -0.01  clock
+     CSPR/USD 0.002085 -> 0.00204  $       1     415m     -0.03  trail
+     TRAC/USD 0.3384 -> 0.343476  $       1     165m     +0.02  goal
+      FLR/USD 0.005694 -> 0.005593  $       1     485m     -0.02  clock
+     CSPR/USD 0.00203 -> 0.00206045  $       1     325m     +0.01  goal
+     COTI/USD 0.009383 -> 0.00952375  $       1      15m     +0.02  goal
+  LIGHTER/USD 3.146 -> 3.19319  $       1     205m     +0.02  goal
+     DGAI/USD 0.76041 -> 0.75604  $       2     485m     -0.01  clock
+     MINA/USD 0.051 -> 0.051765  $       1     455m     +0.02  goal
+  LIGHTER/USD 3.176 -> 3.22364  $       2     130m     +0.02  goal
+       ES/USD 0.000225 -> 0.0002313  $       2      50m     +0.05  goal
+      JUP/USD 0.25366 -> 0.257465  $       3     170m     +0.04  goal
+  BABYSHARK/USD 0.00152 -> 0.001559  $       3      15m     +0.08  goal
+     DENT/USD 3.189e-05 -> 3.10012e-05  $       4      30m     -0.11  trail
+      HNT/USD 0.2525 -> 0.2505  $       3     485m     -0.02  clock
+    SYRUP/USD 0.136 -> 0.1355  $       2     485m     -0.01  clock
+      EUR/USD 1.1105 -> 1.1105  $       2     485m     -0.00  clock
+       ES/USD 0.00019164 -> 0.00019576  $       2     170m     +0.05  goal
+       ES/USD 0.00019576 -> 0.000198696  $       3      80m     +0.04  goal
+      ZEC/USD 976.2 -> 990.843  $       3     255m     +0.05  goal
+      ZEC/USD 991.85 -> 967.604  $       4     145m     -0.09  trail
+     CSPR/USD 0.001886 -> 0.00183815  $       3      70m     -0.07  trail
+       ES/USD 0.00021082 -> 0.00021928  $       2      15m     +0.07  goal
+       ES/USD 0.00021928 -> 0.000222569  $       3      55m     +0.04  goal
+       SC/USD 0.000631 -> 0.000640465  $       3     210m     +0.04  goal
+      UAI/USD 0.03598 -> 0.035114  $       4     155m     -0.09  trail
+      UAI/USD 0.03494 -> 0.0354641  $       3      10m     +0.04  goal
+      EUR/USD 1.1066 -> 1.1002  $       3    2770m     -0.02  clock
+      EUR/USD 1.0998 -> 1.0991  $       3     485m     -0.00  clock
+      VET/USD 0.004925 -> 0.004773  $       3      40m     -0.09  trail
+      NOT/USD 0.0003026 -> 0.0003019  $       2     485m     -0.01  clock
+     PYTH/USD 0.05591 -> 0.054514  $       2     205m     -0.04  trail
+  MUBARAK/USD 0.028812 -> 0.0282425  $       1     435m     -0.02  trail
+     AERO/USD 0.41567 -> 0.421905  $       1      30m     +0.01  goal
+     GHST/USD 0.0463 -> 0.0463  $       1     560m     -0.00  clock
+     GHST/USD 0.0463 -> 0.0462  $       1     505m     -0.00  clock
+      FLR/USD 0.004987 -> 0.005005  $       1     485m     +0.00  clock
+       ES/USD 0.00040136 -> 0.00040909  $       1       5m     +0.02  goal
+       ES/USD 0.00040933 -> 0.00041547  $       1      25m     +0.02  goal
+      HNT/USD 0.2296 -> 0.233044  $       1      35m     +0.02  goal
+     DENT/USD 2.992e-05 -> 3.03688e-05  $       2     240m     +0.02  goal
+       ES/USD 0.00041468 -> 0.00040019  $       2      35m     -0.07  trail
+      HNT/USD 0.2312 -> 0.2273  $       1     515m     -0.02  clock
+      VVV/USD 21.3053 -> 20.8148  $       1     265m     -0.02  trail
+       ES/USD 0.00039975 -> 0.00038222  $       1     485m     -0.03  clock
+      AVA/USD 0.2088 -> 0.2061  $       0     485m     -0.00  clock
+      CVX/USD 1.373 -> 1.347  $       0     325m     -0.01  trail
+     TRAC/USD 0.2935 -> 0.2912  $       0     490m     -0.00  clock
+       ES/USD 0.00034026 -> 0.00035215  $       0      50m     +0.01  goal
+       ES/USD 0.00035215 -> 0.000357432  $       0      85m     +0.00  goal
+      EUR/USD 1.0986 -> 1.0993  $       0     120m     -0.00  window end
+
+── TRADES $5,000 gate ──────────────────────────────
+  LIGHTER/USD 3.664 -> 3.71896  $   1,700      40m    +24.14  goal
+      APT/USD 0.776193 -> 0.7703  $   1,974     485m    -16.56  clock
+  BABYSHARK/USD 0.003438 -> 0.003362  $   1,786     485m    -40.91  clock
+      NPC/USD 0.018206 -> 0.0176947  $   1,322     460m    -38.19  trail
+     DGAI/USD 0.8971 -> 0.89459  $     889     485m     -3.20  clock
+     CSPR/USD 0.002177 -> 0.00214079  $     853      55m    -14.87  trail
+       ES/USD 0.0008571 -> 0.000869956  $     685     190m     +9.72  goal
+       ES/USD 0.0008719 -> 0.000885  $     795      40m    +11.31  goal
+      FLR/USD 0.006038 -> 0.006023  $     923     485m     -3.03  clock
+  MUBARAK/USD 0.052124 -> 0.052053  $     889     485m     -1.92  clock
+       ES/USD 0.00084 -> 0.0008526  $     867     190m    +12.31  goal
+      EUR/USD 1.1216 -> 1.1214  $   1,006     485m     -0.98  clock
+      EUR/USD 1.1214 -> 1.1237  $     995     485m     +1.24  clock
+     CSPR/USD 0.0021241 -> 0.00215596  $   1,009      95m    +14.33  goal
+       SC/USD 0.000779765 -> 0.000791461  $   1,172     190m    +16.64  goal
+       SC/USD 0.0007913 -> 0.000803169  $   1,360     240m    +19.32  goal
+      XCN/USD 0.004056 -> 0.00411684  $   1,579     290m    +22.42  goal
+      EUR/USD 1.1196 -> 1.1156  $   1,833    2635m     -8.02  clock
+     DASH/USD 53.28 -> 54.0792  $   1,742     195m    +24.74  goal
+      LRC/USD 0.008394 -> 0.00851991  $   2,023      10m    +28.72  goal
+       ES/USD 0.0008097 -> 0.000828  $   2,023      15m    +44.10  goal
+       ES/USD 0.0008398 -> 0.0008101  $   2,848     485m   -103.01  clock
+      LRC/USD 0.008354 -> 0.00813151  $   1,681     345m    -46.11  trail
+  BABYSHARK/USD 0.003006 -> 0.002911  $   1,158     290m    -37.53  trail
+     CSPR/USD 0.00203377 -> 0.00206428  $     733      35m    +10.41  goal
+       ES/USD 0.0007871 -> 0.000798906  $     851     130m    +12.08  goal
+      ZEC/USD 1255.63 -> 1274.46  $     988      35m    +14.03  goal
+      XPL/USD 0.07606 -> 0.0772009  $   1,147     115m    +16.28  goal
+       SC/USD 0.0007632 -> 0.000774648  $   1,331     425m    +18.90  goal
+      FIL/USD 0.8763 -> 0.8591  $   1,545     485m    -31.57  clock
+      FIL/USD 0.8606 -> 0.873509  $   1,188     340m    +16.86  goal
+      APT/USD 0.6404 -> 0.6312  $   1,379     485m    -20.91  clock
+      NPC/USD 0.016016 -> 0.016141  $   1,142     485m     +8.00  clock
+       AR/USD 3.1811 -> 3.1256  $   1,232     485m    -22.49  clock
+       ES/USD 0.0008418 -> 0.0007872  $     978     485m    -64.19  clock
+      XCN/USD 0.003701 -> 0.00359482  $     250     335m     -7.38  trail
+      FLR/USD 0.006098 -> 0.006053  $     167     485m     -1.36  clock
+       ES/USD 0.0006599 -> 0.0005669  $     151     485m    -21.41  clock
+
+── TRADES $5,000 gate stop ──────────────────────────────
+  LIGHTER/USD 3.664 -> 3.71896  $   1,700      40m    +24.14  goal
+      APT/USD 0.776193 -> 0.7703  $   1,974     485m    -16.56  clock
+  BABYSHARK/USD 0.003438 -> 0.003362  $   1,786     485m    -40.91  clock
+      NPC/USD 0.018206 -> 0.0176947  $   1,322     460m    -38.19  trail
+     DGAI/USD 0.8971 -> 0.89459  $     889     485m     -3.20  clock
+     CSPR/USD 0.002177 -> 0.00214079  $     853      55m    -14.87  trail
+       ES/USD 0.0008571 -> 0.000869956  $     685     190m     +9.72  goal
+       ES/USD 0.0008719 -> 0.000885  $     795      40m    +11.31  goal
+      FLR/USD 0.006038 -> 0.006023  $     923     485m     -3.03  clock
+  MUBARAK/USD 0.052124 -> 0.052053  $     889     485m     -1.92  clock
+       ES/USD 0.00084 -> 0.0008526  $     867     190m    +12.31  goal
+      EUR/USD 1.1216 -> 1.1214  $   1,006     485m     -0.98  clock
+      EUR/USD 1.1214 -> 1.1237  $     995     485m     +1.24  clock
+     CSPR/USD 0.0021241 -> 0.00215596  $   1,009      95m    +14.33  goal
+       SC/USD 0.000779765 -> 0.000791461  $   1,172     190m    +16.64  goal
+       SC/USD 0.0007913 -> 0.000803169  $   1,360     240m    +19.32  goal
+      XCN/USD 0.004056 -> 0.00411684  $   1,579     290m    +22.42  goal
+      EUR/USD 1.1196 -> 1.1156  $   1,833    2635m     -8.02  clock
+     DASH/USD 53.28 -> 54.0792  $   1,742     195m    +24.74  goal
+      LRC/USD 0.008394 -> 0.00851991  $   2,023      10m    +28.72  goal
+       ES/USD 0.0008097 -> 0.000828  $   2,023      15m    +44.10  goal
+       ES/USD 0.0008398 -> 0.0008101  $   2,848     485m   -103.01  clock
+      LRC/USD 0.008354 -> 0.00813151  $   1,681     345m    -46.11  trail
+  BABYSHARK/USD 0.003006 -> 0.002911  $   1,158     290m    -37.53  trail
+     CSPR/USD 0.00203377 -> 0.00206428  $     733      35m    +10.41  goal
+       ES/USD 0.0007871 -> 0.000798906  $     851     130m    +12.08  goal
+      ZEC/USD 1255.63 -> 1274.46  $     988      35m    +14.03  goal
+      XPL/USD 0.07606 -> 0.0772009  $   1,147     115m    +16.28  goal
+       SC/USD 0.0007632 -> 0.000774648  $   1,331     425m    +18.90  goal
+      FIL/USD 0.8763 -> 0.8591  $   1,545     485m    -31.57  clock
+      FIL/USD 0.8606 -> 0.873509  $   1,188     340m    +16.86  goal
+      APT/USD 0.6404 -> 0.6312  $   1,379     485m    -20.91  clock
+      NPC/USD 0.016016 -> 0.016141  $   1,142     485m     +8.00  clock
+       AR/USD 3.1811 -> 3.1256  $   1,232     485m    -22.49  clock
+       ES/USD 0.0008418 -> 0.0007872  $     978     485m    -64.19  clock
+      XCN/USD 0.003701 -> 0.00359482  $     250     335m     -7.38  trail
+      FLR/USD 0.006098 -> 0.006053  $     167     485m     -1.36  clock
+       ES/USD 0.0006599 -> 0.0005669  $     151     485m    -21.41  clock
+
+── TRADES $5,000 pre-gate ──────────────────────────────
+  LIGHTER/USD 3.658 -> 3.71287  $   1,700      45m    +24.14  goal
+      APT/USD 0.7758 -> 0.7712  $   1,974     485m    -13.28  clock
+  BABYSHARK/USD 0.003432 -> 0.003362  $   1,823     485m    -38.64  clock
+     DENT/USD 4.885e-05 -> 4.95827e-05  $   1,385     350m    +19.67  goal
+  LIGHTER/USD 3.42 -> 3.33583  $   1,608     310m    -40.86  trail
+     MINA/USD 0.072 -> 0.07308  $   1,145     135m    +16.26  goal
+     DGAI/USD 0.8979 -> 0.89272  $   1,329     485m     -8.73  clock
+     DGAI/USD 0.8946 -> 0.8833  $   1,230     485m    -16.52  clock
+     PUMP/USD 0.004245 -> 0.004126  $   1,043     200m    -30.07  trail
+  MUBARAK/USD 0.052124 -> 0.052053  $     702     485m     -1.52  clock
+       ES/USD 0.00084 -> 0.0008526  $     685     195m     +9.73  goal
+      EUR/USD 1.1216 -> 1.1214  $     795     485m     -0.78  clock
+       ES/USD 0.0008413 -> 0.0008359  $     786     485m     -5.68  clock
+     CSPR/USD 0.002122 -> 0.00215383  $     722     100m    +10.25  goal
+       SC/USD 0.0007791 -> 0.0007912  $     838     200m    +12.35  goal
+       SC/USD 0.0007913 -> 0.000803169  $     978     240m    +13.89  goal
+      XCN/USD 0.004048 -> 0.00410872  $   1,136     295m    +16.13  goal
+      EUR/USD 1.1196 -> 1.1156  $   1,318    2635m     -5.76  clock
+     DASH/USD 53.28 -> 54.0792  $   1,253     195m    +17.79  goal
+       ES/USD 0.0008093 -> 0.000828  $   1,455      85m    +32.45  goal
+       ES/USD 0.0008398 -> 0.0008104  $   1,822     485m    -65.26  clock
+      KAS/USD 0.03601 -> 0.0365501  $   1,083      80m    +15.38  goal
+      LRC/USD 0.008354 -> 0.00813151  $   1,257     345m    -34.49  trail
+  BABYSHARK/USD 0.003006 -> 0.002911  $     866     290m    -28.07  trail
+     CSPR/USD 0.002031 -> 0.00206146  $     548      50m     +7.78  goal
+       ES/USD 0.000782 -> 0.0007943  $     636      95m     +9.50  goal
+       ES/USD 0.0007944 -> 0.000806316  $     744      40m    +10.56  goal
+      ZEC/USD 1255.63 -> 1274.46  $     864      35m    +12.27  goal
+      XPL/USD 0.07606 -> 0.0772009  $   1,003     115m    +14.24  goal
+    SYRUP/USD 0.1553 -> 0.1547  $   1,164     485m     -5.43  clock
+  USELESS/USD 0.13272 -> 0.129379  $   1,103     205m    -28.64  trail
+      ARB/USD 0.16018 -> 0.162583  $     778      75m    +11.05  goal
+       SC/USD 0.0007704 -> 0.0007583  $     903     485m    -14.91  clock
+      CRV/USD 0.2856 -> 0.289884  $     734      70m    +10.43  goal
+      JUP/USD 0.26016 -> 0.25901  $     852     485m     -4.45  clock
+      NPC/USD 0.016016 -> 0.016141  $     802     485m     +5.62  clock
+       AR/USD 3.1811 -> 3.1256  $     866     485m    -15.80  clock
+       ES/USD 0.0008418 -> 0.0007872  $     687     485m    -45.08  clock
+      XCN/USD 0.003701 -> 0.00359482  $     176     335m     -5.18  trail
+     COTI/USD 0.010229 -> 0.0100385  $     117     440m     -2.27  trail
+      LRC/USD 0.008049 -> 0.007847  $      91     485m     -2.36  clock
+      XPL/USD 0.06738 -> 0.06414  $      64     485m     -3.15  clock
+  MUBARAK/USD 0.039661 -> 0.0402559  $      29     350m     +0.41  goal
+      XCN/USD 0.003573 -> 0.00362659  $      33      65m     +0.47  goal
+     DGAI/USD 0.65159 -> 0.661364  $      39      40m     +0.55  goal
+     NEAR/USD 3.8428 -> 3.77766  $      45     265m     -0.80  trail
+     DENT/USD 3.3e-05 -> 3.351e-05  $      36     115m     +0.53  goal
+     DENT/USD 3.351e-05 -> 3.26502e-05  $      42     165m     -1.11  trail
+      ZEC/USD 1308.39 -> 1283.38  $      29     120m     -0.58  trail
+     ZORA/USD 0.005632 -> 0.00571648  $      23      20m     +0.32  goal
+     CSPR/USD 0.002139 -> 0.00217108  $      26     480m     +0.37  goal
+     CSPR/USD 0.002172 -> 0.00212333  $      31     360m     -0.71  trail
+     DENT/USD 3.358e-05 -> 3.425e-05  $      23      70m     +0.43  goal
+      FLR/USD 0.006102 -> 0.00588  $      27     485m     -1.02  clock
+      EUR/USD 1.1229 -> 1.1194  $      16     485m     -0.06  clock
+      NPC/USD 0.015522 -> 0.0157548  $      15     345m     +0.22  goal
+      KTA/USD 0.0518 -> 0.052577  $      18     195m     +0.25  goal
+       0G/USD 0.1514 -> 0.153671  $      20      85m     +0.29  goal
+     AERO/USD 0.60454 -> 0.613608  $      24     115m     +0.34  goal
+  BABYSHARK/USD 0.001943 -> 0.0018915  $      28     150m     -0.75  trail
+     DGAI/USD 0.75966 -> 0.739722  $      19     195m     -0.51  trail
+     AERO/USD 0.60936 -> 0.59267  $      13     485m     -0.37  trail
+      XPL/USD 0.05791 -> 0.0566577  $       9     470m     -0.20  trail
+     CSPR/USD 0.002064 -> 0.00209496  $       7      20m     +0.10  goal
+      VVV/USD 20.5661 -> 20.5041  $       8     485m     -0.03  clock
+     CSPR/USD 0.002085 -> 0.00204  $       7     415m     -0.17  trail
+     TRAC/USD 0.3384 -> 0.343476  $       6     165m     +0.08  goal
+      FLR/USD 0.005694 -> 0.005593  $       6     485m     -0.12  clock
+     CSPR/USD 0.00203 -> 0.00206045  $       5     325m     +0.07  goal
+     COTI/USD 0.009383 -> 0.00952375  $       6      15m     +0.08  goal
+  LIGHTER/USD 3.146 -> 3.19319  $       7     205m     +0.10  goal
+     DGAI/USD 0.76041 -> 0.75604  $       8     485m     -0.05  clock
+     MINA/USD 0.051 -> 0.051765  $       7     455m     +0.10  goal
+  LIGHTER/USD 3.176 -> 3.22364  $       9     130m     +0.12  goal
+       ES/USD 0.000225 -> 0.0002313  $      10      50m     +0.27  goal
+      JUP/USD 0.25366 -> 0.257465  $      13     170m     +0.18  goal
+  BABYSHARK/USD 0.00152 -> 0.001559  $      15      15m     +0.38  goal
+     DENT/USD 3.189e-05 -> 3.10012e-05  $      19      30m     -0.56  trail
+      HNT/USD 0.2525 -> 0.2505  $      13     485m     -0.11  clock
+    SYRUP/USD 0.136 -> 0.1355  $      12     485m     -0.05  clock
+      EUR/USD 1.1105 -> 1.1105  $      11     485m     -0.01  clock
+       ES/USD 0.00019164 -> 0.00019576  $      11     170m     +0.23  goal
+       ES/USD 0.00019576 -> 0.000198696  $      14      80m     +0.19  goal
+      ZEC/USD 976.2 -> 990.843  $      16     255m     +0.23  goal
+      ZEC/USD 991.85 -> 967.604  $      18     145m     -0.47  trail
+     CSPR/USD 0.001886 -> 0.00183815  $      13      70m     -0.34  trail
+       ES/USD 0.00021082 -> 0.00021928  $       9      15m     +0.36  goal
+       ES/USD 0.00021928 -> 0.000222569  $      13      55m     +0.19  goal
+       SC/USD 0.000631 -> 0.000640465  $      16     210m     +0.22  goal
+      UAI/USD 0.03598 -> 0.035114  $      18     155m     -0.45  trail
+      UAI/USD 0.03494 -> 0.0354641  $      13      10m     +0.18  goal
+      EUR/USD 1.1066 -> 1.1002  $      15    2770m     -0.10  clock
+      EUR/USD 1.0998 -> 1.0991  $      14     485m     -0.02  clock
+      VET/USD 0.004925 -> 0.004773  $      14      40m     -0.43  trail
+      NOT/USD 0.0003026 -> 0.0003019  $       9     485m     -0.03  clock
+     PYTH/USD 0.05591 -> 0.054514  $       8     205m     -0.22  trail
+  MUBARAK/USD 0.028812 -> 0.0282425  $       6     435m     -0.12  trail
+     AERO/USD 0.41567 -> 0.421905  $       5      30m     +0.07  goal
+     GHST/USD 0.0463 -> 0.0463  $       5     560m     -0.00  clock
+     GHST/USD 0.0463 -> 0.0462  $       5     505m     -0.02  clock
+      FLR/USD 0.004987 -> 0.005005  $       5     485m     +0.01  clock
+       ES/USD 0.00040136 -> 0.00040909  $       5       5m     +0.10  goal
+       ES/USD 0.00040933 -> 0.00041547  $       6      25m     +0.09  goal
+      HNT/USD 0.2296 -> 0.233044  $       7      35m     +0.11  goal
+     DENT/USD 2.992e-05 -> 3.03688e-05  $       9     240m     +0.12  goal
+       ES/USD 0.00041468 -> 0.00040019  $      10      35m     -0.36  trail
+      HNT/USD 0.2312 -> 0.2273  $       6     515m     -0.10  clock
+      VVV/USD 21.3053 -> 20.8148  $       5     265m     -0.11  trail
+       ES/USD 0.00039975 -> 0.00038222  $       3     485m     -0.15  clock
+      AVA/USD 0.2088 -> 0.2061  $       2     485m     -0.02  clock
+      CVX/USD 1.373 -> 1.347  $       1     325m     -0.03  trail
+     TRAC/USD 0.2935 -> 0.2912  $       1     490m     -0.01  clock
+       ES/USD 0.00034026 -> 0.00035215  $       1      50m     +0.03  goal
+       ES/USD 0.00035215 -> 0.000357432  $       1      85m     +0.02  goal
+      EUR/USD 1.0986 -> 1.0993  $       2     120m     -0.00  window end
+
+── TRADES $5,000 pre-gate stop ──────────────────────────────
+  LIGHTER/USD 3.658 -> 3.71287  $   1,700      45m    +24.14  goal
+      APT/USD 0.7758 -> 0.7712  $   1,974     485m    -13.28  clock
+  BABYSHARK/USD 0.003432 -> 0.003362  $   1,823     485m    -38.64  clock
+     DENT/USD 4.885e-05 -> 4.95827e-05  $   1,385     350m    +19.67  goal
+  LIGHTER/USD 3.42 -> 3.33583  $   1,608     310m    -40.86  trail
+     MINA/USD 0.072 -> 0.07308  $   1,145     135m    +16.26  goal
+     DGAI/USD 0.8979 -> 0.89272  $   1,329     485m     -8.73  clock
+     DGAI/USD 0.8946 -> 0.8833  $   1,230     485m    -16.52  clock
+     PUMP/USD 0.004245 -> 0.004126  $   1,043     200m    -30.07  trail
+  MUBARAK/USD 0.052124 -> 0.052053  $     702     485m     -1.52  clock
+       ES/USD 0.00084 -> 0.0008526  $     685     195m     +9.73  goal
+      EUR/USD 1.1216 -> 1.1214  $     795     485m     -0.78  clock
+       ES/USD 0.0008413 -> 0.0008359  $     786     485m     -5.68  clock
+     CSPR/USD 0.002122 -> 0.00215383  $     722     100m    +10.25  goal
+       SC/USD 0.0007791 -> 0.0007912  $     838     200m    +12.35  goal
+       SC/USD 0.0007913 -> 0.000803169  $     978     240m    +13.89  goal
+      XCN/USD 0.004048 -> 0.00410872  $   1,136     295m    +16.13  goal
+      EUR/USD 1.1196 -> 1.1156  $   1,318    2635m     -5.76  clock
+     DASH/USD 53.28 -> 54.0792  $   1,253     195m    +17.79  goal
+       ES/USD 0.0008093 -> 0.000828  $   1,455      85m    +32.45  goal
+       ES/USD 0.0008398 -> 0.0008104  $   1,822     485m    -65.26  clock
+      KAS/USD 0.03601 -> 0.0365501  $   1,083      80m    +15.38  goal
+      LRC/USD 0.008354 -> 0.00813151  $   1,257     345m    -34.49  trail
+  BABYSHARK/USD 0.003006 -> 0.002911  $     866     290m    -28.07  trail
+     CSPR/USD 0.002031 -> 0.00206146  $     548      50m     +7.78  goal
+       ES/USD 0.000782 -> 0.0007943  $     636      95m     +9.50  goal
+       ES/USD 0.0007944 -> 0.000806316  $     744      40m    +10.56  goal
+      ZEC/USD 1255.63 -> 1274.46  $     864      35m    +12.27  goal
+      XPL/USD 0.07606 -> 0.0772009  $   1,003     115m    +14.24  goal
+    SYRUP/USD 0.1553 -> 0.1547  $   1,164     485m     -5.43  clock
+  USELESS/USD 0.13272 -> 0.129379  $   1,103     205m    -28.64  trail
+      ARB/USD 0.16018 -> 0.162583  $     778      75m    +11.05  goal
+       SC/USD 0.0007704 -> 0.0007583  $     903     485m    -14.91  clock
+      CRV/USD 0.2856 -> 0.289884  $     734      70m    +10.43  goal
+      JUP/USD 0.26016 -> 0.25901  $     852     485m     -4.45  clock
+      NPC/USD 0.016016 -> 0.016141  $     802     485m     +5.62  clock
+       AR/USD 3.1811 -> 3.1256  $     866     485m    -15.80  clock
+       ES/USD 0.0008418 -> 0.0007872  $     687     485m    -45.08  clock
+      XCN/USD 0.003701 -> 0.00359482  $     176     335m     -5.18  trail
+     COTI/USD 0.010229 -> 0.0100385  $     117     440m     -2.27  trail
+      LRC/USD 0.008049 -> 0.007847  $      91     485m     -2.36  clock
+      XPL/USD 0.06738 -> 0.06414  $      64     485m     -3.15  clock
+  MUBARAK/USD 0.039661 -> 0.0402559  $      29     350m     +0.41  goal
+      XCN/USD 0.003573 -> 0.00362659  $      33      65m     +0.47  goal
+     DGAI/USD 0.65159 -> 0.661364  $      39      40m     +0.55  goal
+     NEAR/USD 3.8428 -> 3.77766  $      45     265m     -0.80  trail
+     DENT/USD 3.3e-05 -> 3.351e-05  $      36     115m     +0.53  goal
+     DENT/USD 3.351e-05 -> 3.26502e-05  $      42     165m     -1.11  trail
+      ZEC/USD 1308.39 -> 1283.38  $      29     120m     -0.58  trail
+     ZORA/USD 0.005632 -> 0.00571648  $      23      20m     +0.32  goal
+     CSPR/USD 0.002139 -> 0.00217108  $      26     480m     +0.37  goal
+     CSPR/USD 0.002172 -> 0.00212333  $      31     360m     -0.71  trail
+     DENT/USD 3.358e-05 -> 3.425e-05  $      23      70m     +0.43  goal
+      FLR/USD 0.006102 -> 0.00588  $      27     485m     -1.02  clock
+      EUR/USD 1.1229 -> 1.1194  $      16     485m     -0.06  clock
+      NPC/USD 0.015522 -> 0.0157548  $      15     345m     +0.22  goal
+      KTA/USD 0.0518 -> 0.052577  $      18     195m     +0.25  goal
+       0G/USD 0.1514 -> 0.153671  $      20      85m     +0.29  goal
+     AERO/USD 0.60454 -> 0.613608  $      24     115m     +0.34  goal
+  BABYSHARK/USD 0.001943 -> 0.0018915  $      28     150m     -0.75  trail
+     DGAI/USD 0.75966 -> 0.739722  $      19     195m     -0.51  trail
+     AERO/USD 0.60936 -> 0.59267  $      13     485m     -0.37  trail
+      XPL/USD 0.05791 -> 0.0566577  $       9     470m     -0.20  trail
+     CSPR/USD 0.002064 -> 0.00209496  $       7      20m     +0.10  goal
+      VVV/USD 20.5661 -> 20.5041  $       8     485m     -0.03  clock
+     CSPR/USD 0.002085 -> 0.00204  $       7     415m     -0.17  trail
+     TRAC/USD 0.3384 -> 0.343476  $       6     165m     +0.08  goal
+      FLR/USD 0.005694 -> 0.005593  $       6     485m     -0.12  clock
+     CSPR/USD 0.00203 -> 0.00206045  $       5     325m     +0.07  goal
+     COTI/USD 0.009383 -> 0.00952375  $       6      15m     +0.08  goal
+  LIGHTER/USD 3.146 -> 3.19319  $       7     205m     +0.10  goal
+     DGAI/USD 0.76041 -> 0.75604  $       8     485m     -0.05  clock
+     MINA/USD 0.051 -> 0.051765  $       7     455m     +0.10  goal
+  LIGHTER/USD 3.176 -> 3.22364  $       9     130m     +0.12  goal
+       ES/USD 0.000225 -> 0.0002313  $      10      50m     +0.27  goal
+      JUP/USD 0.25366 -> 0.257465  $      13     170m     +0.18  goal
+  BABYSHARK/USD 0.00152 -> 0.001559  $      15      15m     +0.38  goal
+     DENT/USD 3.189e-05 -> 3.10012e-05  $      19      30m     -0.56  trail
+      HNT/USD 0.2525 -> 0.2505  $      13     485m     -0.11  clock
+    SYRUP/USD 0.136 -> 0.1355  $      12     485m     -0.05  clock
+      EUR/USD 1.1105 -> 1.1105  $      11     485m     -0.01  clock
+       ES/USD 0.00019164 -> 0.00019576  $      11     170m     +0.23  goal
+       ES/USD 0.00019576 -> 0.000198696  $      14      80m     +0.19  goal
+      ZEC/USD 976.2 -> 990.843  $      16     255m     +0.23  goal
+      ZEC/USD 991.85 -> 967.604  $      18     145m     -0.47  trail
+     CSPR/USD 0.001886 -> 0.00183815  $      13      70m     -0.34  trail
+       ES/USD 0.00021082 -> 0.00021928  $       9      15m     +0.36  goal
+       ES/USD 0.00021928 -> 0.000222569  $      13      55m     +0.19  goal
+       SC/USD 0.000631 -> 0.000640465  $      16     210m     +0.22  goal
+      UAI/USD 0.03598 -> 0.035114  $      18     155m     -0.45  trail
+      UAI/USD 0.03494 -> 0.0354641  $      13      10m     +0.18  goal
+      EUR/USD 1.1066 -> 1.1002  $      15    2770m     -0.10  clock
+      EUR/USD 1.0998 -> 1.0991  $      14     485m     -0.02  clock
+      VET/USD 0.004925 -> 0.004773  $      14      40m     -0.43  trail
+      NOT/USD 0.0003026 -> 0.0003019  $       9     485m     -0.03  clock
+     PYTH/USD 0.05591 -> 0.054514  $       8     205m     -0.22  trail
+  MUBARAK/USD 0.028812 -> 0.0282425  $       6     435m     -0.12  trail
+     AERO/USD 0.41567 -> 0.421905  $       5      30m     +0.07  goal
+     GHST/USD 0.0463 -> 0.0463  $       5     560m     -0.00  clock
+     GHST/USD 0.0463 -> 0.0462  $       5     505m     -0.02  clock
+      FLR/USD 0.004987 -> 0.005005  $       5     485m     +0.01  clock
+       ES/USD 0.00040136 -> 0.00040909  $       5       5m     +0.10  goal
+       ES/USD 0.00040933 -> 0.00041547  $       6      25m     +0.09  goal
+      HNT/USD 0.2296 -> 0.233044  $       7      35m     +0.11  goal
+     DENT/USD 2.992e-05 -> 3.03688e-05  $       9     240m     +0.12  goal
+       ES/USD 0.00041468 -> 0.00040019  $      10      35m     -0.36  trail
+      HNT/USD 0.2312 -> 0.2273  $       6     515m     -0.10  clock
+      VVV/USD 21.3053 -> 20.8148  $       5     265m     -0.11  trail
+       ES/USD 0.00039975 -> 0.00038222  $       3     485m     -0.15  clock
+      AVA/USD 0.2088 -> 0.2061  $       2     485m     -0.02  clock
+      CVX/USD 1.373 -> 1.347  $       1     325m     -0.03  trail
+     TRAC/USD 0.2935 -> 0.2912  $       1     490m     -0.01  clock
+       ES/USD 0.00034026 -> 0.00035215  $       1      50m     +0.03  goal
+       ES/USD 0.00035215 -> 0.000357432  $       1      85m     +0.02  goal
+      EUR/USD 1.0986 -> 1.0993  $       2     120m     -0.00  window end
+
+── TRADES $10,000 gate ──────────────────────────────
+  LIGHTER/USD 3.664 -> 3.71896  $   3,400      40m    +48.28  goal
+      APT/USD 0.775997 -> 0.7703  $   3,947     485m    -32.13  clock
+  BABYSHARK/USD 0.003438 -> 0.003362  $   3,583     485m    -82.07  clock
+      NPC/USD 0.018206 -> 0.0176947  $   2,653     460m    -76.62  trail
+     DGAI/USD 0.8971 -> 0.89459  $   1,784     485m     -6.42  clock
+     CSPR/USD 0.002177 -> 0.00214079  $   1,712      55m    -29.84  trail
+       ES/USD 0.0008571 -> 0.000869956  $   1,374     190m    +19.50  goal
+       ES/USD 0.0008719 -> 0.000885  $   1,595      40m    +22.68  goal
+      FLR/USD 0.006038 -> 0.006023  $   1,852     485m     -6.08  clock
+  MUBARAK/USD 0.052124 -> 0.052053  $   1,783     485m     -3.85  clock
+       ES/USD 0.00084 -> 0.0008526  $   1,739     190m    +24.69  goal
+      EUR/USD 1.1216 -> 1.1214  $   2,019     485m     -1.98  clock
+      EUR/USD 1.1214 -> 1.1237  $   1,997     485m     +2.50  clock
+     CSPR/USD 0.002124 -> 0.00215586  $   2,025      95m    +28.75  goal
+       SC/USD 0.000779431 -> 0.0007912  $   2,351     195m    +33.61  goal
+       SC/USD 0.0007913 -> 0.000803169  $   2,732     240m    +38.79  goal
+      XCN/USD 0.004056 -> 0.00411684  $   3,171     290m    +45.03  goal
+      EUR/USD 1.1196 -> 1.1156  $   3,682    2635m    -16.10  clock
+     DASH/USD 53.28 -> 54.0792  $   3,499     195m    +49.69  goal
+      LRC/USD 0.008394 -> 0.00851991  $   4,062      10m    +57.68  goal
+       ES/USD 0.000809499 -> 0.000828  $   4,062      15m    +89.59  goal
+       ES/USD 0.0008398 -> 0.0008101  $   5,731     485m   -207.28  clock
+      LRC/USD 0.008354 -> 0.00813151  $   3,382     345m    -92.78  trail
+  BABYSHARK/USD 0.003006 -> 0.002911  $   2,331     290m    -75.52  trail
+     CSPR/USD 0.00203238 -> 0.00206286  $   1,475      45m    +20.94  goal
+       ES/USD 0.0007871 -> 0.000798906  $   1,712     130m    +24.31  goal
+      ZEC/USD 1255.63 -> 1274.46  $   1,988      35m    +28.22  goal
+      XPL/USD 0.07606 -> 0.0772009  $   2,308     115m    +32.77  goal
+       SC/USD 0.0007632 -> 0.000774648  $   2,679     425m    +38.04  goal
+      FIL/USD 0.8763 -> 0.8591  $   3,110     485m    -63.53  clock
+      FIL/USD 0.8606 -> 0.873509  $   2,390     340m    +33.94  goal
+      APT/USD 0.6404 -> 0.6312  $   2,775     485m    -42.08  clock
+      NPC/USD 0.016016 -> 0.016141  $   2,298     485m    +16.09  clock
+       AR/USD 3.1811 -> 3.1256  $   2,480     485m    -45.25  clock
+       ES/USD 0.0008418 -> 0.0007872  $   1,967     485m   -129.17  clock
+      XCN/USD 0.003701 -> 0.00359482  $     503     335m    -14.84  trail
+      FLR/USD 0.006098 -> 0.006053  $     335     485m     -2.74  clock
+       ES/USD 0.0006599 -> 0.0005669  $     304     485m    -43.09  clock
+
+── TRADES $10,000 gate stop ──────────────────────────────
+  LIGHTER/USD 3.664 -> 3.71896  $   3,400      40m    +48.28  goal
+      APT/USD 0.775997 -> 0.7703  $   3,947     485m    -32.13  clock
+  BABYSHARK/USD 0.003438 -> 0.003362  $   3,583     485m    -82.07  clock
+      NPC/USD 0.018206 -> 0.0176947  $   2,653     460m    -76.62  trail
+     DGAI/USD 0.8971 -> 0.89459  $   1,784     485m     -6.42  clock
+     CSPR/USD 0.002177 -> 0.00214079  $   1,712      55m    -29.84  trail
+       ES/USD 0.0008571 -> 0.000869956  $   1,374     190m    +19.50  goal
+       ES/USD 0.0008719 -> 0.000885  $   1,595      40m    +22.68  goal
+      FLR/USD 0.006038 -> 0.006023  $   1,852     485m     -6.08  clock
+  MUBARAK/USD 0.052124 -> 0.052053  $   1,783     485m     -3.85  clock
+       ES/USD 0.00084 -> 0.0008526  $   1,739     190m    +24.69  goal
+      EUR/USD 1.1216 -> 1.1214  $   2,019     485m     -1.98  clock
+      EUR/USD 1.1214 -> 1.1237  $   1,997     485m     +2.50  clock
+     CSPR/USD 0.002124 -> 0.00215586  $   2,025      95m    +28.75  goal
+       SC/USD 0.000779431 -> 0.0007912  $   2,351     195m    +33.61  goal
+       SC/USD 0.0007913 -> 0.000803169  $   2,732     240m    +38.79  goal
+      XCN/USD 0.004056 -> 0.00411684  $   3,171     290m    +45.03  goal
+      EUR/USD 1.1196 -> 1.1156  $   3,682    2635m    -16.10  clock
+     DASH/USD 53.28 -> 54.0792  $   3,499     195m    +49.69  goal
+      LRC/USD 0.008394 -> 0.00851991  $   4,062      10m    +57.68  goal
+       ES/USD 0.000809499 -> 0.000828  $   4,062      15m    +89.59  goal
+       ES/USD 0.0008398 -> 0.0008101  $   5,731     485m   -207.28  clock
+      LRC/USD 0.008354 -> 0.00813151  $   3,382     345m    -92.78  trail
+  BABYSHARK/USD 0.003006 -> 0.002911  $   2,331     290m    -75.52  trail
+     CSPR/USD 0.00203238 -> 0.00206286  $   1,475      45m    +20.94  goal
+       ES/USD 0.0007871 -> 0.000798906  $   1,712     130m    +24.31  goal
+      ZEC/USD 1255.63 -> 1274.46  $   1,988      35m    +28.22  goal
+      XPL/USD 0.07606 -> 0.0772009  $   2,308     115m    +32.77  goal
+       SC/USD 0.0007632 -> 0.000774648  $   2,679     425m    +38.04  goal
+      FIL/USD 0.8763 -> 0.8591  $   3,110     485m    -63.53  clock
+      FIL/USD 0.8606 -> 0.873509  $   2,390     340m    +33.94  goal
+      APT/USD 0.6404 -> 0.6312  $   2,775     485m    -42.08  clock
+      NPC/USD 0.016016 -> 0.016141  $   2,298     485m    +16.09  clock
+       AR/USD 3.1811 -> 3.1256  $   2,480     485m    -45.25  clock
+       ES/USD 0.0008418 -> 0.0007872  $   1,967     485m   -129.17  clock
+      XCN/USD 0.003701 -> 0.00359482  $     503     335m    -14.84  trail
+      FLR/USD 0.006098 -> 0.006053  $     335     485m     -2.74  clock
+       ES/USD 0.0006599 -> 0.0005669  $     304     485m    -43.09  clock
+
+── TRADES $10,000 pre-gate ──────────────────────────────
+  LIGHTER/USD 3.658 -> 3.71287  $   3,400      45m    +48.28  goal
+      APT/USD 0.7758 -> 0.7712  $   3,947     485m    -26.56  clock
+  BABYSHARK/USD 0.003432 -> 0.003362  $   3,646     485m    -77.28  clock
+     DENT/USD 4.885e-05 -> 4.95827e-05  $   2,770     350m    +39.34  goal
+  LIGHTER/USD 3.42 -> 3.33583  $   3,216     310m    -81.72  trail
+     MINA/USD 0.072 -> 0.07308  $   2,290     135m    +32.52  goal
+     DGAI/USD 0.8979 -> 0.89272  $   2,658     485m    -17.46  clock
+     DGAI/USD 0.8946 -> 0.8833  $   2,460     485m    -33.05  clock
+     PUMP/USD 0.004245 -> 0.004126  $   2,086     200m    -60.14  trail
+  MUBARAK/USD 0.052124 -> 0.052053  $   1,404     485m     -3.04  clock
+       ES/USD 0.00084 -> 0.0008526  $   1,370     195m    +19.45  goal
+      EUR/USD 1.1216 -> 1.1214  $   1,590     485m     -1.56  clock
+       ES/USD 0.0008413 -> 0.0008359  $   1,573     485m    -11.35  clock
+     CSPR/USD 0.002122 -> 0.00215383  $   1,444     100m    +20.51  goal
+       SC/USD 0.0007791 -> 0.0007912  $   1,676     200m    +24.70  goal
+       SC/USD 0.0007913 -> 0.000803169  $   1,956     240m    +27.78  goal
+      XCN/USD 0.004048 -> 0.00410872  $   2,271     295m    +32.25  goal
+      EUR/USD 1.1196 -> 1.1156  $   2,637    2635m    -11.53  clock
+     DASH/USD 53.28 -> 54.0792  $   2,506     195m    +35.59  goal
+       ES/USD 0.0008093 -> 0.000828  $   2,909      85m    +64.90  goal
+       ES/USD 0.0008398 -> 0.0008104  $   3,645     485m   -130.51  clock
+      KAS/USD 0.03601 -> 0.0365501  $   2,166      80m    +30.75  goal
+      LRC/USD 0.008354 -> 0.00813151  $   2,514     345m    -68.97  trail
+  BABYSHARK/USD 0.003006 -> 0.002911  $   1,732     290m    -56.14  trail
+     CSPR/USD 0.002031 -> 0.00206146  $   1,096      50m    +15.57  goal
+       ES/USD 0.000782 -> 0.0007943  $   1,273      95m    +19.00  goal
+       ES/USD 0.0007944 -> 0.000806316  $   1,488      40m    +21.13  goal
+      ZEC/USD 1255.63 -> 1274.46  $   1,727      35m    +24.53  goal
+      XPL/USD 0.07606 -> 0.0772009  $   2,005     115m    +28.48  goal
+    SYRUP/USD 0.1553 -> 0.1547  $   2,328     485m    -10.86  clock
+  USELESS/USD 0.13272 -> 0.129379  $   2,205     205m    -57.28  trail
+      ARB/USD 0.16018 -> 0.162583  $   1,556      75m    +22.09  goal
+       SC/USD 0.0007704 -> 0.0007583  $   1,806     485m    -29.82  clock
+      CRV/USD 0.2856 -> 0.289884  $   1,468      70m    +20.85  goal
+      JUP/USD 0.26016 -> 0.25901  $   1,705     485m     -8.90  clock
+      NPC/USD 0.016016 -> 0.016141  $   1,604     485m    +11.24  clock
+       AR/USD 3.1811 -> 3.1256  $   1,731     485m    -31.59  clock
+       ES/USD 0.0008418 -> 0.0007872  $   1,373     485m    -90.17  clock
+      XCN/USD 0.003701 -> 0.00359482  $     351     335m    -10.36  trail
+     COTI/USD 0.010229 -> 0.0100385  $     234     440m     -4.54  trail
+      LRC/USD 0.008049 -> 0.007847  $     182     485m     -4.72  clock
+      XPL/USD 0.06738 -> 0.06414  $     129     485m     -6.30  clock
+  MUBARAK/USD 0.039661 -> 0.0402559  $      57     350m     +0.82  goal
+      XCN/USD 0.003573 -> 0.00362659  $      67      65m     +0.95  goal
+     DGAI/USD 0.65159 -> 0.661364  $      77      40m     +1.10  goal
+     NEAR/USD 3.8428 -> 3.77766  $      90     265m     -1.60  trail
+     DENT/USD 3.3e-05 -> 3.351e-05  $      72     115m     +1.05  goal
+     DENT/USD 3.351e-05 -> 3.26502e-05  $      84     165m     -2.22  trail
+      ZEC/USD 1308.39 -> 1283.38  $      59     120m     -1.17  trail
+     ZORA/USD 0.005632 -> 0.00571648  $      45      20m     +0.64  goal
+     CSPR/USD 0.002139 -> 0.00217108  $      53     480m     +0.75  goal
+     CSPR/USD 0.002172 -> 0.00212333  $      61     360m     -1.42  trail
+     DENT/USD 3.358e-05 -> 3.425e-05  $      45      70m     +0.86  goal
+      FLR/USD 0.006102 -> 0.00588  $      55     485m     -2.04  clock
+      EUR/USD 1.1229 -> 1.1194  $      32     485m     -0.12  clock
+      NPC/USD 0.015522 -> 0.0157548  $      30     345m     +0.43  goal
+      KTA/USD 0.0518 -> 0.052577  $      35     195m     +0.50  goal
+       0G/USD 0.1514 -> 0.153671  $      41      85m     +0.58  goal
+     AERO/USD 0.60454 -> 0.613608  $      47     115m     +0.67  goal
+  BABYSHARK/USD 0.001943 -> 0.0018915  $      55     150m     -1.51  trail
+     DGAI/USD 0.75966 -> 0.739722  $      38     195m     -1.03  trail
+     AERO/USD 0.60936 -> 0.59267  $      26     485m     -0.74  trail
+      XPL/USD 0.05791 -> 0.0566577  $      18     470m     -0.40  trail
+     CSPR/USD 0.002064 -> 0.00209496  $      13      20m     +0.19  goal
+      VVV/USD 20.5661 -> 20.5041  $      16     485m     -0.06  clock
+     CSPR/USD 0.002085 -> 0.00204  $      15     415m     -0.33  trail
+     TRAC/USD 0.3384 -> 0.343476  $      11     165m     +0.16  goal
+      FLR/USD 0.005694 -> 0.005593  $      13     485m     -0.24  clock
+     CSPR/USD 0.00203 -> 0.00206045  $      10     325m     +0.14  goal
+     COTI/USD 0.009383 -> 0.00952375  $      12      15m     +0.17  goal
+  LIGHTER/USD 3.146 -> 3.19319  $      14     205m     +0.19  goal
+     DGAI/USD 0.76041 -> 0.75604  $      16     485m     -0.10  clock
+     MINA/USD 0.051 -> 0.051765  $      15     455m     +0.21  goal
+  LIGHTER/USD 3.176 -> 3.22364  $      17     130m     +0.24  goal
+       ES/USD 0.000225 -> 0.0002313  $      20      50m     +0.54  goal
+      JUP/USD 0.25366 -> 0.257465  $      26     170m     +0.37  goal
+  BABYSHARK/USD 0.00152 -> 0.001559  $      30      15m     +0.75  goal
+     DENT/USD 3.189e-05 -> 3.10012e-05  $      39      30m     -1.11  trail
+      HNT/USD 0.2525 -> 0.2505  $      26     485m     -0.23  clock
+    SYRUP/USD 0.136 -> 0.1355  $      24     485m     -0.11  clock
+      EUR/USD 1.1105 -> 1.1105  $      22     485m     -0.02  clock
+       ES/USD 0.00019164 -> 0.00019576  $      22     170m     +0.46  goal
+       ES/USD 0.00019576 -> 0.000198696  $      27      80m     +0.39  goal
+      ZEC/USD 976.2 -> 990.843  $      32     255m     +0.45  goal
+      ZEC/USD 991.85 -> 967.604  $      37     145m     -0.93  trail
+     CSPR/USD 0.001886 -> 0.00183815  $      26      70m     -0.69  trail
+       ES/USD 0.00021082 -> 0.00021928  $      19      15m     +0.73  goal
+       ES/USD 0.00021928 -> 0.000222569  $      27      55m     +0.38  goal
+       SC/USD 0.000631 -> 0.000640465  $      31     210m     +0.44  goal
+      UAI/USD 0.03598 -> 0.035114  $      36     155m     -0.90  trail
+      UAI/USD 0.03494 -> 0.0354641  $      26      10m     +0.37  goal
+      EUR/USD 1.1066 -> 1.1002  $      30    2770m     -0.20  clock
+      EUR/USD 1.0998 -> 1.0991  $      28     485m     -0.04  clock
+      VET/USD 0.004925 -> 0.004773  $      27      40m     -0.87  trail
+      NOT/USD 0.0003026 -> 0.0003019  $      18     485m     -0.05  clock
+     PYTH/USD 0.05591 -> 0.054514  $      17     205m     -0.44  trail
+  MUBARAK/USD 0.028812 -> 0.0282425  $      12     435m     -0.25  trail
+     AERO/USD 0.41567 -> 0.421905  $       9      30m     +0.13  goal
+     GHST/USD 0.0463 -> 0.0463  $      11     560m     -0.01  clock
+     GHST/USD 0.0463 -> 0.0462  $      11     505m     -0.03  clock
+      FLR/USD 0.004987 -> 0.005005  $      10     485m     +0.03  clock
+       ES/USD 0.00040136 -> 0.00040909  $      11       5m     +0.19  goal
+       ES/USD 0.00040933 -> 0.00041547  $      13      25m     +0.18  goal
+      HNT/USD 0.2296 -> 0.233044  $      15      35m     +0.21  goal
+     DENT/USD 2.992e-05 -> 3.03688e-05  $      17     240m     +0.24  goal
+       ES/USD 0.00041468 -> 0.00040019  $      20      35m     -0.71  trail
+      HNT/USD 0.2312 -> 0.2273  $      12     515m     -0.21  clock
+      VVV/USD 21.3053 -> 20.8148  $       9     265m     -0.23  trail
+       ES/USD 0.00039975 -> 0.00038222  $       7     485m     -0.31  clock
+      AVA/USD 0.2088 -> 0.2061  $       3     485m     -0.05  clock
+      CVX/USD 1.373 -> 1.347  $       3     325m     -0.06  trail
+     TRAC/USD 0.2935 -> 0.2912  $       2     490m     -0.02  clock
+       ES/USD 0.00034026 -> 0.00035215  $       2      50m     +0.07  goal
+       ES/USD 0.00035215 -> 0.000357432  $       3      85m     +0.04  goal
+      EUR/USD 1.0986 -> 1.0993  $       3     120m     -0.00  window end
+
+── TRADES $10,000 pre-gate stop ──────────────────────────────
+  LIGHTER/USD 3.658 -> 3.71287  $   3,400      45m    +48.28  goal
+      APT/USD 0.7758 -> 0.7712  $   3,947     485m    -26.56  clock
+  BABYSHARK/USD 0.003432 -> 0.003362  $   3,646     485m    -77.28  clock
+     DENT/USD 4.885e-05 -> 4.95827e-05  $   2,770     350m    +39.34  goal
+  LIGHTER/USD 3.42 -> 3.33583  $   3,216     310m    -81.72  trail
+     MINA/USD 0.072 -> 0.07308  $   2,290     135m    +32.52  goal
+     DGAI/USD 0.8979 -> 0.89272  $   2,658     485m    -17.46  clock
+     DGAI/USD 0.8946 -> 0.8833  $   2,460     485m    -33.05  clock
+     PUMP/USD 0.004245 -> 0.004126  $   2,086     200m    -60.14  trail
+  MUBARAK/USD 0.052124 -> 0.052053  $   1,404     485m     -3.04  clock
+       ES/USD 0.00084 -> 0.0008526  $   1,370     195m    +19.45  goal
+      EUR/USD 1.1216 -> 1.1214  $   1,590     485m     -1.56  clock
+       ES/USD 0.0008413 -> 0.0008359  $   1,573     485m    -11.35  clock
+     CSPR/USD 0.002122 -> 0.00215383  $   1,444     100m    +20.51  goal
+       SC/USD 0.0007791 -> 0.0007912  $   1,676     200m    +24.70  goal
+       SC/USD 0.0007913 -> 0.000803169  $   1,956     240m    +27.78  goal
+      XCN/USD 0.004048 -> 0.00410872  $   2,271     295m    +32.25  goal
+      EUR/USD 1.1196 -> 1.1156  $   2,637    2635m    -11.53  clock
+     DASH/USD 53.28 -> 54.0792  $   2,506     195m    +35.59  goal
+       ES/USD 0.0008093 -> 0.000828  $   2,909      85m    +64.90  goal
+       ES/USD 0.0008398 -> 0.0008104  $   3,645     485m   -130.51  clock
+      KAS/USD 0.03601 -> 0.0365501  $   2,166      80m    +30.75  goal
+      LRC/USD 0.008354 -> 0.00813151  $   2,514     345m    -68.97  trail
+  BABYSHARK/USD 0.003006 -> 0.002911  $   1,732     290m    -56.14  trail
+     CSPR/USD 0.002031 -> 0.00206146  $   1,096      50m    +15.57  goal
+       ES/USD 0.000782 -> 0.0007943  $   1,273      95m    +19.00  goal
+       ES/USD 0.0007944 -> 0.000806316  $   1,488      40m    +21.13  goal
+      ZEC/USD 1255.63 -> 1274.46  $   1,727      35m    +24.53  goal
+      XPL/USD 0.07606 -> 0.0772009  $   2,005     115m    +28.48  goal
+    SYRUP/USD 0.1553 -> 0.1547  $   2,328     485m    -10.86  clock
+  USELESS/USD 0.13272 -> 0.129379  $   2,205     205m    -57.28  trail
+      ARB/USD 0.16018 -> 0.162583  $   1,556      75m    +22.09  goal
+       SC/USD 0.0007704 -> 0.0007583  $   1,806     485m    -29.82  clock
+      CRV/USD 0.2856 -> 0.289884  $   1,468      70m    +20.85  goal
+      JUP/USD 0.26016 -> 0.25901  $   1,705     485m     -8.90  clock
+      NPC/USD 0.016016 -> 0.016141  $   1,604     485m    +11.24  clock
+       AR/USD 3.1811 -> 3.1256  $   1,731     485m    -31.59  clock
+       ES/USD 0.0008418 -> 0.0007872  $   1,373     485m    -90.17  clock
+      XCN/USD 0.003701 -> 0.00359482  $     351     335m    -10.36  trail
+     COTI/USD 0.010229 -> 0.0100385  $     234     440m     -4.54  trail
+      LRC/USD 0.008049 -> 0.007847  $     182     485m     -4.72  clock
+      XPL/USD 0.06738 -> 0.06414  $     129     485m     -6.30  clock
+  MUBARAK/USD 0.039661 -> 0.0402559  $      57     350m     +0.82  goal
+      XCN/USD 0.003573 -> 0.00362659  $      67      65m     +0.95  goal
+     DGAI/USD 0.65159 -> 0.661364  $      77      40m     +1.10  goal
+     NEAR/USD 3.8428 -> 3.77766  $      90     265m     -1.60  trail
+     DENT/USD 3.3e-05 -> 3.351e-05  $      72     115m     +1.05  goal
+     DENT/USD 3.351e-05 -> 3.26502e-05  $      84     165m     -2.22  trail
+      ZEC/USD 1308.39 -> 1283.38  $      59     120m     -1.17  trail
+     ZORA/USD 0.005632 -> 0.00571648  $      45      20m     +0.64  goal
+     CSPR/USD 0.002139 -> 0.00217108  $      53     480m     +0.75  goal
+     CSPR/USD 0.002172 -> 0.00212333  $      61     360m     -1.42  trail
+     DENT/USD 3.358e-05 -> 3.425e-05  $      45      70m     +0.86  goal
+      FLR/USD 0.006102 -> 0.00588  $      55     485m     -2.04  clock
+      EUR/USD 1.1229 -> 1.1194  $      32     485m     -0.12  clock
+      NPC/USD 0.015522 -> 0.0157548  $      30     345m     +0.43  goal
+      KTA/USD 0.0518 -> 0.052577  $      35     195m     +0.50  goal
+       0G/USD 0.1514 -> 0.153671  $      41      85m     +0.58  goal
+     AERO/USD 0.60454 -> 0.613608  $      47     115m     +0.67  goal
+  BABYSHARK/USD 0.001943 -> 0.0018915  $      55     150m     -1.51  trail
+     DGAI/USD 0.75966 -> 0.739722  $      38     195m     -1.03  trail
+     AERO/USD 0.60936 -> 0.59267  $      26     485m     -0.74  trail
+      XPL/USD 0.05791 -> 0.0566577  $      18     470m     -0.40  trail
+     CSPR/USD 0.002064 -> 0.00209496  $      13      20m     +0.19  goal
+      VVV/USD 20.5661 -> 20.5041  $      16     485m     -0.06  clock
+     CSPR/USD 0.002085 -> 0.00204  $      15     415m     -0.33  trail
+     TRAC/USD 0.3384 -> 0.343476  $      11     165m     +0.16  goal
+      FLR/USD 0.005694 -> 0.005593  $      13     485m     -0.24  clock
+     CSPR/USD 0.00203 -> 0.00206045  $      10     325m     +0.14  goal
+     COTI/USD 0.009383 -> 0.00952375  $      12      15m     +0.17  goal
+  LIGHTER/USD 3.146 -> 3.19319  $      14     205m     +0.19  goal
+     DGAI/USD 0.76041 -> 0.75604  $      16     485m     -0.10  clock
+     MINA/USD 0.051 -> 0.051765  $      15     455m     +0.21  goal
+  LIGHTER/USD 3.176 -> 3.22364  $      17     130m     +0.24  goal
+       ES/USD 0.000225 -> 0.0002313  $      20      50m     +0.54  goal
+      JUP/USD 0.25366 -> 0.257465  $      26     170m     +0.37  goal
+  BABYSHARK/USD 0.00152 -> 0.001559  $      30      15m     +0.75  goal
+     DENT/USD 3.189e-05 -> 3.10012e-05  $      39      30m     -1.11  trail
+      HNT/USD 0.2525 -> 0.2505  $      26     485m     -0.23  clock
+    SYRUP/USD 0.136 -> 0.1355  $      24     485m     -0.11  clock
+      EUR/USD 1.1105 -> 1.1105  $      22     485m     -0.02  clock
+       ES/USD 0.00019164 -> 0.00019576  $      22     170m     +0.46  goal
+       ES/USD 0.00019576 -> 0.000198696  $      27      80m     +0.39  goal
+      ZEC/USD 976.2 -> 990.843  $      32     255m     +0.45  goal
+      ZEC/USD 991.85 -> 967.604  $      37     145m     -0.93  trail
+     CSPR/USD 0.001886 -> 0.00183815  $      26      70m     -0.69  trail
+       ES/USD 0.00021082 -> 0.00021928  $      19      15m     +0.73  goal
+       ES/USD 0.00021928 -> 0.000222569  $      27      55m     +0.38  goal
+       SC/USD 0.000631 -> 0.000640465  $      31     210m     +0.44  goal
+      UAI/USD 0.03598 -> 0.035114  $      36     155m     -0.90  trail
+      UAI/USD 0.03494 -> 0.0354641  $      26      10m     +0.37  goal
+      EUR/USD 1.1066 -> 1.1002  $      30    2770m     -0.20  clock
+      EUR/USD 1.0998 -> 1.0991  $      28     485m     -0.04  clock
+      VET/USD 0.004925 -> 0.004773  $      27      40m     -0.87  trail
+      NOT/USD 0.0003026 -> 0.0003019  $      18     485m     -0.05  clock
+     PYTH/USD 0.05591 -> 0.054514  $      17     205m     -0.44  trail
+  MUBARAK/USD 0.028812 -> 0.0282425  $      12     435m     -0.25  trail
+     AERO/USD 0.41567 -> 0.421905  $       9      30m     +0.13  goal
+     GHST/USD 0.0463 -> 0.0463  $      11     560m     -0.01  clock
+     GHST/USD 0.0463 -> 0.0462  $      11     505m     -0.03  clock
+      FLR/USD 0.004987 -> 0.005005  $      10     485m     +0.03  clock
+       ES/USD 0.00040136 -> 0.00040909  $      11       5m     +0.19  goal
+       ES/USD 0.00040933 -> 0.00041547  $      13      25m     +0.18  goal
+      HNT/USD 0.2296 -> 0.233044  $      15      35m     +0.21  goal
+     DENT/USD 2.992e-05 -> 3.03688e-05  $      17     240m     +0.24  goal
+       ES/USD 0.00041468 -> 0.00040019  $      20      35m     -0.71  trail
+      HNT/USD 0.2312 -> 0.2273  $      12     515m     -0.21  clock
+      VVV/USD 21.3053 -> 20.8148  $       9     265m     -0.23  trail
+       ES/USD 0.00039975 -> 0.00038222  $       7     485m     -0.31  clock
+      AVA/USD 0.2088 -> 0.2061  $       3     485m     -0.05  clock
+      CVX/USD 1.373 -> 1.347  $       3     325m     -0.06  trail
+     TRAC/USD 0.2935 -> 0.2912  $       2     490m     -0.02  clock
+       ES/USD 0.00034026 -> 0.00035215  $       2      50m     +0.07  goal
+       ES/USD 0.00035215 -> 0.000357432  $       3      85m     +0.04  goal
+      EUR/USD 1.0986 -> 1.0993  $       3     120m     -0.00  window end

@@ -55,6 +55,7 @@ KUCOIN = "https://api.kucoin.com/api/v1/market/candles"
 GATE = "https://api.gateio.ws/api/v4/spot/candlesticks"
 MEXC = "https://api.mexc.com/api/v3/klines"
 BAR_WINDOW = 720                  # what the live scanner hands analyze
+HOLD_MIN = st.SURE_THING_WINDOW_MIN   # the hold clock; --hold-min overrides
 
 
 def _kraken(pair: str) -> str:
@@ -330,6 +331,7 @@ class Book:
         self.armed_min: list[float] = []
         self.bar_pct: list[float] = []
         self.log: list[tuple] = []
+        self.log_ts: list[tuple] = []       # (entry ts, exit ts), one per log row
         self.exits: dict[str, int] = {}
 
     @property
@@ -367,7 +369,7 @@ class Book:
         self.pos = {
             "pair": pair, "entry": px, "size": min(spend, self.balance),
             "goal": px * (1.0 + st.SURE_THING_GOAL_PCT / 100.0),
-            "ts": ts, "deadline": ts + st.SURE_THING_WINDOW_MIN * 60.0,
+            "ts": ts, "deadline": ts + HOLD_MIN * 60.0,
             "peak": px,
         }
 
@@ -412,6 +414,7 @@ class Book:
         self.exits[why] = self.exits.get(why, 0) + 1
         self.log.append((q["pair"], q["entry"], px, q["size"],
                          round((ts - q["ts"]) / 60.0, 1), net, why))
+        self.log_ts.append((q["ts"], ts))
         if self.balance <= self.start * (1.0 - ca.MAX_LOSS_PCT / 100.0):
             self.dead = True
         if self.balance >= self.need:
@@ -473,7 +476,20 @@ def main():
                     help="kucoin/scout: how many days of 5m history")
     ap.add_argument("--archive", action="store_true",
                     help="kraken only: stamp today's window for repeat captures")
+    ap.add_argument("--hold-min", type=float,
+                    default=st.SURE_THING_WINDOW_MIN,
+                    help="how long a position may hold before the exit check "
+                         "calls the exit (the shipped contract is 240 min)")
+    ap.add_argument("--min-days", type=float, default=0.0,
+                    help="drop pairs whose 5m feed covers less than this, so "
+                         "late-listing coins cannot carry a result")
     args = ap.parse_args()
+    global HOLD_MIN
+    HOLD_MIN = args.hold_min
+    if HOLD_MIN < st.SURE_THING_WINDOW_MIN:
+        raise SystemExit("refusing to run: --hold-min below the shipped "
+                         "240-min contract is a different strategy, not "
+                         "more time")
     universe = list(json.loads(
         (ROOT / "volatility_universe.json").read_text(encoding="utf-8")))
     pairs = universe[: args.pairs] if args.pairs else universe
@@ -505,6 +521,12 @@ def main():
             except Exception as exc:
                 skipped.append(f"{p} ({str(exc)[:28]})")
                 print(f"  skip {p}: {str(exc)[:40]}", file=sys.stderr, flush=True)
+    dropped = sorted(((p, meta[p][2]) for p in candles
+                      if meta[p][2] < args.min_days), key=lambda x: x[1])
+    for p, d in dropped:
+        skipped.append(f"{p} ({d:.1f}d < {args.min_days:.0f}d)")
+        candles.pop(p)
+        meta.pop(p)
     if not candles:
         raise SystemExit("no candles fetched")
     span = max(r[-1][0] for r in candles.values()) - \
@@ -532,10 +554,21 @@ def main():
     out.append(f"pairs {len(candles)} (skipped {len(skipped)})  ·  window "
                f"{days:.2f} days of 5m bars  ·  $1 confirm target, "
                f"{st.SURE_THING_GOAL_PCT:.1f}% goal, "
-               f"{st.SURE_THING_WINDOW_MIN:.0f}-min contract, "
+               f"{HOLD_MIN:.0f}-min hold clock, "
                f"3%→1.5% trail once +2% (armed only after a green print)")
+    if HOLD_MIN != st.SURE_THING_WINDOW_MIN:
+        out.append(f"the only change from the shipped contract: a position may "
+                   f"hold {HOLD_MIN:.0f} min instead of "
+                   f"{st.SURE_THING_WINDOW_MIN:.0f}; the exit check still "
+                   f"CALLS the exit at the end of that clock, and the "
+                   f"{st.SURE_THING_WINDOW_MIN:.0f}-min arm/confirm expiry is "
+                   "untouched")
     out.append(f"target +{ca.PROFIT_TARGET_PCT:.0f}%  ·  death line "
                f"-{ca.MAX_LOSS_PCT:.0f}%  ·  round trip {ca.COST_ROUNDTRIP_PCT:.2f}%")
+    if dropped:
+        out.append(f"excluded for covering under {args.min_days:.0f} days of the "
+                   "window (their feed only exists in its tail): "
+                   + ", ".join(f"{p} {d:.1f}d" for p, d in dropped))
     out.append("")
     arms = (("gate", "SHIPPED (arm, then confirm)"),
             ("pre-gate", "PRE-GATE (fire at pre-breakout)"))
@@ -627,6 +660,9 @@ def main():
     out.append("    is a PASS: the contest ends when the goal is reached, so what the")
     out.append("    continuous view shows afterwards is a book that declined to stop,")
     out.append("    not a pass that was taken back.")
+    out.append("  · more time is not an open-ended position: the clock still")
+    out.append("    calls the exit on the first bar past the hold window, so a trade")
+    out.append("    that never reaches the goal is closed at the window's price.")
     out.append("  · one position at a time (stricter than the live multi-pair")
     out.append("    book); the 3% guard sizes every entry and the fee is charged")
     out.append("    on both legs. Champion/mover funnels are not replayable.")
