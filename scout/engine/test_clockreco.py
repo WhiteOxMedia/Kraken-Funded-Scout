@@ -117,20 +117,91 @@ check("gate 3b's helper has no exit decision in it (its DOC may say so)",
 
 # ── 2. THE LADDER, EXECUTED FROM ITS OWN SOURCE ────────────────────────
 _src = Path(bs.__file__).read_text(encoding="utf-8", errors="replace")
-# The block runs from the fresh-data fetch (it builds df, the ticker
-# overlay, _rt_live and the DCA gate) through the per-pair except, so the
-# slice is executable as it stands — a self-contained per-position pass.
-_START = "                    # Fetch fresh data and run strategy"
-_END = 'logger.debug("Exit check failed for %s: %s", pair, exc)'
-_i = _src.find(_START)
-_j = _src.find(_END, _i if _i > 0 else 0)
-check("the ladder block is findable in the scanner source",
-      _i > 0 and _j > _i, (_i, _j))
-_ladder = textwrap.dedent(_src[_i:_j + len(_END)])
-check("the ladder calls the seam and never writes a signal itself",
-      "weigh_clock_rec(" in _ladder
-      and _ladder.count("write_exit_signal(") == 1
-      and "should_exit = True" in _ladder, _ladder.count("write_exit_signal("))
+# THE SLICE IS ANCHORED ON STATEMENTS, NOT COMMENTS (Nov 20 hardening).
+# A comment anchor moved silently when the comment was reworded, and the
+# block's OHLCV read exists THREE times in the scanner — picking the first
+# matched one used to slice a different pair loop and the drive still ran.
+# So: the END is a unique statement, the START is the `try:` that owns the
+# `except` sitting directly above it (structure, not text), the slice must
+# CONTAIN the exit check's own OHLCV read exactly once, and the whole slice
+# must compile on its own. Any drift fails loudly, before the drive runs.
+_OHLCV_STMT = 'ohlcv = exchange.fetch_ohlcv(pair, timeframe="1h", limit=200)'
+_END_STMT = 'logger.debug("Exit check failed for %s: %s", pair, exc)'
+_LOC_PIN = "_clock_rec = None"   # unique to this ladder: pins it in place
+check("the handler anchor is one unique statement in the scanner",
+      _src.count(_END_STMT) == 1, _src.count(_END_STMT))
+check("the recommendation read is one unique statement in the scanner",
+      _src.count(_LOC_PIN) == 1, _src.count(_LOC_PIN))
+
+_lines = _src.splitlines(keepends=True)
+_ind = lambda s: len(s) - len(s.lstrip())   # noqa: E731
+_ei = next((i for i, ln in enumerate(_lines) if _END_STMT in ln), -1)
+_exc_i = _ei - 1
+check("the slice ends on an except, not loose code",
+      _ei > 0 and _lines[_exc_i].lstrip().startswith("except ")
+      and _ind(_lines[_exc_i]) > 0,
+      _lines[_exc_i].strip() if _ei > 0 else _ei)
+_start = _exc_i - 1
+while _start >= 0 and not (_lines[_start].strip() == "try:"
+                           and _ind(_lines[_start]) == _ind(_lines[_exc_i])):
+    _start -= 1
+check("the anchored except belongs to a try at its own indent",
+      _start >= 0 and _lines[_start].strip() == "try:", _start)
+_ladder = textwrap.dedent("".join(_lines[_start:_ei + 1]))
+check("the slice opens on the try it was anchored to",
+      _ladder.startswith("try:\n"), _ladder[:24])
+check("the slice is the exit check's own block (its OHLCV read, exactly once)",
+      _ladder.count(_OHLCV_STMT) == 1, _ladder.count(_OHLCV_STMT))
+check("the recommendation read sits just above the anchored block",
+      any(_LOC_PIN in ln for ln in _lines[max(0, _start - 80):_start]))
+
+# every statement the drive relies on must actually be in the slice
+_REQUIRED = [
+    "from strategy import evaluate_strategy as _eval",
+    _OHLCV_STMT,
+    "should_exit = False",
+    'exit_reason = ""',
+    "check_trailing_stop(pair, live_price)",
+    "THESIS DEAD",
+    "sell_threshold = 60 if is_momentum_pos else 75",
+    "should_exit, exit_reason = weigh_clock_rec(",
+    "write_exit_signal(pair, exit_reason)",
+    "alerted_recently[pair] = now.timestamp()",
+]
+_missing = [s for s in _REQUIRED if s not in _ladder]
+check("every statement the drive depends on is inside the slice",
+      not _missing, _missing)
+check("the slice is exactly one sell write, and the gates do set it",
+      _ladder.count("write_exit_signal(") == 1
+      and _ladder.count("should_exit = True") >= 2
+      and _ladder.count("weigh_clock_rec(") == 1,
+      (_ladder.count("write_exit_signal("),
+       _ladder.count("should_exit = True"),
+       _ladder.count("weigh_clock_rec(")))
+check("the slice holds no function definitions (it cannot drift into "
+      "another block)",
+      "\ndef " not in _ladder and not _ladder.startswith("def "))
+check("the slice cannot drift into the loop or the tournament",
+      "while True:" not in _ladder and "def main()" not in _ladder
+      and "Full tournament" not in _ladder)
+# the one-pass wrapper hides a `continue`/`break` that would skip the
+# ladder, so the escapes are named: the short-data guard and the DCA gate,
+# nothing else, and no break at all
+_continues = [ln for ln in _ladder.splitlines() if ln.strip().startswith("continue")]
+check("the slice's only loop escapes are the short-data guard and the DCA gate",
+      "break" not in _ladder and len(_continues) == 2
+      and "if not ohlcv or len(ohlcv) < 30:" in _ladder
+      and _continues[1].strip().startswith("continue  # skip exit logic"),
+      [c.strip() for c in _continues])
+
+try:
+    compile("for _once in range(1):\n" + textwrap.indent(_ladder, "    "),
+            "<ladder-anchor-probe>", "exec")
+    _compiles = True
+except SyntaxError as _se:
+    _compiles = False
+    _se = _se
+check("the anchored slice compiles as one executable block", _compiles)
 
 _notes = []
 
@@ -203,7 +274,8 @@ def _drive(rec, trail_hit, live=1.003, action="hold", confidence=40):
         "weigh_clock_rec": bs.weigh_clock_rec,
     }
     # the block carries a `continue` (the DCA branch) — a one-pass loop
-    # makes the slice legal without changing what runs
+    # makes the slice legal without changing what runs; the slice's own
+    # checks above refuse a `break`, so the wrapper cannot skip the ladder
     _wrapped = "for _once in range(1):\n" + textwrap.indent(_ladder, "    ")
     try:
         exec(compile(_wrapped, "<exit-ladder>", "exec"), g)
