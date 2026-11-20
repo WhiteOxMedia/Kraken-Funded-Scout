@@ -9389,6 +9389,19 @@ def main():
                 if pending_exits:
                     logger.info("📤 %d pending exit signal(s) from dashboard", len(pending_exits))
 
+                # THE RECOMMENDATION CHANNEL (user rule, Nov 20): the
+                # sure-thing clock stamps its OUT recommendation on the
+                # contest watch row (`clock_rec`); this ladder is the exit
+                # check that SELLS, so it reads the book once per pass and
+                # weighs each pair's recommendation below — as context,
+                # never as a trigger.
+                _cw_ex = {}
+                try:
+                    _cw_ex = _load_contest_watch() or {}
+                except Exception as _cw_exc:
+                    logger.debug("exit check: contest watch unread (%s) — "
+                                 "no clock recommendations this pass", _cw_exc)
+
                 # Also proactively check open positions (status="filled" in SQLite)
                 for s in _read_all_signals():
                     if s.get("status") != "filled":
@@ -9399,6 +9412,29 @@ def main():
                     pair = s.get("pair")
                     if not pair:
                         continue
+
+                    # ── THE CLOCK'S RECOMMENDATION (user rule, Nov 20) ──
+                    # The scanner recommends; THIS check decides. Read what
+                    # the sure-thing clock stamped on the pair's watch row
+                    # so the ladder can weigh it — CONTEXT ONLY: it never
+                    # sets should_exit and never upgrades a hold into a
+                    # sale. The gates below stay the decision, and
+                    # write_exit_signal below stays the sale.
+                    _clock_rec = None
+                    try:
+                        _wr_ex = _cw_ex.get(pair)
+                        _clock_rec = (_wr_ex.get("clock_rec")
+                                      if isinstance(_wr_ex, dict) else None)
+                    except Exception as _cr_exc:
+                        logger.debug("clock recommendation unread for %s: "
+                                     "%s", pair, _cr_exc)
+                    if _clock_rec:
+                        logger.info(
+                            "  🕐 EXIT CHECK sees the clock's recommendation "
+                            "for %s: %s — weighing it on the ladder (the "
+                            "call stays this check's)",
+                            pair.split("/")[0],
+                            (_clock_rec or {}).get("call") or "OUT")
 
                     # COOLDOWN: Don't exit-check an asset for 30 minutes after buying it
                     executed_at = s.get("executed_at", "")
@@ -9574,6 +9610,14 @@ def main():
 
                         if should_exit:
                             from signal_bridge import write_exit_signal
+                            if _clock_rec:
+                                # the clock's read rides the sale's REASON
+                                # (context, never a trigger): the gates
+                                # above made the call, the clock agreed
+                                exit_reason = (
+                                    f"{exit_reason} · the clock also "
+                                    f"recommended OUT "
+                                    f"({(_clock_rec or {}).get('call') or 'window ended'})")
                             write_exit_signal(pair, exit_reason)
                             alerted_recently[pair] = now.timestamp()
                             logger.info("📤 Exit signal written: SELL %s — %s", pair.split("/")[0], exit_reason)
@@ -9586,6 +9630,18 @@ def main():
                             # REAL money (trailing stop / strategy sell /
                             # exhaustion all land on the bot's account).
                             # Every other sell source stays contest-only.
+                        elif _clock_rec:
+                            # THE RECOMMENDATION DOESN'T SELL (user rule,
+                            # Nov 20): the clock recommended OUT and the
+                            # ladder's own gates said hold — the ladder
+                            # keeps the position AND the call. Logged, so
+                            # a recommendation is never silently lost.
+                            logger.info(
+                                "  🕐 EXIT CHECK keeps %s — the clock "
+                                "recommends OUT, the ladder declines "
+                                "(trail/trend/thesis all clear); the "
+                                "decision is this check's",
+                                pair.split("/")[0])
                     except Exception as exc:
                         logger.debug("Exit check failed for %s: %s", pair, exc)
 

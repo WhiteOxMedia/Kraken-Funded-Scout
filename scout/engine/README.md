@@ -28,7 +28,12 @@ SL −5% → TP +10% → knife → ATR trail → strategy sell ≥75/60 → exha
   hold kills it.
 - **The goal clock is contest-only**: no GOAL REACHED / WINDOW EXPIRED exits
   on the bot — it rides winners to its own exits. Popups stay contest-only;
-  the exit write never notifies.
+  the exit write never notifies. The clock stopped being silent on Nov 20:
+  the scanner stamps its OUT recommendation on the contest watch row
+  (`clock_rec`), and the 5-minute exit check reads it as CONTEXT — it is
+  logged every pass, it rides a sale's reason when the ladder's own gates
+  already fired, and it never triggers a sale or turns a hold into one. The
+  recommendation came from the scanner; the decision is the ladder's.
 
 ### The trail's shape (the part that ratchets)
 
