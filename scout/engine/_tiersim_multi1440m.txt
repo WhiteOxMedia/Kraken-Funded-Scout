@@ -1,0 +1,564 @@
+TIER SIMULATION — the Sure Thing coil funnel, live 5m candles
+==============================================================================
+source: per-pair best available 5m feed — the coverage table below names each pair's venue and span, so nothing is blended in silence
+pairs 66 (skipped 0)  ·  window 30.02 days of 5m bars  ·  $1 confirm target, 1.5% goal, 1440-min hold clock, 3%→1.5% trail once +2% (armed only after a green print)
+the only change from the shipped contract: a position may hold 1440 min instead of 480; the exit check still CALLS the exit at the end of that clock, and the 480-min arm/confirm expiry is untouched
+target +12%  ·  death line -3%  ·  round trip 0.08%
+book: MANY AT ONCE — a pending row and a position PER PAIR, each sized from the free cash (balance − open notional) through the live entry_size_usd
+
+── SHIPPED (arm, then confirm) · CONTINUOUS — never stops; prices the edge ────────────
+  tier  arms fills  exp trades  win%      net $     final $       %  verdict
+$1,000    18    13    5     45    36     -31.26      968.74   -3.13  FAIL (under the death line)
+       -0.69 per fire  ·  -0.10%/day  ·  this pace never reaches +12%  ·  the $1 bar +0.998%
+       death line $970.00 (-3%)  ·  cushion $-1.26 (-0.13% of the book)
+       peak $1,004.94 (+0.49%) on 2026-10-22 13:30 UTC
+       peak 12 positions open at once (each sized from the free-cash carry)
+       11 of 45 fires were under $1 notional: the 3% guard had squeezed risk to nothing by then
+$5,000    13    13    0     26    46    -162.51    4,837.49   -3.25  FAIL (under the death line)
+       -6.25 per fire  ·  -0.11%/day  ·  this pace never reaches +12%  ·  the $1 bar +0.084%
+       death line $4,850.00 (-3%)  ·  cushion $-12.51 (-0.25% of the book)
+       peak $5,024.14 (+0.48%) on 2026-10-22 07:55 UTC
+       peak 7 positions open at once (each sized from the free-cash carry)
+       1 of 26 fires were under $1 notional: the 3% guard had squeezed risk to nothing by then
+$10,000    13    13    0     26    46    -326.62    9,673.38   -3.27  FAIL (under the death line)
+       -12.56 per fire  ·  -0.11%/day  ·  this pace never reaches +12%  ·  the $1 bar +0.042%
+       death line $9,700.00 (-3%)  ·  cushion $-26.62 (-0.27% of the book)
+       peak $10,048.28 (+0.48%) on 2026-10-22 07:55 UTC
+       peak 7 positions open at once (each sized from the free-cash carry)
+  armed→fill: median 10 min over 39 confirms
+  exits: clock 1  ·  death line 3  ·  goal 11  ·  trail 11
+
+── SHIPPED (arm, then confirm) · CONTEST — halts at +12% or the death line ────────────
+  tier  arms fills  exp trades  win%      net $     final $       %  verdict
+$1,000    18    13    5     45    36     -31.26      968.74   -3.13  FAIL — stopped at the -3% line
+       -0.69 per fire  ·  -0.10%/day  ·  this pace never reaches +12%  ·  the $1 bar +0.998%
+       death line $970.00 (-3%)  ·  cushion $-1.26 (-0.13% of the book)
+       peak $1,004.94 (+0.49%) on 2026-10-22 13:30 UTC
+       peak 12 positions open at once (each sized from the free-cash carry)
+       11 of 45 fires were under $1 notional: the 3% guard had squeezed risk to nothing by then
+$5,000    13    13    0     26    46    -162.51    4,837.49   -3.25  FAIL — stopped at the -3% line
+       -6.25 per fire  ·  -0.11%/day  ·  this pace never reaches +12%  ·  the $1 bar +0.084%
+       death line $4,850.00 (-3%)  ·  cushion $-12.51 (-0.25% of the book)
+       peak $5,024.14 (+0.48%) on 2026-10-22 07:55 UTC
+       peak 7 positions open at once (each sized from the free-cash carry)
+       1 of 26 fires were under $1 notional: the 3% guard had squeezed risk to nothing by then
+$10,000    13    13    0     26    46    -326.62    9,673.38   -3.27  FAIL — stopped at the -3% line
+       -12.56 per fire  ·  -0.11%/day  ·  this pace never reaches +12%  ·  the $1 bar +0.042%
+       death line $9,700.00 (-3%)  ·  cushion $-26.62 (-0.27% of the book)
+       peak $10,048.28 (+0.48%) on 2026-10-22 07:55 UTC
+       peak 7 positions open at once (each sized from the free-cash carry)
+  armed→fill: median 10 min over 39 confirms
+  exits: clock 1  ·  death line 3  ·  goal 11  ·  trail 11
+
+── PRE-GATE (fire at pre-breakout) · CONTINUOUS — never stops; prices the edge ────────────
+  tier  arms fills  exp trades  win%      net $     final $       %  verdict
+$1,000     0     0    0     26    46     -33.65      966.35   -3.36  FAIL (under the death line)
+       -1.29 per fire  ·  -0.11%/day  ·  this pace never reaches +12%
+       death line $970.00 (-3%)  ·  cushion $-3.65 (-0.36% of the book)
+       peak $1,004.83 (+0.48%) on 2026-10-22 07:55 UTC
+       peak 7 positions open at once (each sized from the free-cash carry)
+$5,000     0     0    0     27    48    -168.25    4,831.75   -3.36  FAIL (under the death line)
+       -6.23 per fire  ·  -0.11%/day  ·  this pace never reaches +12%
+       death line $4,850.00 (-3%)  ·  cushion $-18.25 (-0.36% of the book)
+       peak $5,024.14 (+0.48%) on 2026-10-22 07:55 UTC
+       peak 7 positions open at once (each sized from the free-cash carry)
+       1 of 27 fires were under $1 notional: the 3% guard had squeezed risk to nothing by then
+$10,000     0     0    0     27    48    -336.50    9,663.50   -3.36  FAIL (under the death line)
+       -12.46 per fire  ·  -0.11%/day  ·  this pace never reaches +12%
+       death line $9,700.00 (-3%)  ·  cushion $-36.50 (-0.36% of the book)
+       peak $10,048.28 (+0.48%) on 2026-10-22 07:55 UTC
+       peak 7 positions open at once (each sized from the free-cash carry)
+       1 of 27 fires were under $1 notional: the 3% guard had squeezed risk to nothing by then
+  exits: death line 3  ·  goal 12  ·  trail 12
+
+── PRE-GATE (fire at pre-breakout) · CONTEST — halts at +12% or the death line ────────────
+  tier  arms fills  exp trades  win%      net $     final $       %  verdict
+$1,000     0     0    0     26    46     -33.65      966.35   -3.36  FAIL — stopped at the -3% line
+       -1.29 per fire  ·  -0.11%/day  ·  this pace never reaches +12%
+       death line $970.00 (-3%)  ·  cushion $-3.65 (-0.36% of the book)
+       peak $1,004.83 (+0.48%) on 2026-10-22 07:55 UTC
+       peak 7 positions open at once (each sized from the free-cash carry)
+$5,000     0     0    0     27    48    -168.25    4,831.75   -3.36  FAIL — stopped at the -3% line
+       -6.23 per fire  ·  -0.11%/day  ·  this pace never reaches +12%
+       death line $4,850.00 (-3%)  ·  cushion $-18.25 (-0.36% of the book)
+       peak $5,024.14 (+0.48%) on 2026-10-22 07:55 UTC
+       peak 7 positions open at once (each sized from the free-cash carry)
+       1 of 27 fires were under $1 notional: the 3% guard had squeezed risk to nothing by then
+$10,000     0     0    0     27    48    -336.50    9,663.50   -3.36  FAIL — stopped at the -3% line
+       -12.46 per fire  ·  -0.11%/day  ·  this pace never reaches +12%
+       death line $9,700.00 (-3%)  ·  cushion $-36.50 (-0.36% of the book)
+       peak $10,048.28 (+0.48%) on 2026-10-22 07:55 UTC
+       peak 7 positions open at once (each sized from the free-cash carry)
+       1 of 27 fires were under $1 notional: the 3% guard had squeezed risk to nothing by then
+  exits: death line 3  ·  goal 12  ·  trail 12
+
+COVERAGE — every coin in volatility_universe.json
+------------------------------------------------------------------------------
+  feeds: coinbase 42  ·  gate 17  ·  kraken 4  ·  mexc 3
+  · 5 pair(s) cover less than the full window and can only fire in its tail: KNTQ/USD 17.9d, OOB/USD 2.5d, REPPO/USD 2.5d, SHAPE/USD 2.5d, XMR/USD 2.5d
+         0G/USD gate       8641 bars   30.00 days
+       AERO/USD coinbase   8602 bars   30.00 days
+        APR/USD coinbase   6568 bars   29.99 days
+        APT/USD coinbase   7197 bars   29.99 days
+         AR/USD gate       8641 bars   30.00 days
+        ARB/USD coinbase   8368 bars   29.99 days
+        AVA/USD gate       8641 bars   30.00 days
+  BABYSHARK/USD gate       8641 bars   30.00 days
+       COTI/USD coinbase   6385 bars   30.00 days
+        CRV/USD coinbase   6856 bars   30.00 days
+       CSPR/USD gate       8641 bars   30.00 days
+        CVX/USD coinbase   3883 bars   29.99 days
+       DASH/USD coinbase   6795 bars   30.00 days
+       DENT/USD gate       8641 bars   30.00 days
+       DGAI/USD gate       8641 bars   30.00 days
+        ENA/USD coinbase   8636 bars   30.00 days
+         ES/USD gate       8641 bars   30.00 days
+      ETHFI/USD coinbase   4065 bars   29.96 days
+        EUR/USD mexc       4500 bars   29.48 days
+        FIL/USD coinbase   8321 bars   30.00 days
+      FLOKI/USD coinbase   5483 bars   29.99 days
+        FLR/USD coinbase   8066 bars   30.00 days
+      FORTH/USD coinbase   4441 bars   29.96 days
+       GHST/USD coinbase   1561 bars   29.99 days
+        GRT/USD coinbase   7178 bars   30.00 days
+        HNT/USD coinbase   5562 bars   29.99 days
+        ICP/USD coinbase   8537 bars   30.00 days
+        JUP/USD gate       8641 bars   30.00 days
+        KAS/USD gate       8641 bars   30.00 days
+        KII/USD mexc       4500 bars   29.48 days
+       KNTQ/USD mexc       2648 bars   17.85 days
+        KTA/USD coinbase   2606 bars   29.98 days
+    LIGHTER/USD coinbase   8290 bars   29.99 days
+        LRC/USD gate       8641 bars   30.00 days
+        MET/USD coinbase   2842 bars   29.99 days
+       MINA/USD coinbase   3376 bars   29.99 days
+    MUBARAK/USD gate       8641 bars   30.00 days
+       NEAR/USD coinbase   8640 bars   30.00 days
+      NIGHT/USD gate       8641 bars   30.00 days
+        NOT/USD gate       8641 bars   30.00 days
+        NPC/USD gate       8641 bars   30.00 days
+        OOB/USD kraken      721 bars    2.50 days
+       ORCA/USD coinbase   6679 bars   29.99 days
+        OXT/USD coinbase   3226 bars   29.99 days
+       PUMP/USD coinbase   8554 bars   30.00 days
+       PYTH/USD coinbase   6799 bars   30.00 days
+        RAY/USD coinbase   5184 bars   29.99 days
+         RE/USD coinbase   5064 bars   29.99 days
+      REPPO/USD kraken      721 bars    2.50 days
+         SC/USD gate       8641 bars   30.00 days
+      SHAPE/USD kraken      721 bars    2.50 days
+        SPX/USD coinbase   6655 bars   30.00 days
+      SUSHI/USD coinbase   4862 bars   30.00 days
+      SYRUP/USD coinbase   8134 bars   30.00 days
+       TRAC/USD coinbase   3579 bars   29.99 days
+        UAI/USD gate       8641 bars   30.00 days
+        UNI/USD coinbase   8638 bars   30.00 days
+    USELESS/USD coinbase   8189 bars   30.00 days
+        VET/USD coinbase   6344 bars   30.00 days
+        VVV/USD coinbase   8523 bars   30.00 days
+        XCN/USD coinbase   7461 bars   30.00 days
+        XMR/USD kraken      721 bars    2.50 days
+        XPL/USD coinbase   7963 bars   30.00 days
+        ZEC/USD coinbase   8640 bars   30.00 days
+       ZORA/USD coinbase   7561 bars   30.00 days
+        ZRO/USD coinbase   8587 bars   30.00 days
+
+NOTES
+------------------------------------------------------------------------------
+  · the detector sees the last 720 bars at every step, exactly
+    as the scanner feeds it; a longer window widens the EVIDENCE,
+    never the detector's own 5m / 24-bar (2h) coil contract.
+  · two views of every arm, same trades up to the point a book
+    stops: CONTINUOUS runs the window out (what the edge is),
+    CONTEST halts the book the moment it reaches +12% or the death
+    line (what the rules would have done). A 'touched +12%' book
+    is a PASS: the contest ends when the goal is reached, so what the
+    continuous view shows afterwards is a book that declined to stop,
+    not a pass that was taken back.
+  · more time is not an open-ended position: the clock still
+    calls the exit on the first bar past the hold window, so a trade
+    that never reaches the goal is closed at the window's price.
+  · the book holds several positions at once, one per pair, so
+    a long hold no longer starves entries; each entry is sized
+    against the FREE CASH still on the book, so the account can
+    never be over-committed. The 3% guard sizes every entry and
+    the fee is charged on both legs. Champion/mover funnels are
+    not replayable.
+
+── TRADES $1,000 gate ──────────────────────────────
+  LIGHTER/USD 3.66876 -> 3.72379  $     340      40m     +4.83  goal
+  USELESS/USD 0.156379 -> 0.151892  $     340      70m    -10.03  trail
+     ORCA/USD 1.8001 -> 1.8271  $      49      90m     +0.69  goal
+     AERO/USD 0.803992 -> 0.816052  $     395      60m     +5.60  goal
+     PUMP/USD 0.00478164 -> 0.00485336  $     270     290m     +3.84  goal
+      CRV/USD 0.3716 -> 0.365011  $     281     280m     -5.21  trail
+       ES/USD 0.0008856 -> 0.000898884  $      55     105m     +0.78  goal
+  USELESS/USD 0.15576 -> 0.151155  $       0     100m     -0.00  trail
+      APT/USD 0.777765 -> 0.760771  $     395     500m     -8.94  trail
+       SC/USD 0.0008891 -> 0.0008633  $     244     200m     -7.29  trail
+       AR/USD 3.5827 -> 3.63644  $     162      60m     +2.30  goal
+  BABYSHARK/USD 0.003438 -> 0.00334456  $     244     535m     -6.84  trail
+      UAI/USD 0.30439 -> 0.308956  $      60     165m     +0.85  goal
+     DENT/USD 4.87787e-05 -> 4.80053e-05  $     244     395m     -4.07  trail
+      ICP/USD 2.7392 -> 2.78029  $     164     230m     +2.33  goal
+     DENT/USD 4.866e-05 -> 4.93899e-05  $      74       0m     +1.05  goal
+     ORCA/USD 1.8447 -> 1.87237  $      74     200m     +1.05  goal
+     MINA/USD 0.0724 -> 0.073486  $     100     100m     +1.42  goal
+      VET/USD 0.007236 -> 0.00734454  $     112     120m     +1.59  goal
+      NPC/USD 0.018206 -> 0.0176947  $     110     460m     -3.19  trail
+      SPX/USD 0.37 -> 0.3687  $     274    1450m     -1.18  clock
+      JUP/USD 0.31496 -> 0.306549  $      74     555m     -2.03  trail
+     CSPR/USD 0.002195 -> 0.0021534  $       3     370m     -0.07  trail
+     MINA/USD 0.07259 -> 0.071  $     122     330m     -2.77  trail
+  MUBARAK/USD 0.053877 -> 0.0529028  $     112     700m     -2.12  trail
+      LRC/USD 0.008442 -> 0.00830708  $     120    1090m     -2.01  trail
+     CSPR/USD 0.002177 -> 0.00214079  $      29      55m     -0.51  trail
+      OXT/USD 0.00945686 -> 0.00959871  $     122     820m     +1.73  goal
+       ES/USD 0.0008571 -> 0.000869956  $       1     190m     +0.01  goal
+       ES/USD 0.0008719 -> 0.000885  $      21      40m     +0.29  goal
+      KAS/USD 0.03685 -> 0.0358609  $       1     310m     -0.02  trail
+      XCN/USD 0.003954 -> 0.00401331  $       1     510m     +0.01  goal
+     DGAI/USD 0.8971 -> 0.8829  $     122    1445m     -2.03  clock
+      HNT/USD 0.4017 -> 0.391977  $       1     585m     -0.02  trail
+    SUSHI/USD 0.211 -> 0.20564  $      20     600m     -0.54  trail
+    FLOKI/USD 2.386e-05 -> 2.334e-05  $       1     695m     -0.02  death line
+      FLR/USD 0.006038 -> 0.00604  $      24     180m     -0.01  death line
+     PUMP/USD 0.004245 -> 0.004194  $      24     155m     -0.30  death line
+      RAY/USD 1.7948 -> 1.7946  $      24     120m     -0.02  death line
+    FORTH/USD 0.19398 -> 0.19092  $      24     115m     -0.39  death line
+      APT/USD 0.7208 -> 0.7164  $       1      80m     -0.01  death line
+  LIGHTER/USD 3.11 -> 3.074  $       1      75m     -0.01  death line
+      CRV/USD 0.3548 -> 0.3533  $       1      55m     -0.00  death line
+      ZEC/USD 1160.9 -> 1156.24  $       1      45m     -0.00  death line
+     CSPR/USD 0.002141 -> 0.002129  $       1      40m     -0.01  death line
+
+── TRADES $1,000 gate stop ──────────────────────────────
+  LIGHTER/USD 3.66876 -> 3.72379  $     340      40m     +4.83  goal
+  USELESS/USD 0.156379 -> 0.151892  $     340      70m    -10.03  trail
+     ORCA/USD 1.8001 -> 1.8271  $      49      90m     +0.69  goal
+     AERO/USD 0.803992 -> 0.816052  $     395      60m     +5.60  goal
+     PUMP/USD 0.00478164 -> 0.00485336  $     270     290m     +3.84  goal
+      CRV/USD 0.3716 -> 0.365011  $     281     280m     -5.21  trail
+       ES/USD 0.0008856 -> 0.000898884  $      55     105m     +0.78  goal
+  USELESS/USD 0.15576 -> 0.151155  $       0     100m     -0.00  trail
+      APT/USD 0.777765 -> 0.760771  $     395     500m     -8.94  trail
+       SC/USD 0.0008891 -> 0.0008633  $     244     200m     -7.29  trail
+       AR/USD 3.5827 -> 3.63644  $     162      60m     +2.30  goal
+  BABYSHARK/USD 0.003438 -> 0.00334456  $     244     535m     -6.84  trail
+      UAI/USD 0.30439 -> 0.308956  $      60     165m     +0.85  goal
+     DENT/USD 4.87787e-05 -> 4.80053e-05  $     244     395m     -4.07  trail
+      ICP/USD 2.7392 -> 2.78029  $     164     230m     +2.33  goal
+     DENT/USD 4.866e-05 -> 4.93899e-05  $      74       0m     +1.05  goal
+     ORCA/USD 1.8447 -> 1.87237  $      74     200m     +1.05  goal
+     MINA/USD 0.0724 -> 0.073486  $     100     100m     +1.42  goal
+      VET/USD 0.007236 -> 0.00734454  $     112     120m     +1.59  goal
+      NPC/USD 0.018206 -> 0.0176947  $     110     460m     -3.19  trail
+      SPX/USD 0.37 -> 0.3687  $     274    1450m     -1.18  clock
+      JUP/USD 0.31496 -> 0.306549  $      74     555m     -2.03  trail
+     CSPR/USD 0.002195 -> 0.0021534  $       3     370m     -0.07  trail
+     MINA/USD 0.07259 -> 0.071  $     122     330m     -2.77  trail
+  MUBARAK/USD 0.053877 -> 0.0529028  $     112     700m     -2.12  trail
+      LRC/USD 0.008442 -> 0.00830708  $     120    1090m     -2.01  trail
+     CSPR/USD 0.002177 -> 0.00214079  $      29      55m     -0.51  trail
+      OXT/USD 0.00945686 -> 0.00959871  $     122     820m     +1.73  goal
+       ES/USD 0.0008571 -> 0.000869956  $       1     190m     +0.01  goal
+       ES/USD 0.0008719 -> 0.000885  $      21      40m     +0.29  goal
+      KAS/USD 0.03685 -> 0.0358609  $       1     310m     -0.02  trail
+      XCN/USD 0.003954 -> 0.00401331  $       1     510m     +0.01  goal
+     DGAI/USD 0.8971 -> 0.8829  $     122    1445m     -2.03  clock
+      HNT/USD 0.4017 -> 0.391977  $       1     585m     -0.02  trail
+    SUSHI/USD 0.211 -> 0.20564  $      20     600m     -0.54  trail
+    FLOKI/USD 2.386e-05 -> 2.334e-05  $       1     695m     -0.02  death line
+      FLR/USD 0.006038 -> 0.00604  $      24     180m     -0.01  death line
+     PUMP/USD 0.004245 -> 0.004194  $      24     155m     -0.30  death line
+      RAY/USD 1.7948 -> 1.7946  $      24     120m     -0.02  death line
+    FORTH/USD 0.19398 -> 0.19092  $      24     115m     -0.39  death line
+      APT/USD 0.7208 -> 0.7164  $       1      80m     -0.01  death line
+  LIGHTER/USD 3.11 -> 3.074  $       1      75m     -0.01  death line
+      CRV/USD 0.3548 -> 0.3533  $       1      55m     -0.00  death line
+      ZEC/USD 1160.9 -> 1156.24  $       1      45m     -0.00  death line
+     CSPR/USD 0.002141 -> 0.002129  $       1      40m     -0.01  death line
+
+── TRADES $1,000 pre-gate ──────────────────────────────
+  LIGHTER/USD 3.658 -> 3.71287  $     340      45m     +4.83  goal
+  USELESS/USD 0.15592 -> 0.151892  $     340     105m     -9.05  trail
+     AERO/USD 0.80196 -> 0.813989  $     270     165m     +3.84  goal
+     ORCA/USD 1.8001 -> 1.8271  $      39      90m     +0.55  goal
+      CRV/USD 0.3716 -> 0.365011  $     292     280m     -5.41  trail
+       ES/USD 0.0008856 -> 0.000898884  $     313     110m     +4.45  goal
+      APT/USD 0.7758 -> 0.760771  $     395     520m     -7.96  trail
+     DENT/USD 4.858e-05 -> 4.93087e-05  $     241      40m     +3.42  goal
+       SC/USD 0.0008891 -> 0.0008633  $     241     200m     -7.18  trail
+       AR/USD 3.5827 -> 3.63644  $     198      60m     +2.81  goal
+      AVA/USD 0.3614 -> 0.3672  $     234     220m     +3.57  goal
+  BABYSHARK/USD 0.003432 -> 0.00334456  $     241     545m     -6.32  trail
+      UAI/USD 0.30439 -> 0.308956  $      35     165m     +0.50  goal
+      ICP/USD 2.7392 -> 2.78029  $     201     230m     +2.85  goal
+     DENT/USD 4.852e-05 -> 4.76464e-05  $     279     515m     -5.25  trail
+     MINA/USD 0.0722 -> 0.073283  $     204     140m     +2.89  goal
+      NPC/USD 0.018206 -> 0.0176947  $     199     460m     -5.74  trail
+  LIGHTER/USD 3.428 -> 3.34456  $     177     310m     -4.45  trail
+      JUP/USD 0.31496 -> 0.306549  $     105     555m     -2.88  trail
+     CSPR/USD 0.002195 -> 0.0021534  $     207     370m     -4.08  trail
+     MINA/USD 0.072 -> 0.07308  $      94     135m     +1.34  goal
+  MUBARAK/USD 0.053877 -> 0.0529028  $      97     700m     -1.83  trail
+      LRC/USD 0.008442 -> 0.00830708  $     204    1090m     -3.43  trail
+     DGAI/USD 0.8971 -> 0.89425  $     145     625m     -0.58  death line
+      OXT/USD 0.00938 -> 0.00928  $      48     615m     -0.55  death line
+     CSPR/USD 0.002177 -> 0.002184  $      10      45m     +0.02  death line
+
+── TRADES $1,000 pre-gate stop ──────────────────────────────
+  LIGHTER/USD 3.658 -> 3.71287  $     340      45m     +4.83  goal
+  USELESS/USD 0.15592 -> 0.151892  $     340     105m     -9.05  trail
+     AERO/USD 0.80196 -> 0.813989  $     270     165m     +3.84  goal
+     ORCA/USD 1.8001 -> 1.8271  $      39      90m     +0.55  goal
+      CRV/USD 0.3716 -> 0.365011  $     292     280m     -5.41  trail
+       ES/USD 0.0008856 -> 0.000898884  $     313     110m     +4.45  goal
+      APT/USD 0.7758 -> 0.760771  $     395     520m     -7.96  trail
+     DENT/USD 4.858e-05 -> 4.93087e-05  $     241      40m     +3.42  goal
+       SC/USD 0.0008891 -> 0.0008633  $     241     200m     -7.18  trail
+       AR/USD 3.5827 -> 3.63644  $     198      60m     +2.81  goal
+      AVA/USD 0.3614 -> 0.3672  $     234     220m     +3.57  goal
+  BABYSHARK/USD 0.003432 -> 0.00334456  $     241     545m     -6.32  trail
+      UAI/USD 0.30439 -> 0.308956  $      35     165m     +0.50  goal
+      ICP/USD 2.7392 -> 2.78029  $     201     230m     +2.85  goal
+     DENT/USD 4.852e-05 -> 4.76464e-05  $     279     515m     -5.25  trail
+     MINA/USD 0.0722 -> 0.073283  $     204     140m     +2.89  goal
+      NPC/USD 0.018206 -> 0.0176947  $     199     460m     -5.74  trail
+  LIGHTER/USD 3.428 -> 3.34456  $     177     310m     -4.45  trail
+      JUP/USD 0.31496 -> 0.306549  $     105     555m     -2.88  trail
+     CSPR/USD 0.002195 -> 0.0021534  $     207     370m     -4.08  trail
+     MINA/USD 0.072 -> 0.07308  $      94     135m     +1.34  goal
+  MUBARAK/USD 0.053877 -> 0.0529028  $      97     700m     -1.83  trail
+      LRC/USD 0.008442 -> 0.00830708  $     204    1090m     -3.43  trail
+     DGAI/USD 0.8971 -> 0.89425  $     145     625m     -0.58  death line
+      OXT/USD 0.00938 -> 0.00928  $      48     615m     -0.55  death line
+     CSPR/USD 0.002177 -> 0.002184  $      10      45m     +0.02  death line
+
+── TRADES $5,000 gate ──────────────────────────────
+  LIGHTER/USD 3.664 -> 3.71896  $   1,700      40m    +24.14  goal
+  USELESS/USD 0.156012 -> 0.151892  $   1,700     100m    -46.25  trail
+     AERO/USD 0.802554 -> 0.814592  $   1,351      45m    +19.18  goal
+     ORCA/USD 1.8001 -> 1.8271  $     204      90m     +2.90  goal
+     PUMP/USD 0.004768 -> 0.00483952  $   1,351     295m    +19.18  goal
+      CRV/USD 0.3716 -> 0.365011  $   1,449     280m    -26.86  trail
+       ES/USD 0.0008856 -> 0.000898884  $     226     105m     +3.21  goal
+      APT/USD 0.776193 -> 0.760771  $   1,974     515m    -40.79  trail
+     DENT/USD 4.86209e-05 -> 4.93502e-05  $   1,187       0m    +16.85  goal
+       SC/USD 0.0008891 -> 0.0008633  $   1,187     200m    -35.39  trail
+       AR/USD 3.5827 -> 3.63644  $     977      60m    +13.87  goal
+  BABYSHARK/USD 0.003438 -> 0.00334456  $   1,187     535m    -33.20  trail
+      UAI/USD 0.30439 -> 0.308956  $     175     165m     +2.48  goal
+      ICP/USD 2.7392 -> 2.78029  $     991     230m    +14.07  goal
+     DENT/USD 4.87e-05 -> 4.76464e-05  $   1,228     510m    -27.56  trail
+     MINA/USD 0.0723 -> 0.0733845  $     945      80m    +13.42  goal
+      VET/USD 0.007236 -> 0.00734454  $       0     120m     +0.00  goal
+      NPC/USD 0.018206 -> 0.0176947  $     758     460m    -21.88  trail
+  LIGHTER/USD 3.43342 -> 3.34456  $     633     305m    -16.88  trail
+      SPX/USD 0.37 -> 0.3687  $   1,370    1450m     -5.91  clock
+     CSPR/USD 0.002195 -> 0.0021534  $     785     370m    -15.50  trail
+     MINA/USD 0.0724 -> 0.071  $     346     330m     -6.96  trail
+  MUBARAK/USD 0.053877 -> 0.0529028  $     628     700m    -11.85  trail
+      LRC/USD 0.008442 -> 0.008479  $     573     895m     +2.05  death line
+     DGAI/USD 0.8971 -> 0.89588  $     537     430m     -1.16  death line
+      OXT/USD 0.00940519 -> 0.00932  $     372     410m     -3.67  death line
+
+── TRADES $5,000 gate stop ──────────────────────────────
+  LIGHTER/USD 3.664 -> 3.71896  $   1,700      40m    +24.14  goal
+  USELESS/USD 0.156012 -> 0.151892  $   1,700     100m    -46.25  trail
+     AERO/USD 0.802554 -> 0.814592  $   1,351      45m    +19.18  goal
+     ORCA/USD 1.8001 -> 1.8271  $     204      90m     +2.90  goal
+     PUMP/USD 0.004768 -> 0.00483952  $   1,351     295m    +19.18  goal
+      CRV/USD 0.3716 -> 0.365011  $   1,449     280m    -26.86  trail
+       ES/USD 0.0008856 -> 0.000898884  $     226     105m     +3.21  goal
+      APT/USD 0.776193 -> 0.760771  $   1,974     515m    -40.79  trail
+     DENT/USD 4.86209e-05 -> 4.93502e-05  $   1,187       0m    +16.85  goal
+       SC/USD 0.0008891 -> 0.0008633  $   1,187     200m    -35.39  trail
+       AR/USD 3.5827 -> 3.63644  $     977      60m    +13.87  goal
+  BABYSHARK/USD 0.003438 -> 0.00334456  $   1,187     535m    -33.20  trail
+      UAI/USD 0.30439 -> 0.308956  $     175     165m     +2.48  goal
+      ICP/USD 2.7392 -> 2.78029  $     991     230m    +14.07  goal
+     DENT/USD 4.87e-05 -> 4.76464e-05  $   1,228     510m    -27.56  trail
+     MINA/USD 0.0723 -> 0.0733845  $     945      80m    +13.42  goal
+      VET/USD 0.007236 -> 0.00734454  $       0     120m     +0.00  goal
+      NPC/USD 0.018206 -> 0.0176947  $     758     460m    -21.88  trail
+  LIGHTER/USD 3.43342 -> 3.34456  $     633     305m    -16.88  trail
+      SPX/USD 0.37 -> 0.3687  $   1,370    1450m     -5.91  clock
+     CSPR/USD 0.002195 -> 0.0021534  $     785     370m    -15.50  trail
+     MINA/USD 0.0724 -> 0.071  $     346     330m     -6.96  trail
+  MUBARAK/USD 0.053877 -> 0.0529028  $     628     700m    -11.85  trail
+      LRC/USD 0.008442 -> 0.008479  $     573     895m     +2.05  death line
+     DGAI/USD 0.8971 -> 0.89588  $     537     430m     -1.16  death line
+      OXT/USD 0.00940519 -> 0.00932  $     372     410m     -3.67  death line
+
+── TRADES $5,000 pre-gate ──────────────────────────────
+  LIGHTER/USD 3.658 -> 3.71287  $   1,700      45m    +24.14  goal
+  USELESS/USD 0.15592 -> 0.151892  $   1,700     105m    -45.27  trail
+     AERO/USD 0.80196 -> 0.813989  $   1,351     165m    +19.18  goal
+     ORCA/USD 1.8001 -> 1.8271  $     194      90m     +2.76  goal
+      CRV/USD 0.3716 -> 0.365011  $   1,460     280m    -27.06  trail
+       ES/USD 0.0008856 -> 0.000898884  $   1,567     110m    +22.25  goal
+      APT/USD 0.7758 -> 0.760771  $   1,974     520m    -39.81  trail
+     DENT/USD 4.858e-05 -> 4.93087e-05  $   1,203      40m    +17.09  goal
+       SC/USD 0.0008891 -> 0.0008633  $   1,203     200m    -35.88  trail
+       AR/USD 3.5827 -> 3.63644  $     990      60m    +14.06  goal
+      AVA/USD 0.3614 -> 0.3672  $   1,170     220m    +17.84  goal
+  BABYSHARK/USD 0.003432 -> 0.00334456  $   1,203     545m    -31.62  trail
+      UAI/USD 0.30439 -> 0.308956  $     177     165m     +2.51  goal
+      ICP/USD 2.7392 -> 2.78029  $   1,004     230m    +14.26  goal
+     DENT/USD 4.852e-05 -> 4.76464e-05  $   1,397     515m    -26.27  trail
+     MINA/USD 0.0722 -> 0.073283  $   1,019     140m    +14.46  goal
+      VET/USD 0.007236 -> 0.00734454  $       0     120m     +0.00  goal
+      NPC/USD 0.018206 -> 0.0176947  $     993     460m    -28.69  trail
+  LIGHTER/USD 3.428 -> 3.34456  $     886     310m    -22.27  trail
+      JUP/USD 0.31496 -> 0.306549  $     523     555m    -14.40  trail
+     CSPR/USD 0.002195 -> 0.0021534  $   1,033     370m    -20.41  trail
+     MINA/USD 0.072 -> 0.07308  $     472     135m     +6.71  goal
+  MUBARAK/USD 0.053877 -> 0.0529028  $     485     700m     -9.15  trail
+      LRC/USD 0.008442 -> 0.00830708  $   1,022    1090m    -17.15  trail
+     DGAI/USD 0.8971 -> 0.89425  $     725     625m     -2.88  death line
+      OXT/USD 0.00938 -> 0.00928  $     240     615m     -2.75  death line
+     CSPR/USD 0.002177 -> 0.002184  $      50      45m     +0.12  death line
+
+── TRADES $5,000 pre-gate stop ──────────────────────────────
+  LIGHTER/USD 3.658 -> 3.71287  $   1,700      45m    +24.14  goal
+  USELESS/USD 0.15592 -> 0.151892  $   1,700     105m    -45.27  trail
+     AERO/USD 0.80196 -> 0.813989  $   1,351     165m    +19.18  goal
+     ORCA/USD 1.8001 -> 1.8271  $     194      90m     +2.76  goal
+      CRV/USD 0.3716 -> 0.365011  $   1,460     280m    -27.06  trail
+       ES/USD 0.0008856 -> 0.000898884  $   1,567     110m    +22.25  goal
+      APT/USD 0.7758 -> 0.760771  $   1,974     520m    -39.81  trail
+     DENT/USD 4.858e-05 -> 4.93087e-05  $   1,203      40m    +17.09  goal
+       SC/USD 0.0008891 -> 0.0008633  $   1,203     200m    -35.88  trail
+       AR/USD 3.5827 -> 3.63644  $     990      60m    +14.06  goal
+      AVA/USD 0.3614 -> 0.3672  $   1,170     220m    +17.84  goal
+  BABYSHARK/USD 0.003432 -> 0.00334456  $   1,203     545m    -31.62  trail
+      UAI/USD 0.30439 -> 0.308956  $     177     165m     +2.51  goal
+      ICP/USD 2.7392 -> 2.78029  $   1,004     230m    +14.26  goal
+     DENT/USD 4.852e-05 -> 4.76464e-05  $   1,397     515m    -26.27  trail
+     MINA/USD 0.0722 -> 0.073283  $   1,019     140m    +14.46  goal
+      VET/USD 0.007236 -> 0.00734454  $       0     120m     +0.00  goal
+      NPC/USD 0.018206 -> 0.0176947  $     993     460m    -28.69  trail
+  LIGHTER/USD 3.428 -> 3.34456  $     886     310m    -22.27  trail
+      JUP/USD 0.31496 -> 0.306549  $     523     555m    -14.40  trail
+     CSPR/USD 0.002195 -> 0.0021534  $   1,033     370m    -20.41  trail
+     MINA/USD 0.072 -> 0.07308  $     472     135m     +6.71  goal
+  MUBARAK/USD 0.053877 -> 0.0529028  $     485     700m     -9.15  trail
+      LRC/USD 0.008442 -> 0.00830708  $   1,022    1090m    -17.15  trail
+     DGAI/USD 0.8971 -> 0.89425  $     725     625m     -2.88  death line
+      OXT/USD 0.00938 -> 0.00928  $     240     615m     -2.75  death line
+     CSPR/USD 0.002177 -> 0.002184  $      50      45m     +0.12  death line
+
+── TRADES $10,000 gate ──────────────────────────────
+  LIGHTER/USD 3.664 -> 3.71896  $   3,400      40m    +48.28  goal
+  USELESS/USD 0.155966 -> 0.151892  $   3,400     100m    -91.52  trail
+     AERO/USD 0.802257 -> 0.814291  $   2,701      45m    +38.36  goal
+     ORCA/USD 1.8001 -> 1.8271  $     399      90m     +5.66  goal
+     PUMP/USD 0.004768 -> 0.00483952  $   2,701     295m    +38.36  goal
+      CRV/USD 0.3716 -> 0.365011  $   2,910     280m    -53.93  trail
+       ES/USD 0.0008856 -> 0.000898884  $     443     105m     +6.28  goal
+      APT/USD 0.775997 -> 0.760771  $   3,947     515m    -80.60  trail
+     DENT/USD 4.86003e-05 -> 4.93293e-05  $   2,390       0m    +33.94  goal
+       SC/USD 0.0008891 -> 0.0008633  $   2,390     200m    -71.27  trail
+       AR/USD 3.5827 -> 3.63644  $   1,967      60m    +27.93  goal
+  BABYSHARK/USD 0.003438 -> 0.00334456  $   2,390     535m    -66.87  trail
+      UAI/USD 0.30439 -> 0.308956  $     352     165m     +5.00  goal
+      ICP/USD 2.7392 -> 2.78029  $   1,995     230m    +28.33  goal
+     DENT/USD 4.87e-05 -> 4.76464e-05  $   2,425     510m    -54.41  trail
+     MINA/USD 0.0723 -> 0.0733845  $   1,903      80m    +27.03  goal
+      NPC/USD 0.018206 -> 0.0176947  $   1,526     460m    -44.06  trail
+  LIGHTER/USD 3.432 -> 3.34456  $   1,287     305m    -33.81  trail
+      SPX/USD 0.37 -> 0.3687  $   2,739    1450m    -11.82  clock
+     CSPR/USD 0.002195 -> 0.0021534  $   1,593     370m    -31.47  trail
+     MINA/USD 0.0721014 -> 0.0731829  $     710     120m    +10.09  goal
+  MUBARAK/USD 0.053877 -> 0.0529028  $   1,204     700m    -22.74  trail
+      LRC/USD 0.008442 -> 0.00830708  $   1,154    1090m    -19.37  trail
+     DGAI/USD 0.8971 -> 0.89425  $   1,094     625m     -4.35  death line
+      OXT/USD 0.0094 -> 0.00928  $     725     605m     -9.84  death line
+     CSPR/USD 0.002177 -> 0.002184  $      77      45m     +0.18  death line
+
+── TRADES $10,000 gate stop ──────────────────────────────
+  LIGHTER/USD 3.664 -> 3.71896  $   3,400      40m    +48.28  goal
+  USELESS/USD 0.155966 -> 0.151892  $   3,400     100m    -91.52  trail
+     AERO/USD 0.802257 -> 0.814291  $   2,701      45m    +38.36  goal
+     ORCA/USD 1.8001 -> 1.8271  $     399      90m     +5.66  goal
+     PUMP/USD 0.004768 -> 0.00483952  $   2,701     295m    +38.36  goal
+      CRV/USD 0.3716 -> 0.365011  $   2,910     280m    -53.93  trail
+       ES/USD 0.0008856 -> 0.000898884  $     443     105m     +6.28  goal
+      APT/USD 0.775997 -> 0.760771  $   3,947     515m    -80.60  trail
+     DENT/USD 4.86003e-05 -> 4.93293e-05  $   2,390       0m    +33.94  goal
+       SC/USD 0.0008891 -> 0.0008633  $   2,390     200m    -71.27  trail
+       AR/USD 3.5827 -> 3.63644  $   1,967      60m    +27.93  goal
+  BABYSHARK/USD 0.003438 -> 0.00334456  $   2,390     535m    -66.87  trail
+      UAI/USD 0.30439 -> 0.308956  $     352     165m     +5.00  goal
+      ICP/USD 2.7392 -> 2.78029  $   1,995     230m    +28.33  goal
+     DENT/USD 4.87e-05 -> 4.76464e-05  $   2,425     510m    -54.41  trail
+     MINA/USD 0.0723 -> 0.0733845  $   1,903      80m    +27.03  goal
+      NPC/USD 0.018206 -> 0.0176947  $   1,526     460m    -44.06  trail
+  LIGHTER/USD 3.432 -> 3.34456  $   1,287     305m    -33.81  trail
+      SPX/USD 0.37 -> 0.3687  $   2,739    1450m    -11.82  clock
+     CSPR/USD 0.002195 -> 0.0021534  $   1,593     370m    -31.47  trail
+     MINA/USD 0.0721014 -> 0.0731829  $     710     120m    +10.09  goal
+  MUBARAK/USD 0.053877 -> 0.0529028  $   1,204     700m    -22.74  trail
+      LRC/USD 0.008442 -> 0.00830708  $   1,154    1090m    -19.37  trail
+     DGAI/USD 0.8971 -> 0.89425  $   1,094     625m     -4.35  death line
+      OXT/USD 0.0094 -> 0.00928  $     725     605m     -9.84  death line
+     CSPR/USD 0.002177 -> 0.002184  $      77      45m     +0.18  death line
+
+── TRADES $10,000 pre-gate ──────────────────────────────
+  LIGHTER/USD 3.658 -> 3.71287  $   3,400      45m    +48.28  goal
+  USELESS/USD 0.15592 -> 0.151892  $   3,400     105m    -90.55  trail
+     AERO/USD 0.80196 -> 0.813989  $   2,701     165m    +38.36  goal
+     ORCA/USD 1.8001 -> 1.8271  $     388      90m     +5.52  goal
+      CRV/USD 0.3716 -> 0.365011  $   2,921     280m    -54.13  trail
+       ES/USD 0.0008856 -> 0.000898884  $   3,133     110m    +44.50  goal
+      APT/USD 0.7758 -> 0.760771  $   3,947     520m    -79.62  trail
+     DENT/USD 4.858e-05 -> 4.93087e-05  $   2,407      40m    +34.17  goal
+       SC/USD 0.0008891 -> 0.0008633  $   2,407     200m    -71.76  trail
+       AR/USD 3.5827 -> 3.63644  $   1,981      60m    +28.12  goal
+      AVA/USD 0.3614 -> 0.3672  $   2,339     220m    +35.67  goal
+  BABYSHARK/USD 0.003432 -> 0.00334456  $   2,407     545m    -63.24  trail
+      UAI/USD 0.30439 -> 0.308956  $     354     165m     +5.03  goal
+      ICP/USD 2.7392 -> 2.78029  $   2,009     230m    +28.52  goal
+     DENT/USD 4.852e-05 -> 4.76464e-05  $   2,794     515m    -52.54  trail
+     MINA/USD 0.0722 -> 0.073283  $   2,037     140m    +28.93  goal
+      VET/USD 0.007236 -> 0.00734454  $       0     120m     +0.00  goal
+      NPC/USD 0.018206 -> 0.0176947  $   1,987     460m    -57.39  trail
+  LIGHTER/USD 3.428 -> 3.34456  $   1,772     310m    -44.54  trail
+      JUP/USD 0.31496 -> 0.306549  $   1,047     555m    -28.79  trail
+     CSPR/USD 0.002195 -> 0.0021534  $   2,066     370m    -40.81  trail
+     MINA/USD 0.072 -> 0.07308  $     944     135m    +13.41  goal
+  MUBARAK/USD 0.053877 -> 0.0529028  $     970     700m    -18.31  trail
+      LRC/USD 0.008442 -> 0.00830708  $   2,044    1090m    -34.30  trail
+     DGAI/USD 0.8971 -> 0.89425  $   1,449     625m     -5.76  death line
+      OXT/USD 0.00938 -> 0.00928  $     480     615m     -5.50  death line
+     CSPR/USD 0.002177 -> 0.002184  $     100      45m     +0.24  death line
+
+── TRADES $10,000 pre-gate stop ──────────────────────────────
+  LIGHTER/USD 3.658 -> 3.71287  $   3,400      45m    +48.28  goal
+  USELESS/USD 0.15592 -> 0.151892  $   3,400     105m    -90.55  trail
+     AERO/USD 0.80196 -> 0.813989  $   2,701     165m    +38.36  goal
+     ORCA/USD 1.8001 -> 1.8271  $     388      90m     +5.52  goal
+      CRV/USD 0.3716 -> 0.365011  $   2,921     280m    -54.13  trail
+       ES/USD 0.0008856 -> 0.000898884  $   3,133     110m    +44.50  goal
+      APT/USD 0.7758 -> 0.760771  $   3,947     520m    -79.62  trail
+     DENT/USD 4.858e-05 -> 4.93087e-05  $   2,407      40m    +34.17  goal
+       SC/USD 0.0008891 -> 0.0008633  $   2,407     200m    -71.76  trail
+       AR/USD 3.5827 -> 3.63644  $   1,981      60m    +28.12  goal
+      AVA/USD 0.3614 -> 0.3672  $   2,339     220m    +35.67  goal
+  BABYSHARK/USD 0.003432 -> 0.00334456  $   2,407     545m    -63.24  trail
+      UAI/USD 0.30439 -> 0.308956  $     354     165m     +5.03  goal
+      ICP/USD 2.7392 -> 2.78029  $   2,009     230m    +28.52  goal
+     DENT/USD 4.852e-05 -> 4.76464e-05  $   2,794     515m    -52.54  trail
+     MINA/USD 0.0722 -> 0.073283  $   2,037     140m    +28.93  goal
+      VET/USD 0.007236 -> 0.00734454  $       0     120m     +0.00  goal
+      NPC/USD 0.018206 -> 0.0176947  $   1,987     460m    -57.39  trail
+  LIGHTER/USD 3.428 -> 3.34456  $   1,772     310m    -44.54  trail
+      JUP/USD 0.31496 -> 0.306549  $   1,047     555m    -28.79  trail
+     CSPR/USD 0.002195 -> 0.0021534  $   2,066     370m    -40.81  trail
+     MINA/USD 0.072 -> 0.07308  $     944     135m    +13.41  goal
+  MUBARAK/USD 0.053877 -> 0.0529028  $     970     700m    -18.31  trail
+      LRC/USD 0.008442 -> 0.00830708  $   2,044    1090m    -34.30  trail
+     DGAI/USD 0.8971 -> 0.89425  $   1,449     625m     -5.76  death line
+      OXT/USD 0.00938 -> 0.00928  $     480     615m     -5.50  death line
+     CSPR/USD 0.002177 -> 0.002184  $     100      45m     +0.24  death line
