@@ -1,0 +1,38 @@
+TIER SIMULATION — the Sure Thing coil funnel, live 5m candles
+==============================================================================
+source: Coinbase 5m bars (venue-substituted: same granularity, same detector, not Kraken fills)
+pairs 42 (skipped 24)  ·  window 15.00 days of 5m bars  ·  $1 confirm target, 1.5% goal, 240-min contract, 3%→1.5% trail once +2% (armed only after a green print)
+target +12%  ·  death line -3%  ·  round trip 0.08%
+
+── SHIPPED (arm, then confirm) ─────────────────────────────────
+  tier  arms fills  exp trades  win%      net $     final $       %  verdict
+$1,000    21    10   11     59    37     -29.77      970.23   -2.98  open — 15.0% short
+       -0.50 per fire  ·  -0.20%/day  ·  this pace never reaches +12%  ·  the $1 bar +2.201%
+$5,000    22    15    7     61    36    -149.33    4,850.67   -2.99  open — 15.0% short
+       -2.45 per fire  ·  -0.20%/day  ·  this pace never reaches +12%  ·  the $1 bar +0.532%
+$10,000    22    17    5     64    39    -297.56    9,702.44   -2.98  open — 15.0% short
+       -4.65 per fire  ·  -0.20%/day  ·  this pace never reaches +12%  ·  the $1 bar +0.163%
+  armed→fill: median 45 min over 42 confirms
+  exits: clock 30  ·  goal 20  ·  trail 13  ·  window end 1
+
+── PRE-GATE (fire at pre-breakout) ─────────────────────────────
+  tier  arms fills  exp trades  win%      net $     final $       %  verdict
+$1,000     0     0    0     67    40     -29.72      970.28   -2.97  open — 15.0% short
+       -0.44 per fire  ·  -0.20%/day  ·  this pace never reaches +12%
+$5,000     0     0    0     67    40    -148.58    4,851.42   -2.97  open — 15.0% short
+       -2.22 per fire  ·  -0.20%/day  ·  this pace never reaches +12%
+$10,000     0     0    0     67    40    -297.16    9,702.84   -2.97  open — 15.0% short
+       -4.44 per fire  ·  -0.20%/day  ·  this pace never reaches +12%
+  exits: clock 37  ·  goal 18  ·  trail 11  ·  window end 1
+
+NOTES
+------------------------------------------------------------------------------
+  · the detector sees the last 720 bars at every step, exactly
+    as the scanner feeds it; a longer window widens the EVIDENCE,
+    never the detector's own 5m / 24-bar (2h) coil contract.
+  · the verdict column is measured, not projected: PASS needs the
+    balance to reach +12% inside this window, FAIL needs the death
+    line. Anything else is 'open'.
+  · one position at a time (stricter than the live multi-pair
+    book); the 3% guard sizes every entry and the fee is charged
+    on both legs. Champion/mover funnels are not replayable.
