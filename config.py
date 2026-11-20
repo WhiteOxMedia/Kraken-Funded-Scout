@@ -90,16 +90,6 @@ class TradingConfig:
     # min(contest_size_frac * balance, guard cap, book carry, weakened size).
     contest_size_frac: float = 0.09
 
-    # ── THE LIQUID UNIVERSE (Nov 19) — ON ──────────────────────────────
-    # The book threw away 95% of its signals at entry because a $2,400 order
-    # was more than 1% of the pair's median hourly dollar volume. The rule now
-    # runs BEFORE the bracket: a pair that cannot fill the order cannot produce
-    # a signal at all. 1% participation, $2,400 order (18% of the $11,200 win
-    # line is $2,016, so every order the frozen book places fits a universe
-    # built at 2,400). Evidence: CONTEST_BOOK.md.
-    liquid_universe_enabled: bool = True
-    liquid_universe_order_usd: float = 2400.0
-
     # ── Entry timing as a decision (Nov 15) ────────────────────────────
     # DEFAULT OFF, and deliberately so: the bracket records a shadow verdict on
     # every fire (what the ranking WOULD do, in the journal's `entry_timing`),

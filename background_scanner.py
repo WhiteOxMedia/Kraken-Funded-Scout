@@ -49,7 +49,6 @@ import spend_capacity as _spend_mod                     # noqa: E402
 from buy_low import BUY_LOW_STAMP_VERSION               # noqa: E402
 from exit_study import EXIT_STUDY, EXIT_STUDY_V         # noqa: E402
 import breakout_gate as _bk_gate                          # noqa: E402
-import liquid_universe as _liquid_universe                # noqa: E402
 import near_miss as _near_miss                            # noqa: E402
 _MOVER_BRIDGE_ROUTE = "mover-bridge"                 # journalled by the gate and the shadow
 from entry_timing import apply as _entry_timing_apply    # noqa: E402
@@ -12366,23 +12365,6 @@ def main():
                     logger.info("  Liquidity filter: excluded %d assets (< $%.0fM 24h vol): %s",
                                 len(illiquid), cfg.min_volume_usd_24h / 1e6,
                                 ", ".join(f"{p.split('/')[0]} (${v/1e6:.1f}M)" for p, v in illiquid))
-
-                # ── THE LIQUID UNIVERSE (Nov 19): the book only trades what a
-                #    $2,400 order can fill at 1% of the pair's median hourly
-                #    dollars. Run BEFORE the bracket, so an unfillable signal is
-                #    never crowned — the fills are real, not filtered later.
-                if getattr(cfg, "liquid_universe_enabled", False):
-                    _order = float(getattr(cfg, "liquid_universe_order_usd",
-                                           _liquid_universe.ORDER_USD))
-                    _uni = _liquid_universe.universe(all_data, order_usd=_order)
-                    all_data = {p: all_data[p] for p in _uni["kept"]}
-                    _uni.pop("excluded", None)
-                    logger.info("  Liquid universe: %d/%d assets can fill a "
-                                "$%.0f order at 1%% of median hourly dollars "
-                                "(kept: %s)", _uni["pairs_fillable"],
-                                _uni["pairs_in"], _order,
-                                ", ".join(p.split("/")[0] for p in _uni["kept"])
-                                or "none")
 
                 # Evaluate all in parallel
                 disable_deep_analysis()

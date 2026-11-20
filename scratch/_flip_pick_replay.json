@@ -1,0 +1,166 @@
+{
+ "per_pair": {
+  "BTC": {
+   "champion_signals": 237,
+   "champion_sum_net": -139.5136,
+   "champion_wins": 36,
+   "_universe": "liquid 6-pair contest: BTC, ETH, NEAR, SOL, XRP, ZEC",
+   "champion_gross": 287.6714,
+   "champion_edge_pct": -58.8665,
+   "reverse_shared_minutes": 38,
+   "reverse_alternate_sum_net": -2.6617,
+   "reverse_alternate_edge_pct": -7.0045,
+   "reverse_pick_wins": 0,
+   "reverse_pick_sum_net": 0.0
+  },
+  "ETH": {
+   "champion_signals": 323,
+   "champion_sum_net": -163.7334,
+   "champion_wins": 84,
+   "_universe": "liquid 6-pair contest: BTC, ETH, NEAR, SOL, XRP, ZEC",
+   "champion_gross": 528.0078,
+   "champion_edge_pct": -50.6915,
+   "reverse_shared_minutes": 90,
+   "reverse_alternate_sum_net": -55.2689,
+   "reverse_alternate_edge_pct": -61.4099,
+   "reverse_pick_wins": 0,
+   "reverse_pick_sum_net": 0.0
+  },
+  "NEAR": {
+   "champion_signals": 640,
+   "champion_sum_net": 360.2448,
+   "champion_wins": 237,
+   "_universe": "liquid 6-pair contest: BTC, ETH, NEAR, SOL, XRP, ZEC",
+   "champion_gross": 2673.4714,
+   "champion_edge_pct": 56.2883,
+   "reverse_shared_minutes": 112,
+   "reverse_alternate_sum_net": -265.3425,
+   "reverse_alternate_edge_pct": -236.9129,
+   "reverse_pick_wins": 0,
+   "reverse_pick_sum_net": 0.0
+  },
+  "SOL": {
+   "champion_signals": 351,
+   "champion_sum_net": -181.4128,
+   "champion_wins": 86,
+   "_universe": "liquid 6-pair contest: BTC, ETH, NEAR, SOL, XRP, ZEC",
+   "champion_gross": 632.5464,
+   "champion_edge_pct": -51.6846,
+   "reverse_shared_minutes": 111,
+   "reverse_alternate_sum_net": -76.9555,
+   "reverse_alternate_edge_pct": -69.3293,
+   "reverse_pick_wins": 0,
+   "reverse_pick_sum_net": 0.0
+  },
+  "XRP": {
+   "champion_signals": 372,
+   "champion_sum_net": -62.1731,
+   "champion_wins": 95,
+   "_universe": "liquid 6-pair contest: BTC, ETH, NEAR, SOL, XRP, ZEC",
+   "champion_gross": 739.9095,
+   "champion_edge_pct": -16.7132,
+   "reverse_shared_minutes": 93,
+   "reverse_alternate_sum_net": -36.6612,
+   "reverse_alternate_edge_pct": -39.4206,
+   "reverse_pick_wins": 0,
+   "reverse_pick_sum_net": 0.0
+  },
+  "ZEC": {
+   "champion_signals": 581,
+   "champion_sum_net": 41.3239,
+   "champion_wins": 198,
+   "_universe": "liquid 6-pair contest: BTC, ETH, NEAR, SOL, XRP, ZEC",
+   "champion_gross": 2045.9034,
+   "champion_edge_pct": 7.1125,
+   "reverse_shared_minutes": 95,
+   "reverse_alternate_sum_net": -152.9034,
+   "reverse_alternate_edge_pct": -160.9509,
+   "reverse_pick_wins": 0,
+   "reverse_pick_sum_net": 0.0
+  }
+ },
+ "top": {
+  "universe": "liquid 6-pair contest book: BTC, ETH, NEAR, SOL, XRP, ZEC",
+  "liquid_pairs": [
+   "BTC",
+   "ETH",
+   "NEAR",
+   "SOL",
+   "XRP",
+   "ZEC"
+  ],
+  "total_champion_signals": 2504,
+  "total_champion_sum_net": -145.2642,
+  "total_champion_edge_pct": -5.8013,
+  "shared_popup_minutes": 284,
+  "total_alternate_signal_count": 539,
+  "total_minute_champion_sum_net": 403.6079,
+  "flip_pick_loss_net": -993.4011,
+  "flip_pick_loss_vs_minute_champion_pct": -246.1302,
+  "flip_pick_loss_abs_net": 993.4011,
+  "total_reverse_alternate_sum_net": -589.7932,
+  "total_reverse_alternate_edge_pct": -109.4236,
+  "total_reverse_pick_sum_net": 0.0,
+  "verified_reverse_alternate_consistent_with_per_pair": {
+   "BTC": {
+    "reverse_alternate_sum_net": -2.6617,
+    "reverse_shared_minutes": 38,
+    "reverse_alternate_edge_pct": -7.0045
+   },
+   "ETH": {
+    "reverse_alternate_sum_net": -55.2689,
+    "reverse_shared_minutes": 90,
+    "reverse_alternate_edge_pct": -61.4099
+   },
+   "NEAR": {
+    "reverse_alternate_sum_net": -265.3425,
+    "reverse_shared_minutes": 112,
+    "reverse_alternate_edge_pct": -236.9129
+   },
+   "SOL": {
+    "reverse_alternate_sum_net": -76.9555,
+    "reverse_shared_minutes": 111,
+    "reverse_alternate_edge_pct": -69.3293
+   },
+   "XRP": {
+    "reverse_alternate_sum_net": -36.6612,
+    "reverse_shared_minutes": 93,
+    "reverse_alternate_edge_pct": -39.4206
+   },
+   "ZEC": {
+    "reverse_alternate_sum_net": -152.9034,
+    "reverse_shared_minutes": 95,
+    "reverse_alternate_edge_pct": -160.9509
+   }
+  },
+  "caveats": [
+   "This is a signal-level counterfactual from the shipped liquid contest book (10 contest pids, 6 pairs: BTC, ETH, NEAR, SOL, XRP, ZEC), not a live popup. The book is not a broader market tape: every row is one of these six pairs, and no other asset appears anywhere in it.",
+   "Champion-of-minute is inferred as highest-net pair in that minute; the real popup may have picked differently before 09-03.",
+   "Reverse comparison only exists at minutes where >=2 liquid-contest pairs had a signal (minutes where at least two of BTC, ETH, NEAR, SOL, XRP, ZEC both fired).",
+   "Each minute contributes one champion signal and one or more alternate signals; per-pair minute counts therefore sum to more than the shared-popup-minute count.",
+   "Min-champion total is the sum of each shared minute's best net; the other side is the sum of that minute's remaining nets. These two totals do NOT sum to the book's per-pair champion sums because the champion side is defined across ALL book signals, while the flip_pick comparison is restricted to the minutes that had at least two liquid-contest pairs firing (at least two of BTC, ETH, NEAR, SOL, XRP, ZEC both fired). At those shared minutes the minute-champion summed +$403.61 and the other (non-champion) coins summed -$589.79, so the flip_pick loss is +$993.40 (i.e. the minute-champion beat the other coins by that much across the shared minutes).",
+   "Flip-pick loss = other-side sum - minute-champion sum; a positive loss means the minute-champion beat the alternate side.",
+   "Net is the book's stored per-signal net (same figure the book's calibrate/state reproduce)."
+  ]
+ },
+ "universe": "liquid 6-pair contest book: BTC, ETH, NEAR, SOL, XRP, ZEC",
+ "universe_check": {
+  "all_pairs_in_book": [
+   "BTC",
+   "ETH",
+   "NEAR",
+   "SOL",
+   "XRP",
+   "ZEC"
+  ],
+  "expected_6_pair_liquid_contest_universe": [
+   "BTC",
+   "ETH",
+   "NEAR",
+   "SOL",
+   "XRP",
+   "ZEC"
+  ],
+  "match": true
+ }
+}
