@@ -10117,8 +10117,10 @@ def render_exit_check(cfg: TradingConfig, kraken):
                 _left_min = _w_window - _elapsed_min
         except (TypeError, ValueError) as exc:
             logger.debug("watch-window minutes unknown: %s", exc)
-    # STAY CLOSE (Sep 21 audit): window expiry is a stay-close MARKER,
-    # never an exit trigger — the exit belongs to the trend/exit gates
+    # THE CLOCK RECOMMENDS, THE EXIT CHECK DECIDES (Nov 20): the window's
+    # end renders as OUT RECOMMENDED — the scanner's own clock_rec stamp
+    # when the row carries one — and is still NEVER an exit term. The exit
+    # belongs to the trend/exit gates below.
     _window_expired = bool(_w_window and _left_min is not None and _left_min <= 0)
     # tier-aware hard stop: half the remaining death-line buffer
     # (Sep 5: the daily lock removed — contest_account is the one source
@@ -10156,9 +10158,10 @@ def render_exit_check(cfg: TradingConfig, kraken):
     exhaustion = any("exhaustion" in r.lower() for r in sig.reasons) and sig.action != "buy"
     rider_exit = any("exit signal" in r.lower() for r in sig.reasons)
 
-    # (Sep 21 audit) NO _window_expired term: the clock never exits. The
-    # window's end is display-only (STAY CLOSE) — the exit gates below
-    # are all real data: trail, trend sell bar, exhaustion, rider, stop.
+    # NO clock term here (Nov 20, the Sep 21 rule restored): _window_expired
+    # and the scanner's clock_rec are RECOMMENDATIONS this page shows,
+    # never inputs to should_exit. Every term below is real data: trail,
+    # trend sell bar, exhaustion, rider, stop.
     should_exit = trail_hit or strategy_sell or exhaustion or rider_exit \
         or _hard_stop_hit
     reasons = []

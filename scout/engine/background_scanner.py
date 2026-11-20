@@ -3467,12 +3467,19 @@ def _process_daily_canary():
 #   SELL class (urgent): get out · GET OUT NOW · Get out now · sell now ·
 #     SELL 'X' NOW · Sell "x" now · stopped out
 #   BUY class  (high):   buy "x" now · buy now · BUY "X" NOW · new pick · go!
+#   RECOMMEND class (default, Nov 20): a text that OPENS with
+#     "RECOMMENDATION" and says "the exit check decides" — the Sure Thing
+#     clock's OUT call. It is deliberately neither a BUY nor a GET OUT:
+#     the scanner recommends, the exit check sells, and the phone must be
+#     able to tell those apart. The anchored shape (both phrases, in that
+#     order) keeps ordinary copy like "the recommended spend" out.
 # Word boundaries keep "buyer"/"resell" out, while a bare "sell" at the
 # very end of a line still matches (the old "sell " substring missed it).
 import re as _re_mod  # module-level for the classifier (re is imported
                       # locally elsewhere; this compile runs at import)
 _PUSH_SELL_RE = _re_mod.compile(r"\bget out\b|\bsell\b|\bstopped out\b")
 _PUSH_BUY_RE = _re_mod.compile(r"\bbuy\b|\bnew pick\b")
+_PUSH_RECO_RE = _re_mod.compile(r"^recommendation\b[\s\S]*\bthe exit check decides\b")
 
 
 def _charter_push(event: str) -> bool:
@@ -3504,7 +3511,8 @@ def _charter_push(event: str) -> bool:
 
 
 def _push_to_phone(text: str, wav_path: str | None = None):
-    """BUY NOW / GET OUT NOW only on the phone (user rule, Aug 30: 'Just
+    """BUY NOW / GET OUT NOW / the clock's RECOMMENDATION on the phone
+    (user rules: Aug 30 'Just
     have the ntfy.sh do the buy now and sell now priority alerts only';
     tightened Aug 31: ".ntfy doesn't need the 'take it' alerts. Just
     'buy now' and 'Get out now'"). Buy calls push HIGH; GET OUT / SELL /
@@ -3513,7 +3521,12 @@ def _push_to_phone(text: str, wav_path: str | None = None):
     200 says nothing about the phone. TAKE IT does NOT push — the
     take-profit nudges repeat every minute during a run (Aug 31: the
     ARB run pushed ~8 of them) and there's nothing to act on that the
-    light + her voice aren't already saying. Everything else stays on
+    light + her voice aren't already saying. THE THIRD CLASS (Nov 20):
+    the Sure Thing clock's OUT recommendation — a text that OPENS with
+    "RECOMMENDATION" and says "the exit check decides" — pushes at
+    DEFAULT priority and rides the same retry queue, but claims no
+    charter signal event: the scanner recommends, the exit check sells.
+    Everything else stays on
     the PC voice and the console's HER WORDS panel. This also keeps us
     far under ntfy.sh's ~60/hour rate limit (Aug 30 incident:
     every-minute position pushes burned the    quota -> 429s -> the phone
@@ -3527,8 +3540,11 @@ def _push_to_phone(text: str, wav_path: str | None = None):
                 # warning pushed URGENT to the phone)
     is_sell = bool(_PUSH_SELL_RE.search(_t))
     is_buy = (not is_sell) and (bool(_PUSH_BUY_RE.search(_t)) or _t.startswith("go!"))
-    if not (is_buy or is_sell):
-        return  # not a BUY NOW / GET OUT NOW alert — don't push
+    # THE THIRD CLASS (Nov 20): the clock's OUT recommendation. Neither a
+    # buy nor a sale — it is the scanner's say, and the exit check decides.
+    is_reco = (not is_sell) and (not is_buy) and bool(_PUSH_RECO_RE.search(_t))
+    if not (is_buy or is_sell or is_reco):
+        return  # not a BUY NOW / GET OUT NOW / RECOMMENDATION alert
     # same text (a repeating GET OUT) pushes at most every 5 minutes
     now = time.time()
     if _t == _push_state["text"] and (now - _push_state["ts"]) < 300:
@@ -3536,8 +3552,11 @@ def _push_to_phone(text: str, wav_path: str | None = None):
     _push_state["text"] = _t
     _push_state["ts"] = now
     # charter emit (Sep 25): independent of ntfy config; returns whether
-    # a destination actually accepted the event
-    native_ok = _charter_push("signal_exit" if is_sell else "signal_buy")
+    # a destination actually accepted the event. The pool's service knows
+    # signal_buy / signal_exit only — a RECOMMENDATION is neither, so it
+    # rides the ntfy leg alone rather than claiming a trade event.
+    native_ok = (_charter_push("signal_exit" if is_sell else "signal_buy")
+                 if (is_buy or is_sell) else False)
     topic = _push_topic()
     if not topic:
         if not native_ok:
@@ -3545,7 +3564,7 @@ def _push_to_phone(text: str, wav_path: str | None = None):
             _push_state["ts"] = 0.0    # reached nowhere — un-arm the throttle, retry allowed
         return  # the ntfy leg needs its topic — the native leg already went
     try:
-        prio = "urgent" if is_sell else "high"
+        prio = "urgent" if is_sell else ("high" if is_buy else "default")
         _send_ntfy(str(text), prio, "attempt 1/2", attach_path=wav_path)
         # THE BUY GETS THE SAME DOUBT (Sep 29, her ask): the retry queue
         # used to be GET-OUT-only, but a missed BUY is the missed entry —
@@ -5443,6 +5462,23 @@ def contest_light(exchange, cfg):
                         "ended at %+.1f%% (goal +%.1f%%): recommending "
                         "OUT to the exit check, which makes the call",
                         pair, _win_c, _pct_c, _goal_c)
+                    # THE PHONE (Nov 20): a recommendation is not a trade
+                    # call, so it rides its OWN class — priority default,
+                    # no charter signal event — and says plainly that the
+                    # exit check decides. Best-effort: a push can never
+                    # touch the book.
+                    try:
+                        _push_to_phone(
+                            f"RECOMMENDATION — {pair.split('/')[0]}:\n"
+                            f"WHY: {w['clock_rec']['call']}\n"
+                            f"POSITION: entered {float(entry):.4f} · now "
+                            f"{float(live):.4f} ({_pct_c:+.1f}%)\n"
+                            f"The scanner recommends OUT — the exit check "
+                            f"decides.")
+                    except Exception as _pp_exc:
+                        logger.debug(
+                            "clock recommendation push failed for %s: %s",
+                            pair, _pp_exc)
         except Exception as _clk_exc:
             # an unreadable clock never traps the position: the gates
             # above and the hard stop still own every cycle

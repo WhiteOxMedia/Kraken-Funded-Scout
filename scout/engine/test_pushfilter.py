@@ -245,6 +245,34 @@ for _txt in ("the buyer stepped in", "we resell nothing",
     bs._push_to_phone(_txt)
     check(f"chatter never pushes: {_txt[:36]!r}", len(sent) == 0)
 
+# ── THE THIRD CLASS (Nov 20): the clock's OUT RECOMMENDATION ──────────
+# The scanner recommends; the exit check decides. The phone must get the
+# recommendation, at DEFAULT priority, and must never read it as a sale.
+sent.clear()
+bs._push_state = {"text": "", "ts": 0.0}
+bs._push_to_phone("RECOMMENDATION — XRP:\n"
+                  "WHY: OUT — the 480-min window ended without the goal "
+                  "(+0.3% vs +1.5%)\n"
+                  "POSITION: entered 1.0000 · now 1.0030 (+0.3%)\n"
+                  "The scanner recommends OUT — the exit check decides.")
+check("the clock's recommendation reaches the phone", len(sent) == 1,
+      sent_texts())
+check("it pushes at DEFAULT priority (not urgent, not high)",
+      bool(sent) and sent[0].headers.get("Priority") == "default",
+      sent[0].headers.get("Priority") if sent else None)
+
+sent.clear()
+bs._push_state = {"text": "", "ts": 0.0}
+bs._push_to_phone("The recommended spend is $412 on this one.")
+check("ordinary 'recommended spend' copy does NOT push", len(sent) == 0,
+      sent_texts())
+
+sent.clear()
+bs._push_state = {"text": "", "ts": 0.0}
+bs._push_to_phone("RECOMMENDATION — XRP: consider taking some off.")
+check("a bare 'recommendation' opener without 'the exit check decides' "
+      "does NOT push", len(sent) == 0, sent_texts())
+
 lines.append(f"\nRESULT: {PASS} passed, {FAIL} failed")
 open(scratch_space.report_temp('_pushfilter_check.txt'), "w", encoding="utf-8").write("\n".join(lines))
 
