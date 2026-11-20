@@ -8921,17 +8921,113 @@ def _render_popup_history():
     title, the recent history sits inside, newest first. Because the
     ledger is append-only, a clobbered watch, a phone-push failure or a
     closed scanner window can never erase what fired — the history IS the
-    record the phone contest is matched against."""
+    record the phone contest is matched against.
+
+    THE PENDING STRIP (user rule, Nov 20 — "I can't see what the scout is
+    tracking but not counting"): popup_pending.json rides the SAME
+    expander, above the fired history — each row shows the arm-time entry
+    and spend, the live price, the $1 price target and the ceiling with
+    their distances, and the time left on its window. Pending rows are
+    tracked, never counted: nothing here fired."""
     try:
         import json as _json
         import html as _html
         from pathlib import Path as _P
-        f = _P(__file__).parent / "popups.jsonl"
-        if not f.exists():
-            return
-        lines = [l for l in f.read_text(encoding="utf-8").splitlines() if l.strip()]
-        if not lines:
-            return
+        base = _P(__file__).parent
+
+        # ── THE PENDING STRIP (Nov 20): the confirmation gate's book, in
+        #    the place the user already reads popups. The $1 target comes
+        #    from the scanner's own helper (one formula, never two).
+        _pend = []
+        _bar = 1.0
+        _book = {}
+        _bs9 = None
+        try:
+            import background_scanner as _bs9
+            # forward-compat: a console process that imported the scanner
+            # before this feature reloads it (the bots-book pattern)
+            if not (hasattr(_bs9, "_load_popup_pending")
+                    and hasattr(_bs9, "popup_pending_target_price")):
+                import importlib
+                _bs9 = importlib.reload(_bs9)
+            _bar = float(getattr(_bs9, "POPUP_CONFIRM_PROFIT_USD", 1.0) or 1.0)
+            _book = _bs9._load_popup_pending()
+        except Exception:
+            _book = {}
+        # THE LIVE/EXPIRED SPLIT (user rule, Nov 20): the count and the
+        # strip are LIVE-only. A row whose window closed is not pending
+        # any more — the scanner's sweep owns the bookkeeping, and a
+        # stopped or slow scanner must never inflate "N pending". A row
+        # that JUST expired is still worth seeing (the setup died a
+        # moment ago), so it rides the strip marked "expired — not
+        # counted" for a short grace; older rows drop off the console.
+        _PEND_EXPIRED_GRACE_S = 900.0
+        _now = time.time()
+        _live_rows, _exp_rows = [], []
+        for _pair, _r in (_book or {}).items():
+            try:
+                _r = _r if isinstance(_r, dict) else {}
+                _asset = str(_pair).split("/")[0]
+                _entry = float(_r.get("entry") or 0.0)
+                _spend = float(_r.get("spend") or 0.0)
+                _ceil = float(_r.get("breakout_level") or 0.0)
+                _target = float(_bs9.popup_pending_target_price(_entry, _spend))
+                _left = float(_r.get("expires_ts") or 0.0) - _now
+                _live = _left > 0
+                if not _live and _left < -_PEND_EXPIRED_GRACE_S:
+                    continue          # long dead: not shown, never counted
+                _time_txt = ("under 1 min left" if 0 < _left < 60 else
+                             f"{int(_left // 60)} min left" if _live else
+                             "expired — not counted")
+                # ── THE LIVE DISTANCE (user rule, Nov 20: "so I can see how
+                #    close each tracked setup is to firing"): the console's
+                #    own adaptive ticker helper prices the row; the two
+                #    distances say exactly what still has to happen — the
+                #    $1 target and the ceiling. A dead tick degrades to
+                #    "no tick" and never drops the row.
+                try:
+                    _live_px = float(_ticker_px(_pair) or 0.0)
+                except Exception:
+                    _live_px = 0.0
+                _d_txt_t = _d_txt_c = ""
+                if _live_px > 0 and _target > 0:
+                    _d_t = (_target / _live_px - 1.0) * 100.0
+                    _d_txt_t = (" (at/past target)" if _d_t <= 0
+                                else f" ({_d_t:+.2f}%)")
+                if _live_px > 0 and _ceil > 0:
+                    _d_c = (_ceil / _live_px - 1.0) * 100.0
+                    _d_txt_c = (" (cracked)" if _d_c <= 0
+                                else f" ({_d_c:+.2f}%)")
+                _px_txt = (f" · now ${_live_px:,.4f}" if _live_px > 0
+                           else " · now — (no tick)")
+                (_live_rows if _live else _exp_rows).append(
+                    (float(_r.get("armed_ts") or 0.0),
+                     "<div style='padding:4px 0;border-bottom:1px solid rgba(255,255,255,0.08);'>"
+                     + ("<span class='dim' style='font-family:monospace;'>⏳</span>&nbsp;"
+                        "<span style='color:#e8c56b;font-family:Audiowide;'>PENDING</span>"
+                        if _live else
+                        "<span class='dim' style='font-family:monospace;'>⌛</span>&nbsp;"
+                        "<span style='color:#8a8f98;font-family:Audiowide;'>EXPIRED</span>")
+                     + f"&nbsp;&nbsp;<b>{_html.escape(_asset)}</b>"
+                     "&nbsp;<span class='dim' style='font-family:monospace;'>"
+                     f"entry ${_entry:,.4f} · spend ${_spend:,.0f}{_px_txt} · "
+                     f"+${_bar:.2f} @ ${_target:,.4f}{_d_txt_t} · ceiling "
+                     f"{(f'${_ceil:,.4f}' if _ceil > 0 else '—')}{_d_txt_c} · {_time_txt}"
+                     "</span></div>"))
+            except Exception:
+                continue
+        _live_rows.sort(key=lambda t: -t[0])
+        _exp_rows.sort(key=lambda t: -t[0])
+        _live_n = len(_live_rows)
+        _shown = _live_rows[:6]
+        _shown += _exp_rows[:max(0, 6 - len(_shown))]
+        _pend_html = "".join(h for _, h in _shown)
+        _more_pend = (_live_n + len(_exp_rows)) - len(_shown)
+
+        f = base / "popups.jsonl"
+        lines = []
+        if f.exists():
+            lines = [l for l in f.read_text(encoding="utf-8").splitlines() if l.strip()]
         rows = []
         latest_title = ""
         for l in reversed(lines[-12:]):
@@ -8964,11 +9060,37 @@ def _render_popup_history():
                     + "</div>")
             except Exception:
                 continue
+        if _pend_html:
+            _head = ("<div style='padding:2px 0 6px 0;'>"
+                     + (("<span style='color:#e8c56b;font-family:Audiowide;'>"
+                         "⏳ PENDING — TRACKED, NOT COUNTED</span>"
+                         "<span class='dim' style='font-size:12px;'> — the scout is "
+                         "watching these; the popup fires only on +$"
+                         f"{_bar:.2f} or the ceiling crack</span>") if _live_n else
+                        ("<span style='color:#8a8f98;font-family:Audiowide;'>"
+                         "⌛ EXPIRED — NEVER COUNTED</span>"
+                         "<span class='dim' style='font-size:12px;'> — the window "
+                         "closed before a confirmation; nothing fired</span>"))
+                     + (f"<span class='dim' style='font-size:12px;'> · "
+                        f"+{_more_pend} more</span>" if _more_pend > 0 else "")
+                     + "</div>" + _pend_html
+                     + ("<div style='height:6px;'></div>" if latest_title else ""))
+            rows.insert(0, _head)
         if not rows:
             return
         _latest = _html.escape(latest_title[:70]) + ("…" if len(latest_title) > 70 else "")
+        if _latest:
+            _ph_title = f'"{_latest}"'
+            if _live_n:
+                _ph_title += f" · ⏳ {_live_n} pending"
+            elif _exp_rows:
+                _ph_title += f" · {len(_exp_rows)} expired (not counted)"
+        elif _live_n:
+            _ph_title = f"⏳ {_live_n} pending — tracked, not counted"
+        else:
+            _ph_title = f"⏳ no live pending — {len(_exp_rows)} expired (not counted)"
         with stable_expander("popup_history",
-                             f"📣 POPUP HISTORY — \"{_latest}\"  (tap to read all)"):
+                             f"📣 POPUP HISTORY — {_ph_title}  (tap to read all)"):
             st.markdown("".join(rows), unsafe_allow_html=True)
     except Exception as exc:
         logger.debug("popup-history expander failed: %s", exc)

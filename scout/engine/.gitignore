@@ -82,6 +82,8 @@ stale_release_alert_state.json
 stale_release_alert_state.json.tmp*
 console_state.json
 contest_watch.json
+popup_pending.json
+popup_pending.json.tmp*
 discipline_state.json
 scanner_state.json
 rotation_lockout.json
