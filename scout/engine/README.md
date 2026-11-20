@@ -33,7 +33,9 @@ SL −5% → TP +10% → knife → ATR trail → strategy sell ≥75/60 → exha
   (`clock_rec`), and the 5-minute exit check reads it as CONTEXT — it is
   logged every pass, it rides a sale's reason when the ladder's own gates
   already fired, and it never triggers a sale or turns a hold into one. The
-  recommendation came from the scanner; the decision is the ladder's.
+  recommendation came from the scanner; the decision is the ladder's. It is
+  withdrawn the cycle the goal pays, and `clock_rec_window` keeps it to one
+  per window — a withdrawal can never re-recommend the same window.
 
 ### The trail's shape (the part that ratchets)
 

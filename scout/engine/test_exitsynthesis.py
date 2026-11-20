@@ -111,6 +111,19 @@ ok, why = synth("hold", 80)
 check("a strong winner reading confident hold gets out on the DEAD THESIS (weak positions don't ride)",
       ok and why == "thesis")
 
+# ── THE CLOCK RECOMMENDATION'S LIFETIME (Nov 20) ──────────────────────
+# The stamp is a claim about ONE window: it must die the cycle the goal
+# pays, and a withdrawal must never let that same window recommend twice.
+check("the clock's recommendation is withdrawn the cycle the goal pays",
+      'if _met_c and w.get("clock_rec"):' in src
+      and 'w.pop("clock_rec", None)' in src)
+check("one window recommends at most once (the window key outlives the "
+      "withdrawal)",
+      'w["clock_rec_window"] = _win_key_c' in src
+      and '_stamped_c != _win_key_c' in src)
+check("a stamp from an earlier window never rides a re-armed row",
+      'if w.get("clock_rec") and _stamped_c != _win_key_c:' in src)
+
 lines.append(f"\nRESULT: {PASS} passed, {FAIL} failed")
 scratch_space.report_temp('_exitsynthesis_check.txt').write_text("\n".join(lines), encoding="utf-8")
 

@@ -5385,44 +5385,69 @@ def contest_light(exchange, cfg):
         # the EXIT CHECK renders and the exit check acts on — the popup,
         # the push, the SOLD button and the bot's own exit ladder keep
         # their final say, untouched.
+        # THE STAMP'S LIFETIME (Nov 20 fix): a recommendation is TRUE ONLY
+        # WHILE ITS WINDOW IS LAPSED AND THE GOAL IS UNPAID.
+        #   · the goal paying WITHDRAWS it in the same cycle — a book that
+        #     caught up must never keep reading OUT;
+        #   · `clock_rec_window` remembers WHICH window already recommended,
+        #     so a withdrawal cannot produce a second one: one window, at
+        #     most one recommendation, even if price falls back under the
+        #     goal afterwards;
+        #   · a stamp from an earlier window never rides a re-armed row.
         # SCOPE: SURE THING rows only (source "sure_thing") — that is the
         # book being tested live and the one whose clock the tier sim
         # priced; the champion/mover/DCA routes keep their own discipline.
-        if not should_exit:
-            try:
-                _win_c = float(w.get("window_min") or 0.0)
-                _added_c = w.get("added")
-                _goal_c = float(w.get("goal_pct") or 0.0)
-                _src_c = str(w.get("source") or "")
-                if (_src_c == "sure_thing" and _win_c > 0 and _added_c
-                        and not w.get("clock_rec")):
-                    _lapse_c = (datetime.fromisoformat(str(_added_c))
-                                + timedelta(minutes=_win_c))
-                    _pct_c = (float(live) / float(entry) - 1.0) * 100.0
-                    if (_now_mst() >= _lapse_c and (_goal_c <= 0
-                                                    or _pct_c < _goal_c)):
-                        # one recommendation per row, stamped so the exit
-                        # check reads the scanner's own words
-                        w["clock_rec"] = {
-                            "at": _now_mst().isoformat(),
-                            "window_min": round(_win_c, 0),
-                            "pct": round(_pct_c, 2),
-                            "goal_pct": round(_goal_c, 2),
-                            "call": (f"OUT — the {_win_c:.0f}-min window "
-                                     f"ended without the goal "
-                                     f"({_pct_c:+.1f}% vs +{_goal_c:.1f}%)"),
-                        }
-                        dirty = True
-                        logger.info(
-                            "⏰ CLOCK RECOMMENDATION: %s — %.0f-min window "
-                            "ended at %+.1f%% (goal +%.1f%%): recommending "
-                            "OUT to the exit check, which makes the call",
-                            pair, _win_c, _pct_c, _goal_c)
-            except Exception as _clk_exc:
-                # an unreadable clock never traps the position: the gates
-                # above and the hard stop still own every cycle
-                logger.debug("clock recommendation read skipped for %s: %s",
-                             pair, _clk_exc)
+        try:
+            _win_c = float(w.get("window_min") or 0.0)
+            _added_c = w.get("added")
+            _goal_c = float(w.get("goal_pct") or 0.0)
+            _src_c = str(w.get("source") or "")
+            if _src_c == "sure_thing" and _win_c > 0 and _added_c:
+                _win_key_c = str(_added_c)
+                _stamped_c = str(w.get("clock_rec_window") or "")
+                _pct_c = (float(live) / float(entry) - 1.0) * 100.0
+                _met_c = bool(_goal_c > 0 and _pct_c >= _goal_c)
+                if w.get("clock_rec") and _stamped_c != _win_key_c:
+                    # a previous window's stamp never rides this one
+                    w.pop("clock_rec", None)
+                    dirty = True
+                if _met_c and w.get("clock_rec"):
+                    # THE GOAL PAID: withdraw it, this cycle
+                    w.pop("clock_rec", None)
+                    dirty = True
+                    logger.info(
+                        "⏰ CLOCK RECOMMENDATION WITHDRAWN: %s — the goal "
+                        "paid (%+.1f%% vs +%.1f%%); the recommendation is "
+                        "off the row", pair, _pct_c, _goal_c)
+                _lapse_c = (datetime.fromisoformat(str(_added_c))
+                            + timedelta(minutes=_win_c))
+                if (_now_mst() >= _lapse_c and not _met_c
+                        and not w.get("clock_rec")
+                        and _stamped_c != _win_key_c):
+                    # one recommendation per window, stamped so the exit
+                    # check reads the scanner's own words
+                    w["clock_rec"] = {
+                        "at": _now_mst().isoformat(),
+                        "window_min": round(_win_c, 0),
+                        "window_key": _win_key_c,
+                        "pct": round(_pct_c, 2),
+                        "goal_pct": round(_goal_c, 2),
+                        "call": (f"OUT — the {_win_c:.0f}-min window "
+                                 f"ended without the goal "
+                                 f"({_pct_c:+.1f}% vs +{_goal_c:.1f}%)"),
+                    }
+                    w["clock_rec_window"] = _win_key_c
+                    dirty = True
+                    logger.info(
+                        "⏰ CLOCK RECOMMENDATION: %s — %.0f-min window "
+                        "ended at %+.1f%% (goal +%.1f%%): recommending "
+                        "OUT to the exit check, which makes the call",
+                        pair, _win_c, _pct_c, _goal_c)
+        except Exception as _clk_exc:
+            # an unreadable clock never traps the position: the gates
+            # above and the hard stop still own every cycle
+            logger.debug("clock recommendation read skipped for %s: %s",
+                         pair, _clk_exc)
 
         if should_exit:
             # ── THE HARD-STOP INDEPENDENT JUDGE (the recovered ordering
