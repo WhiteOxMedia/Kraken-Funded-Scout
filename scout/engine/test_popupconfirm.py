@@ -8,6 +8,9 @@ pop-up when its profit is greater than or equal to $1 US or when the
 breakout happens."
 
 Pinned here:
+  0. ONE gate, two routes: the Sure Thing coil arms through it (its zone
+     high as the ceiling), and an already-watched pair is dropped, not
+     re-popped;
   1. the $1 bar's arithmetic (profit on the recommended spend);
   2. the gate itself — $1 profit OR breakout, nothing else;
   3. arming TRACKS the floor-winner without counting it (a pending row,
@@ -93,7 +96,9 @@ try:
           row.get("title") == "🟢 BUY XMR" and "WHEN: right now" in row.get("message", ""))
     check("the row carries only what the fire reads (no dead fields)",
           "stop" not in row and "take_profit" not in row and "why" not in row
-          and "route" not in row and "armed_at" not in row, sorted(row))
+          and "armed_at" not in row
+          and row.get("route") == "champion-confirmed"
+          and row.get("gate_label") == "the 84% popup floor", sorted(row))
     check("the row has a clock (expiry at the window/rotation boundary)",
           float(row.get("expires_ts") or 0) > 0)
     check("the arm is journaled as PENDING — never as fired",
@@ -148,7 +153,7 @@ check("the deferred fire runs the popup's books — notify, mark, track, fired r
       and "auto_track_popup(pair" in fire
       and '"kind": "fired"' in fire)
 check("the deferred fire says WHEN it was armed and why it fired now",
-      "when it won the" in fire and "CONFIRMED:" in fire)
+      "when it cleared" in fire and "CONFIRMED:" in fire)
 check("the stale WHEN line is dropped by prefix, not by exact wording",
       'if not l.startswith("WHEN: ")' in fire)
 check("the pending clock fires on the target or the ceiling (not time)",
@@ -209,6 +214,7 @@ try:
         "pair": "XMR/USD", "entry": 10.0, "spend": 1000.0,
         "breakout_level": 10.5, "floor": 84.0, "brain": 91.0,
         "quick": 91.0, "rot": "12-16", "title": "🟢 BUY XMR",
+        "route": "sure-thing-confirmed",
         "armed_ts": _time3.time(), "expires_ts": _time3.time() + 1500}})
     # the scoreboard/liveness read the scanner's ledgers: pin them to this
     # test's temp dir so one fired row + one expiry are the whole history
@@ -250,6 +256,8 @@ try:
           "PENDING — TRACKED, NOT COUNTED" in _h3, _h3[:200])
     check("runtime: the row shows entry $10.0000 and spend $1,000",
           "entry $10.0000" in _h3 and "spend $1,000" in _h3)
+    check("runtime: a coil row is tagged COIL (same gate, named route)",
+          "COIL" in _h3, _h3[:300])
     check("runtime: the row shows the $1 price target $10.0100 and its ask",
           "+$1.00 (0.10% of spend) @ $10.0100" in _h3, _h3[:400])
     check("runtime: the scoreboard line rides the strip",
@@ -355,18 +363,20 @@ bs.POPUP_PENDING_JSON = os.path.join(_tmp2, "popup_pending.json")
 bs.POPUP_PENDING_BEAT_JSON = os.path.join(_tmp2, "popup_pending_beat.json")
 
 try:
-    def _run_clock(row, tick):
+    def _run_clock(row, tick, watched=False):
         cap = {"notify": [], "track": [], "mark": [], "snaps": [], "sups": []}
         ns = {
             "notify_big": lambda t, m, spoken=None: cap["notify"].append((t, m, spoken)),
             "rotation_mark_fired": lambda asset: cap["mark"].append(asset),
             "auto_track_popup": lambda pair, px, spend, goal, window, why, source, hm_mode=None:
-                cap["track"].append((pair, px, source, window)),
-            "_popup_already_watched": lambda pair: False,
+                cap["track"].append((pair, px, source, window, why)),
+            "_popup_already_watched": lambda pair: watched,
             "_log_signal_snapshot": lambda rec: cap["snaps"].append(rec),
             "_log_suppression": lambda pair, gate, detail, **kw: cap["sups"].append(
                 (pair, gate, detail)),
             "popup_pending_target_price": bs.popup_pending_target_price,
+            "_row_gate_label": bs._row_gate_label,
+            "_TRACK_SOURCE": bs._TRACK_SOURCE,
             "_touch_pending_beat": bs._touch_pending_beat,
             "_load_popup_pending": bs._load_popup_pending,
             "_save_popup_pending": bs._save_popup_pending,
@@ -459,6 +469,41 @@ try:
         encoding="utf-8")
     check("runtime: a stale heartbeat reads as a stopped clock (>300s)",
           bs.popup_pending_beat_age() > 300.0, bs.popup_pending_beat_age())
+
+    # ── the Sure Thing coil rides the SAME gate (Nov 20) ────────────
+    cap, left = _run_clock(_row(gate_label="the coil's 92% gate",
+                                route="sure-thing-confirmed", floor=92.0,
+                                brain=0.0, quick=92.0,
+                                title="🧲 SURE THING — BUY XMR — 92% — 1.50× SIZE"),
+                           10.05)
+    check("runtime: a coil's confirmed fire speaks its own gate and route",
+          bool(cap["notify"])
+          and "the coil's 92% gate" in cap["notify"][0][1]
+          and "CONFIRMED" in cap["notify"][0][0]
+          and cap["snaps"][0].get("route") == "sure-thing-confirmed",
+          (cap["notify"][0][1][:200] if cap["notify"] else None,
+           cap["snaps"][0].get("route") if cap["snaps"] else None))
+    check("runtime: with no brain vote the coil's track speaks its score",
+          bool(cap["track"]) and "BUY 92%" in cap["track"][0][4],
+          cap["track"][0][4] if cap["track"] else None)
+    check("runtime: a coil's confirmed entry tracks under sure_thing",
+          bool(cap["track"]) and cap["track"][0][2] == "sure_thing",
+          cap["track"][0][2] if cap["track"] else None)
+
+    cap, left = _run_clock(_row(gate_label="the coil's 92% gate",
+                                route="sure-thing-confirmed",
+                                expires_ts=1.0), 10.05)
+    _sup9 = [d for _, g, d in cap["sups"] if g == "pending-expired"]
+    check("runtime: a coil that never confirms expires with its own label",
+          bool(_sup9) and "the coil's 92% gate" in _sup9[0], _sup9)
+
+    # an entry record already exists (the coil cracked, the user bought):
+    # the row is dropped silently — no popup, no suppression, no expiry
+    cap, left = _run_clock(_row(route="sure-thing-confirmed"), 10.05,
+                           watched=True)
+    check("runtime: an already-watched pair is dropped, not popped again",
+          cap["notify"] == [] and cap["sups"] == [] and left == {},
+          (cap["notify"], cap["sups"], left))
 finally:
     bs.POPUP_PENDING_JSON = _real_pending2
     bs.POPUP_PENDING_BEAT_JSON = _real_beat2
@@ -498,6 +543,27 @@ try:
         floor=84.0, rot="12-16", snapshot={}, exchange=_ExFlat6(10.5))
     check("a ceiling with real headroom is kept",
           (bs._load_popup_pending().get("BBB/USD") or {}).get("breakout_level") == 10.5)
+    # an explicit ceiling never probes the 2h high: the coil already knows
+    # the level it has to clear, and its own zone high is close by design,
+    # so the 0.25% headroom rule does not apply to it either
+    class _BoomOhlcv:
+        def fetch_ohlcv(self, pair, timeframe="5m", limit=30):
+            raise AssertionError("probed the 2h ceiling for an explicit one")
+
+    bs._save_popup_pending({})
+    _ok6b = bs.popup_pending_arm(
+        "CCC/USD", entry=10.0, spend=1000.0, goal_pct=1.5, win_min=60.0,
+        title="T", message="M", spoken="", brain=0.0, quick=92.0,
+        floor=92.0, rot="12-16", snapshot={}, exchange=_BoomOhlcv(),
+        ceiling=10.01, gate_label="the coil's 92% gate",
+        route="sure-thing-confirmed")
+    _row6b = bs._load_popup_pending().get("CCC/USD") or {}
+    check("an explicit ceiling is kept without probing the 2h high",
+          _ok6b is True and _row6b.get("breakout_level") == 10.01,
+          _row6b.get("breakout_level"))
+    check("the arm stores the gate label and the route it armed for",
+          _row6b.get("gate_label") == "the coil's 92% gate"
+          and _row6b.get("route") == "sure-thing-confirmed", _row6b)
 finally:
     bs.POPUP_PENDING_JSON = _rp6
     bs._log_signal_snapshot = _rs6
@@ -507,8 +573,20 @@ finally:
 check("the confirmation study exists and reads the gate's own ledgers",
       Path("diag_popupconfirm.py").exists()
       and "popup_confirm_stats" in Path("diag_popupconfirm.py").read_text(encoding="utf-8"))
-check("pre-breakout fires are a labelled class (never a 'confirmed' fire)",
-      "PRE-BREAKOUT" in src and '"trigger": _trig' in src)
+check("the study counts both confirmed routes (champion + coil)",
+      'CONFIRMED_ROUTES = ("champion-confirmed", "sure-thing-confirmed")' in
+      Path("diag_popupconfirm.py").read_text(encoding="utf-8"))
+check("the Sure Thing pre-breakout ARMS the same gate (no popup before the crack)",
+      'if _trig == "pre-breakout":' in src
+      and "gate_label=f\"the coil's {_score:.0f}% gate\"" in src
+      and 'route="sure-thing-confirmed"' in src
+      and 'ceiling=float(r.get("zone_high") or 0.0)' in src)
+check("the coil's arm-time title is true at fire too (no PRE-BREAKOUT label)",
+      "PRE-BREAKOUT" not in src and "SURE THING — BUY" in src)
+check("an arm that cannot be priced FAILS OPEN (the coil popup still fires)",
+      0 < src.find("if popup_pending_arm(")
+      < src.find("notify_big(_title, _msg, spoken=_spoken)",
+                 src.find('if _trig == "pre-breakout":')))
 
 # the scoreboard's arithmetic, run against fake ledgers
 _tmp7 = tempfile.mkdtemp()
@@ -531,7 +609,10 @@ try:
          "confirm": "breakout — $10.5000 cracked the $10.5000 ceiling",
          "pending_s": 600.0, "spend": 5100.0},
         {"ts": _iso7(50), "kind": "fired", "route": "sure-thing",
-         "trigger": "pre-breakout", "pending_s": 0.0, "spend": 500.0},
+         "trigger": "crack", "pending_s": 0.0, "spend": 500.0},
+        {"ts": _iso7(45), "kind": "fired", "route": "sure-thing-confirmed",
+         "confirm": "breakout — $2.1000 cracked the $2.1000 ceiling",
+         "pending_s": 300.0, "spend": 500.0},
         {"ts": "2020-01-01T00:00:00-07:00", "kind": "fired",
          "route": "champion-confirmed", "confirm": "+$1.00",
          "pending_s": 60.0},
@@ -547,12 +628,12 @@ try:
         "\n".join(json.dumps(r) for r in _sup7) + "\n", encoding="utf-8")
     _st7 = bs.popup_confirm_stats(days=30)
     check("scoreboard: arms = fires + expiries inside the window",
-          _st7["arms"] == 4 and _st7["fired"] == 2
+          _st7["arms"] == 5 and _st7["fired"] == 3
           and _st7["expired"] == 2, _st7)
-    check("scoreboard: the reasons split (one $1, one breakout)",
-          _st7["target"] == 1 and _st7["breakout"] == 1, _st7)
-    check("scoreboard: median arm-to-fire delay",
-          abs(float(_st7["median_min"]) - 6.0) < 1e-9, _st7)
+    check("scoreboard: the reasons split (one $1, two breakouts)",
+          _st7["target"] == 1 and _st7["breakout"] == 2, _st7)
+    check("scoreboard: median arm-to-fire delay (both routes counted)",
+          abs(float(_st7["median_min"]) - 5.0) < 1e-9, _st7)
 finally:
     (bs.SIGNAL_SNAPSHOTS_FILE, bs.SUPPRESSION_LOG_FILE,
      bs.POPUP_PENDING_JSON) = _old7

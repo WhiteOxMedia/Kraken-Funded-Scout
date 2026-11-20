@@ -3889,6 +3889,22 @@ def popup_pending_target_price(entry, spend) -> float:
     return e * (1.0 + POPUP_CONFIRM_PROFIT_USD / s)
 
 
+# the route a confirmed row tracks under in the contest book
+_TRACK_SOURCE = {"champion-confirmed": "champion",
+                 "sure-thing-confirmed": "sure_thing"}
+
+
+def _gate_label_for(floor, gate_label: str | None = None) -> str:
+    """What a row cleared when it armed — the caller's own label or, for a
+    champion floor win, its popup floor."""
+    return str(gate_label or f"the {float(floor or 0.0):.0f}% popup floor")
+
+
+def _row_gate_label(row: dict) -> str:
+    """The same wording for a row already on the book."""
+    return _gate_label_for(row.get("floor"), row.get("gate_label"))
+
+
 def _load_popup_pending() -> dict:
     """The pending book (pair -> row); fail-soft to {}."""
     import json
@@ -3941,11 +3957,12 @@ def popup_pending_beat_age() -> float:
 
 def popup_confirm_stats(days: int = 30) -> dict:
     """The gate's own scoreboard, read from ledgers it already writes —
-    nothing extra is recorded for it. Every arm ends one of two ways: a
-    champion-confirmed fire (signal_snapshots, kind=fired) or a
-    "pending-expired" suppression row, so arms = fires + expiries. A
-    fire's pending_s is its arm-to-popup delay. Post-expiry outcomes are
-    the suppression backfill's job, not this function's."""
+    nothing extra is recorded for it. An arm ends as a confirmed fire (a
+    champion floor win or a Sure Thing coil: signal_snapshots, kind=fired),
+    as a "pending-expired" suppression row, or as a silent drop when the
+    pair was already watched — so arms >= fires + expiries. A fire's
+    pending_s is its arm-to-popup delay. Post-expiry outcomes are the
+    suppression backfill's job, not this function's."""
     import json
     from datetime import datetime as _dt, timedelta as _td
     cutoff = (_now_mst() - _td(days=days)).timestamp()
@@ -3970,7 +3987,12 @@ def popup_confirm_stats(days: int = 30) -> dict:
     fired = target = breakout = expired = 0
     mins = []
     for rec in _recent(SIGNAL_SNAPSHOTS_FILE):
-        if rec.get("kind") != "fired" or rec.get("route") != "champion-confirmed":
+        # THE ONE GATE, TWO ROUTES: the champion's floor win and the Sure
+        # Thing coil both arm and confirm through it; the plain "sure-thing"
+        # route is the coil's immediate CRACK (no arm, no pending row).
+        if (rec.get("kind") != "fired"
+                or rec.get("route") not in ("champion-confirmed",
+                                            "sure-thing-confirmed")):
             continue
         fired += 1
         if str(rec.get("confirm") or "").lower().startswith("breakout"):
@@ -4012,10 +4034,18 @@ def popup_pending_arm(pair: str, *, entry: float, spend: float,
                       message: str, spoken: str, brain: float, quick: float,
                       floor: float, rot: str, hm_mode: str | None = None,
                       snapshot: dict | None = None,
-                      exchange=None) -> bool:
-    """TRACK a floor-winning BUY as PENDING — never a fire. True when the
+                      exchange=None, ceiling: float | None = None,
+                      gate_label: str | None = None,
+                      route: str = "champion-confirmed") -> bool:
+    """TRACK a gate-winning BUY as PENDING — never a fire. True when the
     row is pending (the caller must NOT pop now); False when it cannot be
-    priced or written, and the popup must fire at once."""
+    priced or written, and the popup must fire at once.
+
+    THE ONE GATE, TWO ROUTES (Nov 20): the champion's popup-floor win arms
+    through here, and so does the Sure Thing coil — pass its OWN zone high
+    as `ceiling` (a coil's ceiling is close by design, so the headroom rule
+    never applies to an explicit one), its score as `floor`, and its label
+    as `gate_label`. `route` rides the pending and fired snapshots."""
     try:
         entry, spend = float(entry or 0.0), float(spend or 0.0)
     except (TypeError, ValueError):
@@ -4035,17 +4065,23 @@ def popup_pending_arm(pair: str, *, entry: float, spend: float,
         _exp_s = min(_exp_s, (_end - now).total_seconds())
     _t = time.time()
     _rel = _take_release_prov(pair)   # one-shot: rides the row, not lost
-    _ceil = popup_breakout_level(exchange, pair) if exchange is not None else 0.0
-    # A ceiling at (or under) the entry is no ceiling: the next tick would
-    # crack it and the gate would fire at the floor win. Drop the leg.
-    if _ceil <= entry * (1.0 + POPUP_BREAKOUT_MIN_HEADROOM):
+    _ceil = (float(ceiling) if ceiling is not None
+             else popup_breakout_level(exchange, pair)
+             if exchange is not None else 0.0)
+    # Only the AUTO-PROBED ceiling can be pinned at the entry (a coin at its
+    # 2h high would "crack" it on the next tick). An explicit ceiling is a
+    # coil's zone high — deliberately close, the very level the coil exists
+    # to clear — so the headroom rule must not delete it.
+    if ceiling is None and _ceil <= entry * (1.0 + POPUP_BREAKOUT_MIN_HEADROOM):
         _ceil = 0.0
+    _gate_txt = _gate_label_for(floor, gate_label)
     rows[pair] = {
         "entry": entry, "spend": spend,
         "goal_pct": float(goal_pct or 0.0), "win_min": float(win_min or 0.0),
         "title": title, "message": message, "spoken": spoken,
         "brain": float(brain or 0.0), "quick": float(quick or 0.0),
         "floor": float(floor or 0.0), "rot": rot, "hm_mode": hm_mode,
+        "gate_label": _gate_txt, "route": route,
         "snapshot": snapshot or {}, "release": _rel,
         "breakout_level": _ceil,
         "armed_ts": _t, "expires_ts": _t + _exp_s, "best_px": entry,
@@ -4055,7 +4091,7 @@ def popup_pending_arm(pair: str, *, entry: float, spend: float,
     row = rows[pair]
     try:
         _log_signal_snapshot({**(snapshot or {}), "pair": pair,
-                              "kind": "pending", "route": "champion-confirmed",
+                              "kind": "pending", "route": route,
                               "quick": row["quick"], "brain": row["brain"],
                               "floor": row["floor"], "rot": rot,
                               "entry": entry, "spend": spend,
@@ -4066,10 +4102,10 @@ def popup_pending_arm(pair: str, *, entry: float, spend: float,
         logger.debug("pending snapshot write failed for %s (%s)", pair, exc)
     _ceil_txt = (f"the ${_ceil:,.4f} ceiling cracks" if _ceil > 0
                  else "the ceiling sits at the entry (no breakout leg)")
-    logger.info("⏳ POPUP PENDING: %s — won the %.0f%% floor at $%.4f; tracking "
+    logger.info("⏳ POPUP PENDING: %s — cleared %s at $%.4f; tracking "
                 "(NOT counted) until the $%.4f target pays $%.2f on $%.0f or %s "
                 "— out at %s",
-                pair.split("/")[0], row["floor"], entry,
+                pair.split("/")[0], _gate_txt, entry,
                 popup_pending_target_price(entry, spend),
                 POPUP_CONFIRM_PROFIT_USD, spend, _ceil_txt,
                 datetime.fromtimestamp(row["expires_ts"]).strftime("%H:%M"))
@@ -6087,9 +6123,8 @@ def main():
     # the notify, the rotation mark, the auto-track, the fired snapshot.
     # Nothing ran at arm time, so nothing is counted twice.
     def _fire_pending_popup(pair: str, row: dict, px: float, reason: str):
-        if _popup_already_watched(pair):
-            return                # the watch IS the entry record
         asset = pair.split("/")[0]
+        _route = str(row.get("route") or "champion-confirmed")
         entry = float(row.get("entry") or 0.0)
         spend = float(row.get("spend") or 0.0)
         goal = float(row.get("goal_pct") or 0.0)
@@ -6101,9 +6136,10 @@ def main():
         # THE REASON LEADS (Nov 20 review): notify_big's modal clips its body
         # at 180 chars, so the confirmation must be readable BEFORE the
         # armed-time story, not after it.
-        _when = (f"WHEN: armed at {_armed_hhmm} when it won the "
-                 f"{float(row.get('floor') or 0):.0f}% popup floor — tracked "
-                 f"then, not counted (the scout only fires confirmed setups)")
+        _gate = _row_gate_label(row)
+        _when = (f"WHEN: armed at {_armed_hhmm} when it cleared {_gate} — "
+                 f"tracked then, not counted (the scout only fires "
+                 f"confirmed setups)")
         # the stored popup's WHEN line is stale by definition: drop it and
         # speak the confirmation's own, the rest rides verbatim
         _lines = [l for l in str(row.get("message") or "").splitlines()
@@ -6125,13 +6161,13 @@ def main():
         _track_min = (min(win_min, _rem_min)
                       if win_min > 0 and _rem_min > 0 else win_min)
         auto_track_popup(pair, float(px), spend, goal, max(1.0, _track_min),
-                         f"BUY {float(row.get('brain') or 0):.0f}% "
+                         f"BUY {float(row.get('brain') or row.get('quick') or 0.0):.0f}% "
                          f"(confirmed: {reason})",
-                         "champion-confirmed",
+                         _TRACK_SOURCE.get(_route, "champion"),
                          hm_mode=(row.get("hm_mode") or None))
         try:
             _log_signal_snapshot({**(row.get("snapshot") or {}), **{
-                "pair": pair, "kind": "fired", "route": "champion-confirmed",
+                "pair": pair, "kind": "fired", "route": _route,
                 "quick": float(row.get("quick") or 0.0),
                 "brain": float(row.get("brain") or 0.0),
                 "entry": px, "armed_entry": entry, "spend": spend,
@@ -6157,6 +6193,15 @@ def main():
         for pair in list(rows):
             row = rows[pair]
             try:
+                if _popup_already_watched(pair):
+                    # the entry record already exists (the coil cracked, the
+                    # user bought): nothing to pop and nothing to count —
+                    # drop the row instead of letting it expire as a lost
+                    # popup. Checked BEFORE expiry: a watched pair's closed
+                    # window is not a missed popup.
+                    rows.pop(pair, None)
+                    changed = True
+                    continue
                 if float(row.get("expires_ts") or 0.0) <= _now:
                     _pk = float(row.get("best_px") or 0.0)
                     _e0 = float(row.get("entry") or 0.0)
@@ -6167,7 +6212,7 @@ def main():
                                if _pk_usd is not None else "")
                     _log_suppression(
                         pair, "pending-expired",
-                        f"won the {float(row.get('floor') or 0):.0f}% popup floor"
+                        f"cleared {_row_gate_label(row)}"
                         f" at ${_e0:,.4f}{_pk_txt} but never confirmed (the "
                         f"${POPUP_CONFIRM_PROFIT_USD:.2f} target or the "
                         f"breakout) in its window — tracked, never counted "
@@ -7984,6 +8029,7 @@ def main():
                 except Exception:
                     _spend, _mult = 0.0, 0.10
                     _st_tide_mult = 1.0
+                    _st_tide_pct, _st_tide_state = None, None
                 # ── THE CLIMB-OUT GATES (Sep 6): the coil case — the
                 #    ceiling being crossed IS the level; the check
                 #    becomes runway BEYOND it (coil_mult x1.0). The ER
@@ -8004,18 +8050,45 @@ def main():
                 _est = int(r.get("est_min") or 60)
                 _out_by = (_now_mst() + timedelta(
                     minutes=st.SURE_THING_WINDOW_MIN)).strftime("%I:%M").lstrip("0")
+                # THE ROW'S OWN SNAPSHOT (Nov 20): one dict for the pending
+                # arm and the immediate crack fire, so the study grades the
+                # same features whichever way the popup arrives.
+                _st_snap = {
+                    "pair": pair, "quick": _score, "brain": None,
+                    "trigger": _trig, "detail": r["detail"],
+                    "tide": (f"{_st_tide_state} {_st_tide_pct:.0f}%"
+                             if _st_tide_state and _st_tide_pct is not None else None),
+                    "features": {"coil_range_pct": r.get("coil_range_pct"),
+                                 "tests": r.get("tests"),
+                                 "squeeze_pct": r.get("squeeze_pct"),
+                                 "atr_ratio": r.get("atr_ratio"),
+                                 "bb_width_pctile": r.get("bb_width_pctile"),
+                                 "pullback_trend": r.get("pullback_trend"),
+                                 "micro_spikes": r.get("micro_spikes"),
+                                 "buy_dominance": r.get("buy_dominance"),
+                                 "hist_hit_rate": r.get("hist_hit_rate"),
+                                 "vol_spike": r.get("vol_spike"),
+                                 "score": _score},
+                    "mult": _mult, "spend": float(_spend or 0.0),
+                    "goal_pct": _st_goal, "est_min": _est,
+                    "climb": _climb_features_stamped(
+                        _st_climb.get("features"),
+                        _st_tide_state, _st_tide_pct),
+                    "entry": float(r.get("trigger_px") or 0.0),
+                    "win_min": st.SURE_THING_WINDOW_MIN}
                 if _trig == "pre-breakout":
-                    _title = (f"🧲 BREAKOUT ALERT — BUY {asset} — PRE-BREAKOUT — "
-                              f"~{_est} MIN WINDOW — {_score:.0f}% — {_mult:.2f}× SIZE")
-                    _spoken = (f"Breakout alert! {asset} is about to break out! "
-                               f"The setup scores {_score:.0f} percent — "
-                               f"sizing at {_mult:.2f}"
-                               + (f", flat tide — half size!" if _st_tide_mult < 1.0 else "!")
-                               + f" The countdown starts now: about {_est} minutes, "
-                               f"out by {_out_by}. Watch for the ceiling crack!")
+                    # ARM, DON'T POP (user rule, Nov 20): a coil arms a pending
+                    # row instead of firing before the crack. Title and spoken
+                    # line stay true at arm AND at the confirmed fire.
+                    _title = (f"🧲 SURE THING — BUY {asset} — "
+                              f"{_score:.0f}% — {_mult:.2f}× SIZE")
+                    _spoken = (f"{asset} Sure Thing — {_score:.0f} percent at "
+                               f"{_mult:.2f} times sizing.")
                     _why = (f"{r['detail']} — the probability crossed the "
-                            f"{st.PRE_BREAKOUT_THRESHOLD:.0f}% threshold while still "
-                            f"inside the coil (entering BEFORE the breakout runs)")
+                            f"{st.PRE_BREAKOUT_THRESHOLD:.0f}% threshold inside "
+                            f"the coil (the breakout has not happened yet)")
+                    _header = f"SURE THING COIL — BUY {asset}"
+                    _when_line = "BEFORE the crack — the coil has not cracked yet"
                 else:
                     _title = (f"🧲 BREAKOUT ALERT — BUY {asset} — BREAKOUT NOW — "
                               f"{_score:.0f}% SETUP — {_mult:.2f}× SIZE")
@@ -8026,14 +8099,14 @@ def main():
                                + f" Goal by {_out_by} — after that, stay close: I'll call the exit!")
                     _why = (f"{r['detail']} — the ceiling at ${r['zone_high']:.4f} cracked "
                             f"on a {r['vol_spike']:.1f}x volume burst")
+                    _header = f"BREAKOUT ALERT — BUY {asset} — NOW"
+                    _when_line = "NOW — the crack"
                 _st_tide_line = (f"TIDE SIZES IT: FLAT — {TIDE_FLAT_SIZE_FACTOR:.2f}× size = "
                                  f"${_spend:,.0f} (the stamped week: FLAT 22% win vs "
                                  f"RISING 57% — pickier, smaller)\n" if _st_tide_mult < 1.0 else "")
-                _msg = (f"BREAKOUT ALERT — BUY {asset}"
-                        + (f" — COUNTDOWN ~{_est} MIN" if _trig == "pre-breakout" else " — NOW")
-                        + "\n"
+                _msg = (f"{_header}\n"
                         f"WHY: {_why}\n"
-                        f"WHEN: {'NOW — the crack' if _trig == 'crack' else 'BEFORE the crack — the estimated window is ~' + str(_est) + ' min'}\n"
+                        f"WHEN: {_when_line}\n"
                         f"HOW LONG: out by {_out_by} (the countdown — "
                         f"the {st.SURE_THING_WINDOW_MIN:.0f}-min contract — "
                         f"the coil's edge is a 4h structure; if it has not "
@@ -8055,6 +8128,25 @@ def main():
                 # no tracking (it IS tracked) — the coil stays armed.
                 if _popup_already_watched(pair):
                     continue
+                if _trig == "pre-breakout":
+                    # THE CONFIRMATION GATE'S ARM: the coil's zone high is its
+                    # ceiling, so the same gate fires this popup on the $1
+                    # target or on that crack. A row that cannot be priced or
+                    # written FAILS OPEN — the popup fires at once below.
+                    if popup_pending_arm(
+                            pair, entry=float(r.get("trigger_px") or 0.0),
+                            spend=float(_spend or 0.0),
+                            goal_pct=float(_st_goal or 0.0),
+                            win_min=float(st.SURE_THING_WINDOW_MIN),
+                            title=_title, message=_msg, spoken=_spoken,
+                            brain=0.0, quick=_score,   # the score IS the vote
+                            floor=_score,
+                            rot=rotation_key_for_hour(_now_mst().hour),
+                            snapshot=_st_snap, exchange=exchange,
+                            ceiling=float(r.get("zone_high") or 0.0),
+                            gate_label=f"the coil's {_score:.0f}% gate",
+                            route="sure-thing-confirmed"):
+                        continue      # tracked, not counted: no popup now
                 notify_big(_title, _msg, spoken=_spoken)
                 # AUTO-TRACK AT FIRE TIME — the breakout popup tracks too
                 # (one writer, one contract; entry = the trigger level)
@@ -8066,35 +8158,10 @@ def main():
                 rotation_mark_fired(asset)
                 _st_armed.pop(asset, None)
                 _st_armed_save()
-                _st_tide_pct, _st_tide_state = _fleet_tide()
                 try:
-                    _snap = {"pair": pair, "quick": _score, "brain": None,
-                             "route": "sure-thing", "kind": "fired",
-                             "release": _take_release_prov(pair),
-                             "tide": (f"{_st_tide_state} {_st_tide_pct:.0f}%"
-                                      if _st_tide_state and _st_tide_pct is not None else None),
-                             "trigger": _trig,
-                             "detail": r["detail"],
-                             "features": {"coil_range_pct": r.get("coil_range_pct"),
-                                         "tests": r.get("tests"),
-                                         "squeeze_pct": r.get("squeeze_pct"),
-                                         "atr_ratio": r.get("atr_ratio"),
-                                         "bb_width_pctile": r.get("bb_width_pctile"),
-                                         "pullback_trend": r.get("pullback_trend"),
-                                         "micro_spikes": r.get("micro_spikes"),
-                                         "buy_dominance": r.get("buy_dominance"),
-                                         "hist_hit_rate": r.get("hist_hit_rate"),
-                                         "vol_spike": r.get("vol_spike"),
-                                         "score": _score},
-                             "mult": _mult, "spend": float(_spend or 0.0),
-                             "goal_pct": _st_goal,
-                             "est_min": _est,
-                             "climb": _climb_features_stamped(
-                                 _st_climb.get("features"),
-                                 _st_tide_state, _st_tide_pct),
-                             "entry": float(r.get("trigger_px") or 0.0),
-                             "win_min": st.SURE_THING_WINDOW_MIN}
-                    _log_signal_snapshot(_snap)
+                    _log_signal_snapshot({**_st_snap, "kind": "fired",
+                                          "route": "sure-thing",
+                                          "release": _take_release_prov(pair)})
                 except Exception as exc:
                     logger.warning("Sure Thing snapshot failed for %s (%s) "
                                    "— this fire's hindsight row is lost", asset, exc)

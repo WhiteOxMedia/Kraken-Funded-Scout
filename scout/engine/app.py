@@ -9002,6 +9002,10 @@ def _render_popup_history():
                                 else f" ({_d_c:+.2f}%)")
                 _px_txt = (f" · now ${_live_px:,.4f}" if _live_px > 0
                            else " · now — (no tick)")
+                # THE ROUTE TAG (Nov 20): the gate is one gate; the row says
+                # which route armed it (the champion's floor win or a coil).
+                _tag = ("COIL" if str(_r.get("route") or "") == "sure-thing-confirmed"
+                        else "PENDING")
                 # THE BAR IN CONTEXT (Nov 20 review): $1 on a $10 size is
                 # +10%, on the $5,100 contest size +0.02% — one rule, a
                 # different strategy per size, so the row states its own ask.
@@ -9015,7 +9019,7 @@ def _render_popup_history():
                     (float(_r.get("armed_ts") or 0.0),
                      "<div style='padding:4px 0;border-bottom:1px solid rgba(255,255,255,0.08);'>"
                      + ("<span class='dim' style='font-family:monospace;'>⏳</span>&nbsp;"
-                        "<span style='color:#e8c56b;font-family:Audiowide;'>PENDING</span>"
+                        f"<span style='color:#e8c56b;font-family:Audiowide;'>{_tag}</span>"
                         if _live else
                         "<span class='dim' style='font-family:monospace;'>⌛</span>&nbsp;"
                         "<span style='color:#8a8f98;font-family:Audiowide;'>EXPIRED</span>")

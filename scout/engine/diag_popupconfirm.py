@@ -3,7 +3,8 @@ only on +$1 profit or the breakout).
 
 Answers the questions the gate left open, from ledgers it already writes:
   1. does confirmation EARN its delay — fire rate, split by reason, and the
-     arm-to-fire delay (signal_snapshots' champion-confirmed fire rows);
+     arm-to-fire delay (signal_snapshots' confirmed fire rows: the champion's
+     floor win AND the Sure Thing coil, which arms through the same gate);
   2. how strict is the $1 bar per position size — $1 is +10% at the $10
      minimum and +0.02% at the $5,100 contest size, so the same rule is a
      different strategy per size (fire rows carry spend + pending_s);
@@ -70,9 +71,10 @@ def _pct(vals, q):
 
 
 cutoff = (bs._now_mst() - timedelta(days=DAYS)).timestamp()
+CONFIRMED_ROUTES = ("champion-confirmed", "sure-thing-confirmed")
 fired = [r for r in _rows(bs.SIGNAL_SNAPSHOTS_FILE)
          if r.get("kind") == "fired"
-         and r.get("route") == "champion-confirmed"
+         and r.get("route") in CONFIRMED_ROUTES
          and (_ts(r) or 0) >= cutoff]
 expired = [r for r in _rows(bs.SUPPRESSION_LOG_FILE)
            if r.get("gate") == "pending-expired" and (_ts(r) or 0) >= cutoff]
@@ -86,6 +88,10 @@ out(f"POPUP CONFIRMATION STUDY — last {DAYS} days")
 out("=" * 78)
 out(f"armed {st['arms']} (fires {st['fired']}, expiries {st['expired']})"
     f"{_rate}  ·  open now {_open_now}")
+_champ = sum(1 for r in fired if r.get("route") == "champion-confirmed")
+if fired:
+    out(f"  routes: champion floor win {_champ}  ·  Sure Thing coil "
+        f"{len(fired) - _champ}")
 if not st["arms"]:
     out("")
     out("No arms in the window yet. The gate writes one 'pending' snapshot at")
@@ -178,16 +184,16 @@ out("-" * 78)
 sure = [r for r in _rows(bs.SIGNAL_SNAPSHOTS_FILE)
         if r.get("kind") == "fired" and r.get("route") == "sure-thing"
         and (_ts(r) or 0) >= cutoff]
-pre = sum(1 for r in sure if r.get("trigger") == "pre-breakout")
-out(f"  Sure Thing fires {len(sure)} (pre-breakout {pre}, crack {len(sure) - pre})")
-out("  pre-breakout pops enter BEFORE the crack by design: a different class,")
-out("  labelled PRE-BREAKOUT in the popup and 'pre-breakout' in the snapshot.")
+out(f"  Sure Thing crack fires (immediate, never armed) {len(sure)}")
+out("  a coil no longer pops before the crack: it arms a pending row and the")
+out("  same gate fires it on the $1 target or on the coil's zone high.")
 
 out("")
 out("NOTES")
 out("-" * 78)
-out("  · arms = champion-confirmed fires + 'pending-expired' suppressions")
-out("    (every arm ends one way); open rows ride popup_pending.json.")
+out("  · arms >= confirmed fires (champion + coil) + 'pending-expired'")
+out("    suppressions: an arm whose pair is already watched drops silently.")
+out("    Open rows ride popup_pending.json.")
 out("  · post-expiry outcomes are graded by the suppression backfill, not")
 out("    here — this study never asserts would-have-won.")
 out("  · the rule stays $1 until the delay-by-size table says otherwise:")

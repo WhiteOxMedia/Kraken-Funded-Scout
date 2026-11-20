@@ -246,10 +246,13 @@ check("the death-line guard caps + the probability sizes",
       "brain_size_mult as _st_mult" in st_fn and "_cap * _mult" in st_fn)
 check("every fire logs to the scorer's dataset (route sure-thing + trigger)",
       '"route": "sure-thing"' in st_fn and '"trigger": _trig' in st_fn)
-check("the PRE-BREAKOUT popup variant exists (Breakout Alert + the countdown)",
-      "BREAKOUT ALERT" in st_fn and "~{_est} MIN WINDOW" in st_fn
-      and "countdown starts now" in st_fn
-      and "Watch for the ceiling crack!" in st_fn)
+check("the pre-breakout variant ARMS the confirmation gate (no pre-crack popup)",
+      'if _trig == "pre-breakout":' in st_fn
+      and "popup_pending_arm(" in st_fn
+      and 'route="sure-thing-confirmed"' in st_fn
+      and 'ceiling=float(r.get("zone_high") or 0.0)' in st_fn
+      and "PRE-BREAKOUT" not in st_fn
+      and "SURE THING COIL — BUY" in st_fn)
 check("the crack variant stands (the second trigger)",
       "the coil cracked" in st_fn)
 check("the deep scan runs BEFORE the popup (the Sep 6 waiver retired, Sep 7)",
