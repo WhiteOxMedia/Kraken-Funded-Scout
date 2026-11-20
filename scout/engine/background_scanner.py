@@ -5376,16 +5376,17 @@ def contest_light(exchange, cfg):
                 logger.debug("exit-watch force gate read skipped for %s: %s",
                              pair, _exc)
 
-        # ── 3b. THE CLOCK'S EXIT CALL (user rule, Nov 20 — SUPERSEDES the
-        # Sep 21 "the window NEVER exits by itself, I don't want to Exit
-        # simply because 'Time's up'"): the calibrated gates above still
-        # get their say first — this is the LAST gate, and it is the clock.
-        # At the end of the row's own window a position that has NOT paid
-        # its goal is closed HERE, through the same popup → push →
-        # auto-close path as every other gate, never quietly. The window is
-        # the whole contract: more time is not an open-ended hold.
-        # SCOPE: the SURE THING rows only (source "sure_thing") — that is
-        # the book being tested live and the one whose clock the tier sim
+        # ── 3b. THE CLOCK'S RECOMMENDATION (user rule, Nov 20 — this
+        # RESTORES the Sep 21 rule that the window never exits by itself,
+        # read as the architecture it always was: the scanner RECOMMENDS,
+        # the exit check DECIDES). The clock closes nothing here. At the
+        # end of the row's own window a position still short of its goal
+        # gets one recorded recommendation on the row (`clock_rec`), which
+        # the EXIT CHECK renders and the exit check acts on — the popup,
+        # the push, the SOLD button and the bot's own exit ladder keep
+        # their final say, untouched.
+        # SCOPE: SURE THING rows only (source "sure_thing") — that is the
+        # book being tested live and the one whose clock the tier sim
         # priced; the champion/mover/DCA routes keep their own discipline.
         if not should_exit:
             try:
@@ -5393,24 +5394,34 @@ def contest_light(exchange, cfg):
                 _added_c = w.get("added")
                 _goal_c = float(w.get("goal_pct") or 0.0)
                 _src_c = str(w.get("source") or "")
-                if (_src_c == "sure_thing" and _win_c > 0 and _added_c):
+                if (_src_c == "sure_thing" and _win_c > 0 and _added_c
+                        and not w.get("clock_rec")):
                     _lapse_c = (datetime.fromisoformat(str(_added_c))
                                 + timedelta(minutes=_win_c))
                     _pct_c = (float(live) / float(entry) - 1.0) * 100.0
-                    if _now_mst() >= _lapse_c and (_goal_c <= 0
-                                                   or _pct_c < _goal_c):
-                        should_exit = True
-                        reason = (f"Clock — the {_win_c:.0f}-min window "
-                                  f"ended without the goal "
-                                  f"({_pct_c:+.1f}% vs +{_goal_c:.1f}%)")
+                    if (_now_mst() >= _lapse_c and (_goal_c <= 0
+                                                    or _pct_c < _goal_c)):
+                        # one recommendation per row, stamped so the exit
+                        # check reads the scanner's own words
+                        w["clock_rec"] = {
+                            "at": _now_mst().isoformat(),
+                            "window_min": round(_win_c, 0),
+                            "pct": round(_pct_c, 2),
+                            "goal_pct": round(_goal_c, 2),
+                            "call": (f"OUT — the {_win_c:.0f}-min window "
+                                     f"ended without the goal "
+                                     f"({_pct_c:+.1f}% vs +{_goal_c:.1f}%)"),
+                        }
+                        dirty = True
                         logger.info(
-                            "⏰ CLOCK EXIT: %s — %.0f-min window ended at "
-                            "%+.1f%% (goal +%.1f%%): the clock calls the "
-                            "exit", pair, _win_c, _pct_c, _goal_c)
+                            "⏰ CLOCK RECOMMENDATION: %s — %.0f-min window "
+                            "ended at %+.1f%% (goal +%.1f%%): recommending "
+                            "OUT to the exit check, which makes the call",
+                            pair, _win_c, _pct_c, _goal_c)
             except Exception as _clk_exc:
                 # an unreadable clock never traps the position: the gates
                 # above and the hard stop still own every cycle
-                logger.debug("clock exit read skipped for %s: %s",
+                logger.debug("clock recommendation read skipped for %s: %s",
                              pair, _clk_exc)
 
         if should_exit:
@@ -5784,13 +5795,18 @@ def contest_light(exchange, cfg):
                 _to_goal = (_goal - pct) if pct < _goal else 0.0
                 _near = (_to_goal <= _goal * 0.15) or (_rem <= 15.0)
                 if _rem <= 0:
-                    # THE CLOCK CALLS THE EXIT (user rule, Nov 20): a goal
-                    # still unpaid at the window's end was closed by gate 3b
-                    # above before this line could run. What reaches here
-                    # PAID its goal, so it stays watched — from here the
-                    # trend/exit gates own the exit.
-                    _tail = (" — the window ended with the goal paid, "
-                             "stay close!")
+                    # THE CLOCK RECOMMENDS, THE EXIT CHECK DECIDES (user
+                    # rule, Nov 20 — restoring Sep 21's "the window never
+                    # exits by itself"): the clock only says what it reads.
+                    # Nothing is closed here; gate 3b has already stamped
+                    # the recommendation on the row for the exit check.
+                    if _goal > 0 and pct < _goal:
+                        _tail = (" — time's up and the goal hasn't paid: I "
+                                 "recommend out. The exit check makes the "
+                                 "call")
+                    else:
+                        _tail = (" — the window ended with the goal paid, "
+                                 "stay close!")
                 else:
                     _tail = f", about {_rem:.0f} minutes left"
                     _tail += ", stay close" if _near else ", go walk around"
@@ -8144,8 +8160,8 @@ def main():
                         f"the {st.SURE_THING_WINDOW_MIN:.0f}-min contract — "
                         f"the coil's edge is a "
                         f"{st.SURE_THING_WINDOW_MIN / 60.0:.0f}h structure; if "
-                        f"it has not paid the goal by then, the clock calls "
-                        f"the exit)\n"
+                        f"it has not paid the goal by then I recommend out "
+                        f"— the exit check makes the call)\n"
                         f"SPEND: ${_spend:,.0f} (the 3% guard cap × {_mult:.2f} probability sizing"
                         + (f" × {_st_tide_mult:.2f} FLAT tide" if _st_tide_mult < 1.0 else "")
                         + f")\n"

@@ -399,9 +399,10 @@ def _score(rng_pct, tests, vol_rank, burst, vol_fading, atr_ratio,
 # 240 -> 480 min. The 4h read above priced the FIRES' pay inside a 4h
 # window; the live tier sim (diag_tiersim.py, 30 days, 61 pairs) then showed
 # the clock calling time on 82-83 trades at the 5k/10k tiers — the loss
-# engine. The clock no longer only reminds: background_scanner's gate 3b
-# CALLS the exit on the first pass past this window with the goal unpaid,
-# so the window IS the contract — 8h to pay +1.5% or the clock closes it.
+# engine. The clock no longer stays silent: background_scanner's gate 3b
+# RECOMMENDS the exit the first time past this window with the goal unpaid
+# (stamped on the row as `clock_rec`, shown in the EXIT CHECK) — the exit
+# check makes the call, the scanner never closes it.
 SURE_THING_WINDOW_MIN = 480.0
 # the goal the fire is graded on (Sep 8): stamped into every fired
 # snapshot, so diag_surething.py grades each fire against THE goal that

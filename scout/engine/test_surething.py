@@ -202,9 +202,10 @@ check("no candles at all -> a clean no-op", not r["armed"])
 # ── 5. THE SIZING SEAM + THE CONSTANTS ───────────────────────────────
 check("the countdown window is the 8-hour contract (re-contracted Nov 20 "
       "on the user's 'give them more time' rule: 240 -> 480 min, and the "
-      "clock now CALLS the exit on the first pass past the window with the "
-      "goal unpaid — background_scanner gate 3b — instead of only "
-      "reminding; the Sep 11 4h grade still stands as the read the fires "
+      "clock now RECOMMENDS the exit on the first pass past the window "
+      "with the goal unpaid — background_scanner gate 3b — and the exit "
+      "check makes the call; the Sep 11 4h grade still stands as the read "
+      "the fires "
       "were priced on)",
       st.SURE_THING_WINDOW_MIN == 480.0)
 check("the pre-breakout threshold is 45 (the Sep 11 refit bar — the "

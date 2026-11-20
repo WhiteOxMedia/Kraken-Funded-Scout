@@ -10225,7 +10225,21 @@ def render_exit_check(cfg: TradingConfig, kraken):
             verdict_lines.append(
                 f"WINDOW <span class='dim'>.............</span> "
                 f"<span style='color:{_win_col};'>{_elapsed_min:.0f} of {_w_window:.0f} min — "
-                + (f"PAST — STAY CLOSE (exit is hers)" if _window_expired else f"{_left_min:.0f} min left") + "</span>")
+                + ("PAST — OUT RECOMMENDED · the exit check decides" if _window_expired else f"{_left_min:.0f} min left") + "</span>")
+            if _window_expired and _w_goal and (_goal_left or 0) > 0:
+                # THE SCANNER'S RECOMMENDATION (user rule, Nov 20): the
+                # scanner recommends, the exit check decides. This line
+                # repeats the recommendation the scanner stamped on the
+                # row, verbatim — it never closes anything by itself.
+                _rec_ec = (_wr.get("clock_rec")
+                           if isinstance(_wr, dict) else None) or {}
+                verdict_lines.append(
+                    f"RECOMMEND <span class='dim'>........</span> "
+                    f"<span style='color:{_win_col};'>"
+                    + (_rec_ec.get("call")
+                       or f"OUT — the {_w_window:.0f}-min window ended "
+                          f"without the {_w_goal:.1f}% goal")
+                    + " · the exit check makes the call</span>")
 
     # ── THE POSITION: real dollars, real size, real peak ───────────────
     if _w_size:
