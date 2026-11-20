@@ -84,6 +84,7 @@ console_state.json
 contest_watch.json
 popup_pending.json
 popup_pending.json.tmp*
+popup_pending_beat.json
 discipline_state.json
 scanner_state.json
 rotation_lockout.json

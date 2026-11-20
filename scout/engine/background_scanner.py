@@ -3866,6 +3866,15 @@ POPUP_PENDING_JSON = os.path.join(os.path.dirname(os.path.abspath(__file__)),
                                   "popup_pending.json")
 POPUP_CONFIRM_PROFIT_USD = 1.0    # the user's bar: profit >= $1 US
 POPUP_BREAKOUT_LOOKBACK = 24      # 5m candles = the 2h ceiling it must crack
+# A coin already printing its 2h high arms a ceiling AT the entry, where any
+# tick "cracks" it: below this headroom the breakout leg is dropped and the
+# row rides the $1 target (Nov 20 review — the pinned-ceiling no-op).
+POPUP_BREAKOUT_MIN_HEADROOM = 0.0025
+# The clock's heartbeat: when the book was last priced. A scanner that is
+# asleep cannot fire or expire anything, and the console can say so.
+POPUP_PENDING_BEAT_JSON = os.path.join(
+    os.path.dirname(os.path.abspath(__file__)), "popup_pending_beat.json")
+POPUP_PENDING_STALL_S = 300.0     # 10 missed 30s passes = the clock is stopped
 
 
 def popup_pending_target_price(entry, spend) -> float:
@@ -3905,6 +3914,81 @@ def _save_popup_pending(rows: dict) -> bool:
     except Exception as exc:
         logger.warning("popup pending save failed: %s", exc)
         return False
+
+
+def _touch_pending_beat() -> None:
+    """Stamp the clock: the book was priced just now. A plain overwrite —
+    a torn or missing beat only blinds the console's liveness line, and it
+    never raises."""
+    import json
+    try:
+        Path(POPUP_PENDING_BEAT_JSON).write_text(
+            json.dumps({"ts": time.time()}), encoding="utf-8")
+    except Exception:
+        pass
+
+
+def popup_pending_beat_age() -> float:
+    """Seconds since the pending book was last priced; -1 when there is no
+    heartbeat at all (the gate has never swept, or the file is gone)."""
+    import json
+    try:
+        doc = json.loads(Path(POPUP_PENDING_BEAT_JSON).read_text(encoding="utf-8"))
+        return max(0.0, time.time() - float(doc.get("ts") or 0.0))
+    except Exception:
+        return -1.0
+
+
+def popup_confirm_stats(days: int = 30) -> dict:
+    """The gate's own scoreboard, read from ledgers it already writes —
+    nothing extra is recorded for it. Every arm ends one of two ways: a
+    champion-confirmed fire (signal_snapshots, kind=fired) or a
+    "pending-expired" suppression row, so arms = fires + expiries. A
+    fire's pending_s is its arm-to-popup delay. Post-expiry outcomes are
+    the suppression backfill's job, not this function's."""
+    import json
+    from datetime import datetime as _dt, timedelta as _td
+    cutoff = (_now_mst() - _td(days=days)).timestamp()
+
+    def _recent(path):
+        try:
+            lines = Path(path).read_text(encoding="utf-8").splitlines()
+        except Exception:
+            return
+        for line in lines[-SIGNAL_SNAPSHOTS_MAX:]:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                rec = json.loads(line)
+                if _dt.fromisoformat(str(rec.get("ts") or "")).timestamp() < cutoff:
+                    continue
+            except Exception:
+                continue
+            yield rec
+
+    fired = target = breakout = expired = 0
+    mins = []
+    for rec in _recent(SIGNAL_SNAPSHOTS_FILE):
+        if rec.get("kind") != "fired" or rec.get("route") != "champion-confirmed":
+            continue
+        fired += 1
+        if str(rec.get("confirm") or "").lower().startswith("breakout"):
+            breakout += 1
+        else:
+            target += 1
+        try:
+            mins.append(float(rec.get("pending_s") or 0.0) / 60.0)
+        except (TypeError, ValueError):
+            pass
+    for rec in _recent(SUPPRESSION_LOG_FILE):
+        if rec.get("gate") == "pending-expired":
+            expired += 1
+
+    import statistics as _stat
+    return {"arms": fired + expired, "fired": fired, "expired": expired,
+            "target": target, "breakout": breakout,
+            "median_min": (_stat.median(mins) if mins else None)}
 
 
 def popup_breakout_level(exchange, pair: str) -> float:
@@ -3951,6 +4035,11 @@ def popup_pending_arm(pair: str, *, entry: float, spend: float,
         _exp_s = min(_exp_s, (_end - now).total_seconds())
     _t = time.time()
     _rel = _take_release_prov(pair)   # one-shot: rides the row, not lost
+    _ceil = popup_breakout_level(exchange, pair) if exchange is not None else 0.0
+    # A ceiling at (or under) the entry is no ceiling: the next tick would
+    # crack it and the gate would fire at the floor win. Drop the leg.
+    if _ceil <= entry * (1.0 + POPUP_BREAKOUT_MIN_HEADROOM):
+        _ceil = 0.0
     rows[pair] = {
         "entry": entry, "spend": spend,
         "goal_pct": float(goal_pct or 0.0), "win_min": float(win_min or 0.0),
@@ -3958,9 +4047,8 @@ def popup_pending_arm(pair: str, *, entry: float, spend: float,
         "brain": float(brain or 0.0), "quick": float(quick or 0.0),
         "floor": float(floor or 0.0), "rot": rot, "hm_mode": hm_mode,
         "snapshot": snapshot or {}, "release": _rel,
-        "breakout_level": (popup_breakout_level(exchange, pair)
-                           if exchange is not None else 0.0),
-        "armed_ts": _t, "expires_ts": _t + _exp_s,
+        "breakout_level": _ceil,
+        "armed_ts": _t, "expires_ts": _t + _exp_s, "best_px": entry,
     }
     if not _save_popup_pending(rows):
         return False              # a row we cannot write is no gate
@@ -3976,12 +4064,14 @@ def popup_pending_arm(pair: str, *, entry: float, spend: float,
                               "breakout_level": row["breakout_level"]})
     except Exception as exc:
         logger.debug("pending snapshot write failed for %s (%s)", pair, exc)
+    _ceil_txt = (f"the ${_ceil:,.4f} ceiling cracks" if _ceil > 0
+                 else "the ceiling sits at the entry (no breakout leg)")
     logger.info("⏳ POPUP PENDING: %s — won the %.0f%% floor at $%.4f; tracking "
-                "(NOT counted) until the $%.4f target pays $%.2f on $%.0f or "
-                "the $%.4f ceiling cracks — out at %s",
+                "(NOT counted) until the $%.4f target pays $%.2f on $%.0f or %s "
+                "— out at %s",
                 pair.split("/")[0], row["floor"], entry,
                 popup_pending_target_price(entry, spend),
-                POPUP_CONFIRM_PROFIT_USD, spend, row["breakout_level"],
+                POPUP_CONFIRM_PROFIT_USD, spend, _ceil_txt,
                 datetime.fromtimestamp(row["expires_ts"]).strftime("%H:%M"))
     return True
 
@@ -6008,22 +6098,33 @@ def main():
         _armed_hhmm = (datetime.fromtimestamp(armed_ts).strftime("%I:%M").lstrip("0")
                        if armed_ts else "?")
         _p_title = f"{row.get('title') or ('🟢 BUY ' + asset)} — CONFIRMED"
+        # THE REASON LEADS (Nov 20 review): notify_big's modal clips its body
+        # at 180 chars, so the confirmation must be readable BEFORE the
+        # armed-time story, not after it.
         _when = (f"WHEN: armed at {_armed_hhmm} when it won the "
-                 f"{float(row.get('floor') or 0):.0f}% popup floor; it fires "
-                 f"NOW on {reason} — tracked then, not counted (the scout "
-                 f"only fires confirmed setups)")
+                 f"{float(row.get('floor') or 0):.0f}% popup floor — tracked "
+                 f"then, not counted (the scout only fires confirmed setups)")
         # the stored popup's WHEN line is stale by definition: drop it and
         # speak the confirmation's own, the rest rides verbatim
         _lines = [l for l in str(row.get("message") or "").splitlines()
                   if not l.startswith("WHEN: ")] or [f"BUY {asset}"]
-        _p_msg = "\n".join([_lines[0], _when] + _lines[1:])
-        _p_msg += (f"\nCONFIRMATION: {reason} — entry now ${px:.4f} "
-                   f"(tracked from ${entry:.4f})")
+        _rest = "\n".join(_lines[1:])
+        _p_msg = (f"{_lines[0]}\n"
+                  f"CONFIRMED: {reason} — entry now ${px:.4f} "
+                  f"(tracked from ${entry:.4f})\n{_when}"
+                  + (f"\n{_rest}" if _rest else ""))
         _p_say = (f"Confirmed! {row.get('spoken') or _p_title} "
                   f"It just confirmed — {reason}! Entry now {px:.4f}.")
         notify_big(_p_title, _p_msg, spoken=_p_say)
         rotation_mark_fired(asset)
-        auto_track_popup(pair, float(px), spend, goal, win_min,
+        # THE ROW'S OWN WINDOW (Nov 20 review): a late confirmation must not
+        # hand the watch a fresh full window and outrun the rotation boundary
+        # the pending row was capped against.
+        _exp_ts = float(row.get("expires_ts") or 0.0)
+        _rem_min = ((_exp_ts - time.time()) / 60.0) if _exp_ts else win_min
+        _track_min = (min(win_min, _rem_min)
+                      if win_min > 0 and _rem_min > 0 else win_min)
+        auto_track_popup(pair, float(px), spend, goal, max(1.0, _track_min),
                          f"BUY {float(row.get('brain') or 0):.0f}% "
                          f"(confirmed: {reason})",
                          "champion-confirmed",
@@ -6057,17 +6158,24 @@ def main():
             row = rows[pair]
             try:
                 if float(row.get("expires_ts") or 0.0) <= _now:
+                    _pk = float(row.get("best_px") or 0.0)
+                    _e0 = float(row.get("entry") or 0.0)
+                    _s0 = float(row.get("spend") or 0.0)
+                    _pk_usd = (round((_pk / _e0 - 1.0) * _s0, 2)
+                               if _pk > 0 and _e0 > 0 else None)
+                    _pk_txt = (f"; closest ${_pk:,.4f} (+${_pk_usd:,.2f})"
+                               if _pk_usd is not None else "")
                     _log_suppression(
                         pair, "pending-expired",
                         f"won the {float(row.get('floor') or 0):.0f}% popup floor"
-                        f" at ${float(row.get('entry') or 0):.4f} but never "
-                        f"confirmed (the ${POPUP_CONFIRM_PROFIT_USD:.2f} target"
-                        f" or the breakout) inside its window — tracked, never"
-                        f" counted as a popup",
+                        f" at ${_e0:,.4f}{_pk_txt} but never confirmed (the "
+                        f"${POPUP_CONFIRM_PROFIT_USD:.2f} target or the "
+                        f"breakout) in its window — tracked, never counted "
+                        f"as a popup",
                         quick=float(row.get("quick") or 0.0),
                         brain=float(row.get("brain") or 0.0),
                         floor=float(row.get("floor") or 0.0),
-                        rot=row.get("rot"))
+                        rot=row.get("rot"), peak_usd=_pk_usd)
                     logger.info("⌛ POPUP PENDING EXPIRED: %s — never "
                                 "confirmed; tracked, not counted (no popup)",
                                 pair.split("/")[0])
@@ -6077,6 +6185,12 @@ def main():
                 px = float(exchange.fetch_ticker(pair).get("last") or 0.0)
                 if px <= 0:
                     continue
+                # CLOSEST APPROACH (Nov 20 review): the peak the row reached
+                # while tracked — an expiry then says "missed by a hair" vs
+                # "never moved", and the study can use the same numbers.
+                if px > float(row.get("best_px") or 0.0):
+                    row["best_px"] = px
+                    changed = True
                 target = popup_pending_target_price(row.get("entry"),
                                                     row.get("spend"))
                 ceiling = float(row.get("breakout_level") or 0.0)
@@ -6095,6 +6209,7 @@ def main():
                 logger.debug("pending popup check failed for %s: %s", pair, exc)
         if changed:
             _save_popup_pending(rows)
+        _touch_pending_beat()
 
 
     # ── Evaluate a single asset and check checklist ──────────────────

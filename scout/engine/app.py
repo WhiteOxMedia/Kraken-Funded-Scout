@@ -8947,7 +8947,9 @@ def _render_popup_history():
             # forward-compat: a console process that imported the scanner
             # before this feature reloads it (the bots-book pattern)
             if not (hasattr(_bs9, "_load_popup_pending")
-                    and hasattr(_bs9, "popup_pending_target_price")):
+                    and hasattr(_bs9, "popup_pending_target_price")
+                    and hasattr(_bs9, "popup_confirm_stats")
+                    and hasattr(_bs9, "popup_pending_beat_age")):
                 import importlib
                 _bs9 = importlib.reload(_bs9)
             _bar = float(getattr(_bs9, "POPUP_CONFIRM_PROFIT_USD", 1.0) or 1.0)
@@ -9000,6 +9002,15 @@ def _render_popup_history():
                                 else f" ({_d_c:+.2f}%)")
                 _px_txt = (f" · now ${_live_px:,.4f}" if _live_px > 0
                            else " · now — (no tick)")
+                # THE BAR IN CONTEXT (Nov 20 review): $1 on a $10 size is
+                # +10%, on the $5,100 contest size +0.02% — one rule, a
+                # different strategy per size, so the row states its own ask.
+                _bar_pct = (_bar / _spend * 100.0) if _spend > 0 else 0.0
+                _best = float(_r.get("best_px") or 0.0)
+                _peak_txt = ""
+                if not _live and _best > 0 and _entry > 0 and _spend > 0:
+                    _peak_txt = (f" · peak ${_best:,.4f} "
+                                 f"(+${(_best / _entry - 1.0) * _spend:,.2f} of the bar)")
                 (_live_rows if _live else _exp_rows).append(
                     (float(_r.get("armed_ts") or 0.0),
                      "<div style='padding:4px 0;border-bottom:1px solid rgba(255,255,255,0.08);'>"
@@ -9011,8 +9022,8 @@ def _render_popup_history():
                      + f"&nbsp;&nbsp;<b>{_html.escape(_asset)}</b>"
                      "&nbsp;<span class='dim' style='font-family:monospace;'>"
                      f"entry ${_entry:,.4f} · spend ${_spend:,.0f}{_px_txt} · "
-                     f"+${_bar:.2f} @ ${_target:,.4f}{_d_txt_t} · ceiling "
-                     f"{(f'${_ceil:,.4f}' if _ceil > 0 else '—')}{_d_txt_c} · {_time_txt}"
+                     f"+${_bar:.2f} ({_bar_pct:.2f}% of spend) @ ${_target:,.4f}{_d_txt_t} · ceiling "
+                     f"{(f'${_ceil:,.4f}' if _ceil > 0 else '—')}{_d_txt_c}{_peak_txt} · {_time_txt}"
                      "</span></div>"))
             except Exception:
                 continue
@@ -9061,6 +9072,31 @@ def _render_popup_history():
             except Exception:
                 continue
         if _pend_html:
+            # THE LIVENESS + SCOREBOARD LINES (Nov 20 review): a stalled
+            # scanner can neither fire nor expire a row, and the gate's own
+            # record belongs right where the rows are — read only when
+            # there is a strip to put them on.
+            _beat_txt = _stats_txt = ""
+            try:
+                _age_s = float(_bs9.popup_pending_beat_age())
+                if _live_n and _age_s > _bs9.POPUP_PENDING_STALL_S:
+                    _beat_txt = ("<div style='color:#ff6b5e;font-size:12px;padding:0 0 4px 0;'>"
+                                 f"⚠️ the confirmation clock has not priced the book for "
+                                 f"{_age_s / 60.0:.0f} min — the scanner looks stalled</div>")
+                elif _live_n and _age_s >= 0:
+                    _beat_txt = ("<div class='dim' style='font-size:12px;padding:0 0 4px 0;'>"
+                                 f"last sweep {_age_s:.0f}s ago</div>")
+                _st9 = _bs9.popup_confirm_stats()
+                if _st9.get("fired") or _st9.get("expired"):
+                    _stats_txt = ("<div class='dim' style='font-size:12px;padding:0 0 4px 0;'>"
+                                  f"confirmation · {_st9['fired']} fired · "
+                                  f"{_st9['expired']} expired · "
+                                  + (f"median {_st9['median_min']:.1f} min to fire · "
+                                     if _st9.get("median_min") is not None else "")
+                                  + f"{_st9['target']} on the ${_bar:.2f} · "
+                                  f"{_st9['breakout']} on the ceiling</div>")
+            except Exception:
+                _beat_txt = _stats_txt = ""
             _head = ("<div style='padding:2px 0 6px 0;'>"
                      + (("<span style='color:#e8c56b;font-family:Audiowide;'>"
                          "⏳ PENDING — TRACKED, NOT COUNTED</span>"
@@ -9073,7 +9109,7 @@ def _render_popup_history():
                          "closed before a confirmation; nothing fired</span>"))
                      + (f"<span class='dim' style='font-size:12px;'> · "
                         f"+{_more_pend} more</span>" if _more_pend > 0 else "")
-                     + "</div>" + _pend_html
+                     + "</div>" + _beat_txt + _stats_txt + _pend_html
                      + ("<div style='height:6px;'></div>" if latest_title else ""))
             rows.insert(0, _head)
         if not rows:

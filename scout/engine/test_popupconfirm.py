@@ -148,14 +148,15 @@ check("the deferred fire runs the popup's books — notify, mark, track, fired r
       and "auto_track_popup(pair" in fire
       and '"kind": "fired"' in fire)
 check("the deferred fire says WHEN it was armed and why it fired now",
-      "when it won the" in fire and "CONFIRMATION:" in fire)
+      "when it won the" in fire and "CONFIRMED:" in fire)
 check("the stale WHEN line is dropped by prefix, not by exact wording",
       'if not l.startswith("WHEN: ")' in fire)
 check("the pending clock fires on the target or the ceiling (not time)",
       "hit_target = target > 0 and px >= target" in src
       and "cracked = ceiling > 0 and px >= ceiling" in src)
 check("an unconfirmed row expires as tracked-but-never-counted",
-      '"pending-expired"' in src and "counted as a popup" in src)
+      '"pending-expired"' in src and "never counted" in src
+      and "as a popup" in src)
 check("the pending clock rides every scanner pass (no-buy cooldown excluded)",
       "_check_pending_popups(exchange)" in src
       and "if not no_buy:\n            try:\n                _check_pending_popups(exchange)" in src)
@@ -174,7 +175,7 @@ check("the strip names itself tracked-not-counted",
       "PENDING — TRACKED, NOT COUNTED" in _ph)
 check("each row shows entry, spend, the $1 target, the ceiling, time left",
       all(s in _ph for s in ('f"entry ${_entry:,.4f} · spend ${_spend:,.0f}{_px_txt} · "',
-                             'f"+${_bar:.2f} @ ${_target:,.4f}{_d_txt_t} · ceiling "',
+                             'f"+${_bar:.2f} ({_bar_pct:.2f}% of spend) @ ${_target:,.4f}{_d_txt_t} · ceiling "',
                              "min left")))
 check("the row is priced by the console's own ticker helper (live now + distances)",
       "_ticker_px(_pair)" in _ph
@@ -209,6 +210,21 @@ try:
         "breakout_level": 10.5, "floor": 84.0, "brain": 91.0,
         "quick": 91.0, "rot": "12-16", "title": "🟢 BUY XMR",
         "armed_ts": _time3.time(), "expires_ts": _time3.time() + 1500}})
+    # the scoreboard/liveness read the scanner's ledgers: pin them to this
+    # test's temp dir so one fired row + one expiry are the whole history
+    _old4c = (bs.SIGNAL_SNAPSHOTS_FILE, bs.SUPPRESSION_LOG_FILE,
+              bs.POPUP_PENDING_BEAT_JSON)
+    bs.SIGNAL_SNAPSHOTS_FILE = os.path.join(_tmp3, "signal_snapshots.jsonl")
+    bs.SUPPRESSION_LOG_FILE = os.path.join(_tmp3, "popup_suppressions.jsonl")
+    bs.POPUP_PENDING_BEAT_JSON = os.path.join(_tmp3, "popup_pending_beat.json")
+    Path(bs.SIGNAL_SNAPSHOTS_FILE).write_text(json.dumps(
+        {"ts": bs._now_mst().isoformat(), "kind": "fired",
+         "route": "champion-confirmed", "confirm": "+$1.00 profit at $10.0123",
+         "pending_s": 240.0, "spend": 1000.0}) + "\n", encoding="utf-8")
+    Path(bs.SUPPRESSION_LOG_FILE).write_text(json.dumps(
+        {"ts": bs._now_mst().isoformat(), "pair": "OLD/USD",
+         "gate": "pending-expired"}) + "\n", encoding="utf-8")
+    bs._touch_pending_beat()
     _cap3 = {"md": [], "title": []}
 
     class _St3:
@@ -234,8 +250,13 @@ try:
           "PENDING — TRACKED, NOT COUNTED" in _h3, _h3[:200])
     check("runtime: the row shows entry $10.0000 and spend $1,000",
           "entry $10.0000" in _h3 and "spend $1,000" in _h3)
-    check("runtime: the row shows the $1 price target $10.0100",
-          "+$1.00 @ $10.0100" in _h3, _h3[:400])
+    check("runtime: the row shows the $1 price target $10.0100 and its ask",
+          "+$1.00 (0.10% of spend) @ $10.0100" in _h3, _h3[:400])
+    check("runtime: the scoreboard line rides the strip",
+          "confirmation · 1 fired · 1 expired" in _h3
+          and "median 4.0 min to fire" in _h3, _h3[:600])
+    check("runtime: the strip says when the clock last priced the book",
+          "last sweep" in _h3, _h3[:400])
     check("runtime: the row shows the ceiling and the time left",
           "ceiling $10.5000" in _h3 and "min left" in _h3)
     check("runtime: the live price rides the row (now $9.9500)",
@@ -256,8 +277,8 @@ try:
                      "breakout_level": 2.1, "armed_ts": _now3,
                      "expires_ts": _now3 + 1200},
         "JUSTEXP/USD": {"pair": "JUSTEXP/USD", "entry": 3.0, "spend": 300.0,
-                        "breakout_level": 0.0, "armed_ts": _now3 - 600,
-                        "expires_ts": _now3 - 60},
+                        "breakout_level": 0.0, "best_px": 3.15,
+                        "armed_ts": _now3 - 600, "expires_ts": _now3 - 60},
         "DEAD/USD": {"pair": "DEAD/USD", "entry": 4.0, "spend": 400.0,
                      "breakout_level": 0.0, "armed_ts": _now3 - 9000,
                      "expires_ts": _now3 - 7200}})
@@ -280,6 +301,16 @@ try:
           and "ceiling $2.1000 (+5.53%)" in _h4, _h4[:600])
     check("runtime: a pair with no tick still renders, marked no tick",
           "JUSTEXP" in _h4 and "now — (no tick)" in _h4, _h4[:600])
+    check("runtime: an expired row says how close it came (peak, in dollars)",
+          "peak $3.1500 (+$15.00 of the bar)" in _h4, _h4[:600])
+    # a stalled scanner cannot fire or expire anything: say so on the strip
+    Path(bs.POPUP_PENDING_BEAT_JSON).write_text(
+        json.dumps({"ts": _now3 - 900.0, "rows": 1}), encoding="utf-8")
+    _cap3["md"].clear()
+    _ns3["_render_popup_history"]()
+    _h4b = "".join(_cap3["md"])
+    check("runtime: a stalled confirmation clock is called out",
+          "looks stalled" in _h4b and "15 min" in _h4b, _h4b[:400])
 
     # no live rows at all: the title must not claim a pending popup
     bs._save_popup_pending({
@@ -299,6 +330,8 @@ try:
           and "PENDING — TRACKED, NOT COUNTED" not in _h5, _h5[:300])
 finally:
     bs.POPUP_PENDING_JSON = _real_pending3
+    (bs.SIGNAL_SNAPSHOTS_FILE, bs.SUPPRESSION_LOG_FILE,
+     bs.POPUP_PENDING_BEAT_JSON) = _old4c
     import shutil as _sh3
     _sh3.rmtree(_tmp3, ignore_errors=True)
 
@@ -317,7 +350,9 @@ _ns_src = ("def _scanner_ns():\n"
 
 _tmp2 = tempfile.mkdtemp()
 _real_pending2 = bs.POPUP_PENDING_JSON
+_real_beat2 = bs.POPUP_PENDING_BEAT_JSON
 bs.POPUP_PENDING_JSON = os.path.join(_tmp2, "popup_pending.json")
+bs.POPUP_PENDING_BEAT_JSON = os.path.join(_tmp2, "popup_pending_beat.json")
 
 try:
     def _run_clock(row, tick):
@@ -326,11 +361,13 @@ try:
             "notify_big": lambda t, m, spoken=None: cap["notify"].append((t, m, spoken)),
             "rotation_mark_fired": lambda asset: cap["mark"].append(asset),
             "auto_track_popup": lambda pair, px, spend, goal, window, why, source, hm_mode=None:
-                cap["track"].append((pair, px, source)),
+                cap["track"].append((pair, px, source, window)),
             "_popup_already_watched": lambda pair: False,
             "_log_signal_snapshot": lambda rec: cap["snaps"].append(rec),
-            "_log_suppression": lambda pair, gate, detail, **kw: cap["sups"].append((pair, gate)),
+            "_log_suppression": lambda pair, gate, detail, **kw: cap["sups"].append(
+                (pair, gate, detail)),
             "popup_pending_target_price": bs.popup_pending_target_price,
+            "_touch_pending_beat": bs._touch_pending_beat,
             "_load_popup_pending": bs._load_popup_pending,
             "_save_popup_pending": bs._save_popup_pending,
             "POPUP_CONFIRM_PROFIT_USD": bs.POPUP_CONFIRM_PROFIT_USD,
@@ -390,12 +427,137 @@ try:
     cap, left = _run_clock(_row(expires_ts=1.0), 10.05)
     check("runtime: an expired row never fires (tracked, not counted)",
           cap["notify"] == [] and left == {}
-          and any(g == "pending-expired" for _, g in cap["sups"]),
+          and any(g == "pending-expired" for _, g, _d in cap["sups"]),
           (cap["notify"], cap["sups"], left))
+
+    cap, left = _run_clock(_row(), 10.005)
+    check("runtime: the closest approach is stamped while the row waits",
+          abs(float((left.get("XMR/USD") or {}).get("best_px") or 0) - 10.005) < 1e-9,
+          left)
+
+    cap, left = _run_clock(_row(best_px=10.4, expires_ts=1.0), 10.05)
+    _sup5 = [d for _, g, d in cap["sups"] if g == "pending-expired"]
+    check("runtime: an expiry's record says how close it came",
+          bool(_sup5) and "closest $10.4000" in _sup5[0]
+          and "+$40.00" in _sup5[0], _sup5)
+
+    _now5 = __import__("time").time()
+    cap, left = _run_clock(_row(expires_ts=_now5 + 1800.0), 10.05)
+    check("runtime: the fire leads with the reason (modal clips at 180 chars)",
+          bool(cap["notify"])
+          and cap["notify"][0][1].splitlines()[1].startswith("CONFIRMED")
+          and "CONFIRMED" in cap["notify"][0][1][:120],
+          cap["notify"][0][1][:180] if cap["notify"] else None)
+    check("runtime: a late confirmation tracks the REMAINING window",
+          bool(cap["track"]) and 20.0 < float(cap["track"][0][3]) < 40.0,
+          cap["track"])
+
+    _age5 = bs.popup_pending_beat_age()
+    check("runtime: every sweep stamps a heartbeat", 0 <= _age5 < 60, _age5)
+    Path(bs.POPUP_PENDING_BEAT_JSON).write_text(
+        json.dumps({"ts": __import__("time").time() - 900.0, "rows": 1}),
+        encoding="utf-8")
+    check("runtime: a stale heartbeat reads as a stopped clock (>300s)",
+          bs.popup_pending_beat_age() > 300.0, bs.popup_pending_beat_age())
 finally:
     bs.POPUP_PENDING_JSON = _real_pending2
+    bs.POPUP_PENDING_BEAT_JSON = _real_beat2
     import shutil as _sh2
     _sh2.rmtree(_tmp2, ignore_errors=True)
+
+# ── 6. the review batch (Nov 20): pinned ceiling, bar %, scoreboard ────
+_tmp6 = tempfile.mkdtemp()
+_rp6 = bs.POPUP_PENDING_JSON
+_rs6 = bs._log_signal_snapshot
+bs.POPUP_PENDING_JSON = os.path.join(_tmp6, "popup_pending.json")
+bs._log_signal_snapshot = lambda rec: None
+
+
+class _ExFlat6:
+    def __init__(self, high):
+        self.high = high
+
+    def fetch_ohlcv(self, pair, timeframe="5m", limit=30):
+        return [[i * 300000, 10.0, self.high, 9.9, 10.0, 1.0]
+                for i in range(limit)]
+
+
+try:
+    _ok6 = bs.popup_pending_arm(
+        "AAA/USD", entry=10.0, spend=1000.0, goal_pct=1.5, win_min=60.0,
+        title="T", message="M", spoken="", brain=90.0, quick=90.0,
+        floor=84.0, rot="12-16", snapshot={}, exchange=_ExFlat6(10.0))
+    _row6 = bs._load_popup_pending().get("AAA/USD") or {}
+    check("a ceiling AT the entry is dropped (no instant crack at the floor win)",
+          _ok6 is True and _row6.get("breakout_level") == 0.0,
+          _row6.get("breakout_level"))
+    bs._save_popup_pending({})
+    bs.popup_pending_arm(
+        "BBB/USD", entry=10.0, spend=1000.0, goal_pct=1.5, win_min=60.0,
+        title="T", message="M", spoken="", brain=90.0, quick=90.0,
+        floor=84.0, rot="12-16", snapshot={}, exchange=_ExFlat6(10.5))
+    check("a ceiling with real headroom is kept",
+          (bs._load_popup_pending().get("BBB/USD") or {}).get("breakout_level") == 10.5)
+finally:
+    bs.POPUP_PENDING_JSON = _rp6
+    bs._log_signal_snapshot = _rs6
+    import shutil as _sh6
+    _sh6.rmtree(_tmp6, ignore_errors=True)
+
+check("the confirmation study exists and reads the gate's own ledgers",
+      Path("diag_popupconfirm.py").exists()
+      and "popup_confirm_stats" in Path("diag_popupconfirm.py").read_text(encoding="utf-8"))
+check("pre-breakout fires are a labelled class (never a 'confirmed' fire)",
+      "PRE-BREAKOUT" in src and '"trigger": _trig' in src)
+
+# the scoreboard's arithmetic, run against fake ledgers
+_tmp7 = tempfile.mkdtemp()
+_old7 = (bs.SIGNAL_SNAPSHOTS_FILE, bs.SUPPRESSION_LOG_FILE, bs.POPUP_PENDING_JSON)
+bs.SIGNAL_SNAPSHOTS_FILE = os.path.join(_tmp7, "signal_snapshots.jsonl")
+bs.SUPPRESSION_LOG_FILE = os.path.join(_tmp7, "popup_suppressions.jsonl")
+bs.POPUP_PENDING_JSON = os.path.join(_tmp7, "popup_pending.json")
+try:
+    from datetime import timedelta as _td7
+    _now7 = bs._now_mst()
+
+    def _iso7(minutes_ago):
+        return (_now7 - _td7(minutes=minutes_ago)).isoformat()
+
+    _fired7 = [
+        {"ts": _iso7(30), "kind": "fired", "route": "champion-confirmed",
+         "confirm": "+$1.00 profit at $10.0123", "pending_s": 120.0,
+         "spend": 100.0},
+        {"ts": _iso7(40), "kind": "fired", "route": "champion-confirmed",
+         "confirm": "breakout — $10.5000 cracked the $10.5000 ceiling",
+         "pending_s": 600.0, "spend": 5100.0},
+        {"ts": _iso7(50), "kind": "fired", "route": "sure-thing",
+         "trigger": "pre-breakout", "pending_s": 0.0, "spend": 500.0},
+        {"ts": "2020-01-01T00:00:00-07:00", "kind": "fired",
+         "route": "champion-confirmed", "confirm": "+$1.00",
+         "pending_s": 60.0},
+    ]
+    _sup7 = [
+        {"ts": _iso7(20), "pair": "AAA/USD", "gate": "pending-expired"},
+        {"ts": _iso7(10), "pair": "BBB/USD", "gate": "pending-expired"},
+        {"ts": _iso7(5), "pair": "CCC/USD", "gate": "stale-move"},
+    ]
+    Path(bs.SIGNAL_SNAPSHOTS_FILE).write_text(
+        "\n".join(json.dumps(r) for r in _fired7) + "\n", encoding="utf-8")
+    Path(bs.SUPPRESSION_LOG_FILE).write_text(
+        "\n".join(json.dumps(r) for r in _sup7) + "\n", encoding="utf-8")
+    _st7 = bs.popup_confirm_stats(days=30)
+    check("scoreboard: arms = fires + expiries inside the window",
+          _st7["arms"] == 4 and _st7["fired"] == 2
+          and _st7["expired"] == 2, _st7)
+    check("scoreboard: the reasons split (one $1, one breakout)",
+          _st7["target"] == 1 and _st7["breakout"] == 1, _st7)
+    check("scoreboard: median arm-to-fire delay",
+          abs(float(_st7["median_min"]) - 6.0) < 1e-9, _st7)
+finally:
+    (bs.SIGNAL_SNAPSHOTS_FILE, bs.SUPPRESSION_LOG_FILE,
+     bs.POPUP_PENDING_JSON) = _old7
+    import shutil as _sh7
+    _sh7.rmtree(_tmp7, ignore_errors=True)
 
 import scratch_space
 print(f"RESULT: {PASS} passed, {FAIL} failed")
