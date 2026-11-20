@@ -6298,6 +6298,14 @@ def main():
         # at 180 chars, so the confirmation must be readable BEFORE the
         # armed-time story, not after it.
         _gate = _row_gate_label(row)
+        # A CRACK-CONFIRMED ROW OWES THE $1 (user ask, Nov 20): the ceiling
+        # firing is structure — the gate's profit target never paid — so the
+        # popup says plainly to wait for at least $1 before committing.
+        _crack_only = str(reason).startswith("breakout")
+        _wait_line = (f"THE $1 RULE: the crack confirms structure, not profit — "
+                      f"wait for at least ${POPUP_CONFIRM_PROFIT_USD:.2f} of PnL "
+                      f"on the entry before you commit (no $1, no fire)\n"
+                      if _crack_only else "")
         _when = (f"WHEN: armed at {_armed_hhmm} when it cleared {_gate} — "
                  f"tracked then, not counted (the scout only fires "
                  f"confirmed setups)")
@@ -6308,10 +6316,12 @@ def main():
         _rest = "\n".join(_lines[1:])
         _p_msg = (f"{_lines[0]}\n"
                   f"CONFIRMED: {reason} — entry now ${px:.4f} "
-                  f"(tracked from ${entry:.4f})\n{_when}"
+                  f"(tracked from ${entry:.4f})\n{_wait_line}{_when}"
                   + (f"\n{_rest}" if _rest else ""))
         _p_say = (f"Confirmed! {row.get('spoken') or _p_title} "
-                  f"It just confirmed — {reason}! Entry now {px:.4f}.")
+                  f"It just confirmed — {reason}! Entry now {px:.4f}."
+                  + (" The crack confirms structure — wait for at least one "
+                     "dollar of PnL before you commit." if _crack_only else ""))
         notify_big(_p_title, _p_msg, spoken=_p_say)
         rotation_mark_fired(asset)
         # THE ROW'S OWN WINDOW (Nov 20 review): a late confirmation must not
@@ -8237,6 +8247,10 @@ def main():
                         _st_tide_state, _st_tide_pct),
                     "entry": float(r.get("trigger_px") or 0.0),
                     "win_min": st.SURE_THING_WINDOW_MIN}
+                # THE CRACK OWES THE $1 (user ask, Nov 20): the breakout
+                # confirms STRUCTURE, not profit — the gate's own trigger is
+                # $1 of PnL — so the crack popup says plainly to wait for it.
+                _confirm_line = ""
                 if _trig == "pre-breakout":
                     # ARM, DON'T POP (user rule, Nov 20): a coil arms a pending
                     # row instead of firing before the crack. Title and spoken
@@ -8257,7 +8271,14 @@ def main():
                                f"{r['tests']} tests at the ceiling, the coil cracked! "
                                f"The setup scores {_score:.0f} percent — sizing at {_mult:.2f}"
                                + (f", flat tide — half size!" if _st_tide_mult < 1.0 else "!")
-                               + f" Goal by {_out_by} — after that, stay close: I'll call the exit!")
+                               + f" Goal by {_out_by} — after that, stay close: I'll call the exit!"
+                               + f" Wait for at least one dollar of profit before you commit "
+                                 f"— no dollar, no fire.")
+                    _confirm_line = (
+                        f"CONFIRM: wait for at least "
+                        f"${POPUP_CONFIRM_PROFIT_USD:.2f} of PnL on the entry — "
+                        f"the crack is the setup, the $1 is the trigger "
+                        f"(no $1, no fire)\n")
                     _why = (f"{r['detail']} — the ceiling at ${r['zone_high']:.4f} cracked "
                             f"on a {r['vol_spike']:.1f}x volume burst")
                     _header = f"BREAKOUT ALERT — BUY {asset} — NOW"
@@ -8274,7 +8295,8 @@ def main():
                         f"{st.SURE_THING_WINDOW_MIN / 60.0:.0f}h structure; if "
                         f"it has not paid the goal by then I recommend out "
                         f"— the exit check makes the call)\n"
-                        f"SPEND: ${_spend:,.0f} (the 3% guard cap × {_mult:.2f} probability sizing"
+                        + _confirm_line
+                        + f"SPEND: ${_spend:,.0f} (the 3% guard cap × {_mult:.2f} probability sizing"
                         + (f" × {_st_tide_mult:.2f} FLAT tide" if _st_tide_mult < 1.0 else "")
                         + f")\n"
                         + _st_tide_line
