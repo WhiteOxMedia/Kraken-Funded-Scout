@@ -68,18 +68,16 @@ check("thesis check: entry why vs current signal", "_thesis_ok = " in ec_blk)
 # ── rt-2b: THE CLOCK RECOMMENDATION SEAM (Nov 20) ──────────────────────
 # The scanner STAMPS the recommendation on the watch row; the exit check
 # RENDERS it and still never treats it (or the window) as an exit term.
-_rec_i = bs.find("3b. THE CLOCK'S RECOMMENDATION")
-_rec_blk = bs[_rec_i:bs.find("if should_exit:", _rec_i)] if _rec_i > 0 else ""
-check("the scanner stamps the recommendation on the watch row",
-      'w["clock_rec"] = {' in _rec_blk and '"call":' in _rec_blk)
-check("the stamp never sets the exit term",
-      _rec_blk and "should_exit" not in _rec_blk)
-check("the stamp withdraws the cycle the goal pays",
-      'if _met_c and w.get("clock_rec"):' in _rec_blk)
-check("one window recommends at most once (the window key outlives the "
-      "withdrawal)",
-      'w["clock_rec_window"] = _win_key_c' in _rec_blk
-      and '_stamped_c != _win_key_c' in _rec_blk)
+# The seam's RULE (stamp / withdraw / one recommendation per window) is
+# driven for real against a fake row in test_clockreco.py. What this page
+# owns is the WIRING: gate 3b calls that one seam, the ladder relays it
+# through its own, and neither is an exit term.
+check("gate 3b calls the pure recommendation seam",
+      "def clock_recommendation(" in bs
+      and "clock_recommendation(w, pair=pair, live=live, entry=entry)" in bs)
+check("the bot's ladder relays it through weigh_clock_rec",
+      "def weigh_clock_rec(" in bs
+      and "should_exit, exit_reason = weigh_clock_rec(" in bs)
 check("the recommendation reaches the phone as its own class, not a sell",
       "_PUSH_RECO_RE" in bs and "is_reco" in bs
       and 'the exit check decides' in bs)

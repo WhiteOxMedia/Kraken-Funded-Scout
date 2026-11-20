@@ -114,15 +114,19 @@ check("a strong winner reading confident hold gets out on the DEAD THESIS (weak 
 # ── THE CLOCK RECOMMENDATION'S LIFETIME (Nov 20) ──────────────────────
 # The stamp is a claim about ONE window: it must die the cycle the goal
 # pays, and a withdrawal must never let that same window recommend twice.
-check("the clock's recommendation is withdrawn the cycle the goal pays",
-      'if _met_c and w.get("clock_rec"):' in src
-      and 'w.pop("clock_rec", None)' in src)
-check("one window recommends at most once (the window key outlives the "
-      "withdrawal)",
-      'w["clock_rec_window"] = _win_key_c' in src
-      and '_stamped_c != _win_key_c' in src)
-check("a stamp from an earlier window never rides a re-armed row",
-      'if w.get("clock_rec") and _stamped_c != _win_key_c:' in src)
+# The RULE now lives in one pure seam so it can be driven for real
+# (test_clockreco.py runs it against a fake row and fake prices); what this
+# suite owns is that the ladder relays that seam and nothing else.
+import inspect as _inspect
+_rec_fn = _inspect.getsource(bs.clock_recommendation)
+check("the recommendation's lifetime lives in one seam (window key + "
+      "withdrawal both in clock_recommendation)",
+      'clock_rec_window' in _rec_fn and 'w.pop("clock_rec", None)' in _rec_fn)
+check("the ladder relays it through weigh_clock_rec",
+      "should_exit, exit_reason = weigh_clock_rec(" in src)
+check("weigh_clock_rec can only annotate — it cannot write a signal",
+      "write_exit_signal" not in _inspect.getsource(bs.weigh_clock_rec)
+      and "should_exit = True" not in _inspect.getsource(bs.weigh_clock_rec))
 
 lines.append(f"\nRESULT: {PASS} passed, {FAIL} failed")
 scratch_space.report_temp('_exitsynthesis_check.txt').write_text("\n".join(lines), encoding="utf-8")

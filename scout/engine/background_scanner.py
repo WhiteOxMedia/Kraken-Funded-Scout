@@ -4943,6 +4943,97 @@ def _stale_unrealized_leg(w: dict) -> float | None:
         return None
 
 
+def clock_recommendation(w: dict, *, pair: str, live: float, entry: float,
+                         now=None) -> dict:
+    """THE CLOCK'S RECOMMENDATION — THE PURE SEAM (Nov 20).
+
+    Mutates one contest-watch row and returns what it did:
+        {"action": "stamp" | "withdrawn" | "cleared" | "none", "call": str}
+
+    The rules, in order:
+      · a stamp from an EARLIER window never rides a re-armed row (cleared);
+      · the goal paying WITHDRAWS the stamp the same cycle;
+      · a lapsed window with the goal unpaid STAMPS once, and
+        `clock_rec_window` remembers which window did — so a withdrawal can
+        never produce a second call for that same window.
+
+    It NEVER touches an exit decision: no should_exit, no signal, no sale.
+    The scanner recommends; the exit check decides. Extracted from gate 3b
+    so the rule can be driven for real (test_clockreco.py) instead of read
+    as source text.
+    """
+    out = {"action": "none", "call": ""}
+    try:
+        _now = now if now is not None else _now_mst()
+        win = float(w.get("window_min") or 0.0)
+        added = w.get("added")
+        goal = float(w.get("goal_pct") or 0.0)
+        src = str(w.get("source") or "")
+        if src != "sure_thing" or win <= 0 or not added:
+            return out
+        key = str(added)
+        stamped = str(w.get("clock_rec_window") or "")
+        pct = (float(live) / float(entry) - 1.0) * 100.0
+        met = bool(goal > 0 and pct >= goal)
+        if w.get("clock_rec") and stamped != key:
+            # a previous window's stamp never rides this one
+            w.pop("clock_rec", None)
+            out = {"action": "cleared", "call": ""}
+        if met and w.get("clock_rec"):
+            # THE GOAL PAID: withdraw it, this cycle
+            w.pop("clock_rec", None)
+            logger.info(
+                "⏰ CLOCK RECOMMENDATION WITHDRAWN: %s — the goal paid "
+                "(%+.1f%% vs +%.1f%%); the recommendation is off the row",
+                pair, pct, goal)
+            return {"action": "withdrawn", "call": ""}
+        lapse = datetime.fromisoformat(str(added)) + timedelta(minutes=win)
+        if (_now >= lapse and not met and not w.get("clock_rec")
+                and stamped != key):
+            call = (f"OUT — the {win:.0f}-min window ended without the goal "
+                    f"({pct:+.1f}% vs +{goal:.1f}%)")
+            w["clock_rec"] = {"at": _now.isoformat(),
+                              "window_min": round(win, 0),
+                              "window_key": key,
+                              "pct": round(pct, 2),
+                              "goal_pct": round(goal, 2),
+                              "call": call}
+            w["clock_rec_window"] = key
+            logger.info(
+                "⏰ CLOCK RECOMMENDATION: %s — %.0f-min window ended at "
+                "%+.1f%% (goal +%.1f%%): recommending OUT to the exit "
+                "check, which makes the call", pair, win, pct, goal)
+            return {"action": "stamp", "call": call}
+        return out
+    except Exception as exc:
+        logger.debug("clock recommendation read skipped for %s: %s",
+                     pair, exc)
+        return out
+
+
+def weigh_clock_rec(pair: str, rec: dict | None, should_exit: bool,
+                    reason: str) -> tuple[bool, str]:
+    """THE EXIT CHECK'S USE OF THE CLOCK'S RECOMMENDATION (Nov 20).
+
+    The ladder has already decided. This only relays what the clock said:
+      · a sale the gates chose carries the clock's agreement in its reason;
+      · a hold the gates chose is logged as a DECLINED recommendation.
+
+    It returns the decision UNCHANGED and writes no signal. The scanner
+    recommends; the exit check decides.
+    """
+    if not rec:
+        return should_exit, reason
+    if should_exit:
+        return True, (f"{reason} · the clock also recommended OUT "
+                      f"({(rec or {}).get('call') or 'window ended'})")
+    logger.info(
+        "  🕐 EXIT CHECK keeps %s — the clock recommends OUT, the ladder "
+        "declines (trail/trend/thesis all clear); the decision is this "
+        "check's", pair.split("/")[0])
+    return False, reason
+
+
 def contest_light(exchange, cfg):
     """One light cycle on every contest position: 4% profit guard + 50% sell
     bar + scalp watch. Speaks the dollars every minute. A GET OUT call
@@ -5416,74 +5507,34 @@ def contest_light(exchange, cfg):
         # SCOPE: SURE THING rows only (source "sure_thing") — that is the
         # book being tested live and the one whose clock the tier sim
         # priced; the champion/mover/DCA routes keep their own discipline.
+        _cr = {"action": "none", "call": ""}
         try:
-            _win_c = float(w.get("window_min") or 0.0)
-            _added_c = w.get("added")
-            _goal_c = float(w.get("goal_pct") or 0.0)
-            _src_c = str(w.get("source") or "")
-            if _src_c == "sure_thing" and _win_c > 0 and _added_c:
-                _win_key_c = str(_added_c)
-                _stamped_c = str(w.get("clock_rec_window") or "")
-                _pct_c = (float(live) / float(entry) - 1.0) * 100.0
-                _met_c = bool(_goal_c > 0 and _pct_c >= _goal_c)
-                if w.get("clock_rec") and _stamped_c != _win_key_c:
-                    # a previous window's stamp never rides this one
-                    w.pop("clock_rec", None)
-                    dirty = True
-                if _met_c and w.get("clock_rec"):
-                    # THE GOAL PAID: withdraw it, this cycle
-                    w.pop("clock_rec", None)
-                    dirty = True
-                    logger.info(
-                        "⏰ CLOCK RECOMMENDATION WITHDRAWN: %s — the goal "
-                        "paid (%+.1f%% vs +%.1f%%); the recommendation is "
-                        "off the row", pair, _pct_c, _goal_c)
-                _lapse_c = (datetime.fromisoformat(str(_added_c))
-                            + timedelta(minutes=_win_c))
-                if (_now_mst() >= _lapse_c and not _met_c
-                        and not w.get("clock_rec")
-                        and _stamped_c != _win_key_c):
-                    # one recommendation per window, stamped so the exit
-                    # check reads the scanner's own words
-                    w["clock_rec"] = {
-                        "at": _now_mst().isoformat(),
-                        "window_min": round(_win_c, 0),
-                        "window_key": _win_key_c,
-                        "pct": round(_pct_c, 2),
-                        "goal_pct": round(_goal_c, 2),
-                        "call": (f"OUT — the {_win_c:.0f}-min window "
-                                 f"ended without the goal "
-                                 f"({_pct_c:+.1f}% vs +{_goal_c:.1f}%)"),
-                    }
-                    w["clock_rec_window"] = _win_key_c
-                    dirty = True
-                    logger.info(
-                        "⏰ CLOCK RECOMMENDATION: %s — %.0f-min window "
-                        "ended at %+.1f%% (goal +%.1f%%): recommending "
-                        "OUT to the exit check, which makes the call",
-                        pair, _win_c, _pct_c, _goal_c)
-                    # THE PHONE (Nov 20): a recommendation is not a trade
-                    # call, so it rides its OWN class — priority default,
-                    # no charter signal event — and says plainly that the
-                    # exit check decides. Best-effort: a push can never
-                    # touch the book.
-                    try:
-                        _push_to_phone(
-                            f"RECOMMENDATION — {pair.split('/')[0]}:\n"
-                            f"WHY: {w['clock_rec']['call']}\n"
-                            f"POSITION: entered {float(entry):.4f} · now "
-                            f"{float(live):.4f} ({_pct_c:+.1f}%)\n"
-                            f"The scanner recommends OUT — the exit check "
-                            f"decides.")
-                    except Exception as _pp_exc:
-                        logger.debug(
-                            "clock recommendation push failed for %s: %s",
-                            pair, _pp_exc)
+            _cr = clock_recommendation(w, pair=pair, live=live, entry=entry)
         except Exception as _clk_exc:
             # an unreadable clock never traps the position: the gates
             # above and the hard stop still own every cycle
             logger.debug("clock recommendation read skipped for %s: %s",
                          pair, _clk_exc)
+        if _cr.get("action") not in (None, "", "none"):
+            dirty = True
+        if _cr.get("action") == "stamp":
+            # THE PHONE (Nov 20): a recommendation is not a trade call, so
+            # it rides its OWN class — priority default, no charter signal
+            # event — and says plainly that the exit check decides.
+            # Best-effort: a push can never touch the book.
+            try:
+                _push_to_phone(
+                    f"RECOMMENDATION — {pair.split('/')[0]}:\n"
+                    f"WHY: {_cr.get('call') or 'the window ended'}\n"
+                    f"POSITION: entered {float(entry):.4f} · now "
+                    f"{float(live):.4f} "
+                    f"({(w.get('clock_rec') or {}).get('pct', 0.0):+.1f}%)\n"
+                    f"The scanner recommends OUT — the exit check "
+                    f"decides.")
+            except Exception as _pp_exc:
+                logger.debug(
+                    "clock recommendation push failed for %s: %s",
+                    pair, _pp_exc)
 
         if should_exit:
             # ── THE HARD-STOP INDEPENDENT JUDGE (the recovered ordering
@@ -9669,16 +9720,15 @@ def main():
                                 should_exit = True
                                 exit_reason = "Exit check: momentum rider exit triggered"
 
+                        # THE CLOCK WEIGHS IN, THE LADDER DECIDES (Nov 20):
+                        # the decision comes back UNCHANGED — the clock can
+                        # only annotate a sale already chosen, or be logged
+                        # as declined. It is never a trigger.
+                        should_exit, exit_reason = weigh_clock_rec(
+                            pair, _clock_rec, should_exit, exit_reason)
+
                         if should_exit:
                             from signal_bridge import write_exit_signal
-                            if _clock_rec:
-                                # the clock's read rides the sale's REASON
-                                # (context, never a trigger): the gates
-                                # above made the call, the clock agreed
-                                exit_reason = (
-                                    f"{exit_reason} · the clock also "
-                                    f"recommended OUT "
-                                    f"({(_clock_rec or {}).get('call') or 'window ended'})")
                             write_exit_signal(pair, exit_reason)
                             alerted_recently[pair] = now.timestamp()
                             logger.info("📤 Exit signal written: SELL %s — %s", pair.split("/")[0], exit_reason)
@@ -9691,18 +9741,6 @@ def main():
                             # REAL money (trailing stop / strategy sell /
                             # exhaustion all land on the bot's account).
                             # Every other sell source stays contest-only.
-                        elif _clock_rec:
-                            # THE RECOMMENDATION DOESN'T SELL (user rule,
-                            # Nov 20): the clock recommended OUT and the
-                            # ladder's own gates said hold — the ladder
-                            # keeps the position AND the call. Logged, so
-                            # a recommendation is never silently lost.
-                            logger.info(
-                                "  🕐 EXIT CHECK keeps %s — the clock "
-                                "recommends OUT, the ladder declines "
-                                "(trail/trend/thesis all clear); the "
-                                "decision is this check's",
-                                pair.split("/")[0])
                     except Exception as exc:
                         logger.debug("Exit check failed for %s: %s", pair, exc)
 
