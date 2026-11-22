@@ -71,7 +71,11 @@ function Invoke-LateWalletPickup([string]$Root, [string]$Python = "") {
     $api = if ($env:XMRJ_API) { $env:XMRJ_API.TrimEnd("/") } else { "https://xmrjackpot.com" }
     Write-Host "[..]  An address in your free account? asking the pool..."
     try {
-        & $py $inst --apply-wallet --api $api
+        # Out-Host, NOT the pipeline: the CLI prints prose, and prose in the
+        # output stream turns "return $false" into a 2-item array that a
+        # caller's [bool] reads as TRUE (the drive caught this on the
+        # offline path). The verdict must be this function's own.
+        & $py $inst --apply-wallet --api $api | Out-Host
         if ($LASTEXITCODE -ne 0) {
             Write-Host "[WARN] the address could not be picked up yet - the Miner Bot stays off; the next start retries"
             return $false
