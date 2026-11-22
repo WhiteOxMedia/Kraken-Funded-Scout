@@ -39,6 +39,65 @@ param(
 
 $ErrorActionPreference = "SilentlyContinue"
 
+# ── THE LATE ADDRESS (Nov 22) ──────────────────────────────────────────
+# A wallet-free install is the COMMON one (10 of 11 production installs
+# carried no address): Scout lands, the Miner Bot stays off, and the
+# address is typed into the free account afterwards. That address used to
+# reach the miner only when the customer re-ran "Setup Miner Bot" -
+# launching Scout did nothing with it, so a late address could sit unused
+# for as long as the machine kept starting normally. The pickup itself is
+# NOT reimplemented here: installer.py --apply-wallet is the same code the
+# setup helper runs, and this launcher just calls it once per start.
+#
+#   * FAIL-SOFT  - a missing tree, an offline box or a refused run prints
+#                  one line and the stack still starts. The pickup is not
+#                  part of the trading stack and must never flip $okAll
+#                  (a pool outage would disarm the console watchdog).
+#   * IDEMPOTENT - the record's pending flag is the switch: a record that
+#                  is no longer pending is not even asked about, so an
+#                  ordinary start makes no pool call and cannot register
+#                  this machine twice.
+function Invoke-LateWalletPickup([string]$Root, [string]$Python = "") {
+    $py = if ($Python) { $Python } else { Join-Path $Root "scout\.venv\Scripts\python.exe" }
+    $inst = Join-Path $Root "monero_project\installer\installer.py"
+    $rec = Join-Path $Root "monero_project\installer\install_config.json"
+    if (-not (Test-Path $py)) { return $false }
+    if (-not (Test-Path $inst)) { return $false }
+
+    $before = $null
+    try { $before = Get-Content $rec -Raw -ErrorAction Stop | ConvertFrom-Json } catch { }
+    if (-not $before -or -not $before.pending_wallet) { return $false }
+
+    $api = if ($env:XMRJ_API) { $env:XMRJ_API.TrimEnd("/") } else { "https://xmrjackpot.com" }
+    Write-Host "[..]  An address in your free account? asking the pool..."
+    try {
+        & $py $inst --apply-wallet --api $api
+        if ($LASTEXITCODE -ne 0) {
+            Write-Host "[WARN] the address could not be picked up yet - the Miner Bot stays off; the next start retries"
+            return $false
+        }
+    } catch {
+        Write-Host ("[WARN] the address pickup could not run: " + $_.Exception.Message)
+        return $false
+    }
+
+    # The record is the truth (the CLI prints prose): a wallet with no
+    # pending flag means it is bound.
+    $after = $null
+    try { $after = Get-Content $rec -Raw -ErrorAction Stop | ConvertFrom-Json } catch { }
+    if ($after -and [string]$after.wallet_address -and -not $after.pending_wallet) {
+        Write-Host ("[OK]  picked up this account's address: " + [string]$after.wallet_address)
+        return $true
+    }
+    Write-Host "[..]  no address on this machine's free account yet - the Miner Bot stays off"
+    return $false
+}
+
+# LIBRARY MODE (the drives dot-source this file to test the pickup): define
+# the function, then stop. A test harness must never be able to start the
+# trading stack by loading this script.
+if ($env:KRAKEN_LAUNCHER_LIB -eq "1") { return }
+
 # ── LAUNCHER MUTEX ─────────────────────────────────────────────────────
 # Only ONE launch_stack.ps1 may run at a time. If the shortcut is fired
 # twice (double-click, or re-run while the first is still starting), the
@@ -146,6 +205,13 @@ if ($showWin) {
     Write-Host "  MODE: hidden - components run detached, logs in logs\"
 }
 Write-Host "============================================================"
+
+# ── 0. THE LATE ADDRESS, BEFORE ANYTHING STARTS ────────────────────────
+# The install root is the parent of this Scout tree (install.ps1 stages
+# monero_project beside scout). Its own record decides whether there is
+# anything to ask about, so an ordinary start here costs one file read.
+# Out-Null: the pickup's verdict is informational, never a stack result.
+Invoke-LateWalletPickup -Root (Split-Path -Parent $base) | Out-Null
 
 # ── STACK = THE FOUR TRADING PIECES (the operator's decision, Sep 29) ──
 # $okAll is now the TRADING stack: engine, scanner, bot, console. The
