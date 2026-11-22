@@ -16,6 +16,12 @@ if not exist ".venv\Scripts\python.exe" (
 if exist "__pycache__" rmdir /s /q "__pycache__"
 if exist "trend\__pycache__" rmdir /s /q "trend\__pycache__"
 
+REM Late wallet (Nov 22): a wallet-free install is finished on an ordinary
+REM Scout start, the same fail-soft / idempotent pickup Setup Miner Bot runs
+REM (installer.py --apply-wallet, once, and only while the install is still
+REM pending). -PickupOnly runs that step and exits - it never starts a stack.
+powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0launch_stack.ps1" -PickupOnly
+
 REM Check if already running - don't start duplicate scanner
 REM (PowerShell checks command lines; tasklist/wmic do not work reliably)
 powershell -NoProfile -Command "if (Get-CimInstance Win32_Process -Filter \"name='python.exe'\" | Where-Object {$_.CommandLine -like '*background_scanner*'}) { exit 0 } else { exit 1 }" >nul 2>&1

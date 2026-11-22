@@ -34,7 +34,10 @@
 
 param(
     [switch]$Visible,
-    [switch]$Hidden
+    [switch]$Hidden,
+    # -PickupOnly: run the late-wallet pickup and exit (Launch Scout.bat has
+    # no stack to launch, but it is still the launcher that starts Scout).
+    [switch]$PickupOnly
 )
 
 $ErrorActionPreference = "SilentlyContinue"
@@ -101,6 +104,17 @@ function Invoke-LateWalletPickup([string]$Root, [string]$Python = "") {
 # the function, then stop. A test harness must never be able to start the
 # trading stack by loading this script.
 if ($env:KRAKEN_LAUNCHER_LIB -eq "1") { return }
+
+# PICKUP ONLY (Nov 22): Launch Scout.bat starts the scanner and the
+# dashboard directly - it has no stack to launch, so it never reaches the
+# call below. It calls back here for exactly that one step instead: the
+# same function, the same fail-soft / idempotent contract, and exit 0
+# either way, so a pending address (or a pool outage) can never stop Scout
+# from starting. The install root is the parent of this Scout tree.
+if ($PickupOnly) {
+    Invoke-LateWalletPickup -Root (Split-Path -Parent $PSScriptRoot) | Out-Null
+    exit 0
+}
 
 # ── LAUNCHER MUTEX ─────────────────────────────────────────────────────
 # Only ONE launch_stack.ps1 may run at a time. If the shortcut is fired
