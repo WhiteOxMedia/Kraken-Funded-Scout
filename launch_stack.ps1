@@ -100,6 +100,48 @@ function Invoke-LateWalletPickup([string]$Root, [string]$Python = "") {
     return $false
 }
 
+# THE MINER, AFTER THE ADDRESS (Nov 22): binding the address wrote the
+# config and started nothing, so the address only earned once the customer
+# re-ran "Setup Miner Bot". This is the decision that helper's step 4 makes,
+# extracted as Start-MinerIfArmed and loaded from the shipped helper - not a
+# second copy of it. Armed record (miner_bot_opt_in + a valid wallet) and
+# this install's own exe not already running => start it. The record is the
+# switch, so a spawn that failed yesterday and a reboot both recover on the
+# next start, and an unarmed install costs one file read and says nothing.
+#
+#   * FAIL-SOFT  - one line, then $false: Scout is not the miner, so a
+#                  missing exe or a Defender quarantine must never keep the
+#                  scanner from starting, and this is not part of the stack -
+#                  it never touches $okAll.
+#   * NEVER WAITS - no pool poll here (step 4's wait belongs to the guided
+#                  helper); xmrig retries its own stratum connection.
+function Start-LateMiner([string]$Root) {
+    $helper = Join-Path $Root "Setup Miner Bot.ps1"
+    if (-not (Test-Path $helper)) { return $false }
+    $prevLib = $env:XMRJ_HELPER_LIB
+    $env:XMRJ_HELPER_LIB = "1"
+    try {
+        # Dot-sourced INSIDE this function: the helper's functions land in
+        # this scope and die with it, and its XMRJ_HELPER_LIB guard means
+        # nothing below the guard (no download, no install, no prompt) runs.
+        . $helper
+        $start = Start-MinerIfArmed -Root $Root
+    } catch {
+        Write-Host ("[WARN] the Miner Bot could not be started: " + $_.Exception.Message + " - Scout starts anyway")
+        return $false
+    } finally {
+        if ($null -eq $prevLib) { Remove-Item Env:\XMRJ_HELPER_LIB -ErrorAction SilentlyContinue }
+        else { $env:XMRJ_HELPER_LIB = $prevLib }
+    }
+    switch ([string]$start.Status) {
+        "Started"        { Write-Host ("[OK]  Miner Bot started: " + $start.Exe); return $true }
+        "WouldStart"     { Write-Host ("[..]  Miner Bot would start: " + $start.Exe + ' --config="' + $start.Config + '"'); return $false }
+        "AlreadyRunning" { Write-Host ("[..]  this install's Miner Bot is already running (pid " + $start.Pid + ")"); return $true }
+        "NotArmed"       { return $false }
+        default          { Write-Host ("[WARN] the Miner Bot did not start: " + $start.Why + " - Scout starts anyway"); return $false }
+    }
+}
+
 # LIBRARY MODE (the drives dot-source this file to test the pickup): define
 # the function, then stop. A test harness must never be able to start the
 # trading stack by loading this script.
@@ -112,7 +154,9 @@ if ($env:KRAKEN_LAUNCHER_LIB -eq "1") { return }
 # either way, so a pending address (or a pool outage) can never stop Scout
 # from starting. The install root is the parent of this Scout tree.
 if ($PickupOnly) {
-    Invoke-LateWalletPickup -Root (Split-Path -Parent $PSScriptRoot) | Out-Null
+    $lateRoot = Split-Path -Parent $PSScriptRoot
+    Invoke-LateWalletPickup -Root $lateRoot | Out-Null
+    Start-LateMiner -Root $lateRoot | Out-Null
     exit 0
 }
 
@@ -230,6 +274,7 @@ Write-Host "============================================================"
 # anything to ask about, so an ordinary start here costs one file read.
 # Out-Null: the pickup's verdict is informational, never a stack result.
 Invoke-LateWalletPickup -Root (Split-Path -Parent $base) | Out-Null
+Start-LateMiner -Root (Split-Path -Parent $base) | Out-Null
 
 # ── STACK = THE FOUR TRADING PIECES (the operator's decision, Sep 29) ──
 # $okAll is now the TRADING stack: engine, scanner, bot, console. The
