@@ -374,7 +374,7 @@ check("8.36 the route local exists and is assigned ONCE in send_alert "
       "helpers are loads by design)",
       bool(_fn_hm) and "_opp_route" in _assigned_hm
       and '"route": _opp_route' in bs_src
-      and bs_src.count('_opp_route = (') == 1)
+      and bs_src.count('_opp_route = ') == 1)
 check("8.16 auto_track_popup carries the hm_mode stamp into the watch row",
       'w[pair]["hm_mode"] = str(hm_mode)' in bs_src)
 check("8.17 the light's exit watch judges the 2% stop on the stamp "

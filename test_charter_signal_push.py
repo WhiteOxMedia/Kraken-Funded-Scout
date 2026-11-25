@@ -126,7 +126,8 @@ import background_scanner as _bs_precheck  # noqa: E402  (loaded once
 # here so the patch below lands on the module the gate actually uses)
 _bs_precheck._push_topic = lambda: None
 _ntfy_calls = []
-_bs_precheck._send_ntfy = (lambda text, prio, note, attach_path=None:
+_bs_precheck._send_ntfy = (lambda text, prio, note, attach_path=None,
+                           title=None:
                            _ntfy_calls.append((str(text)[:40], prio)))
 # a sandboxed client BEFORE the scanner module loads: its import of
 # push_client (inside _charter_push) must bind THIS spool, not the
@@ -149,6 +150,7 @@ except Exception:
 
 print("== 2. BUY NOW, EMITTED ==")
 pc.SPOOL.write_text("", encoding="utf-8")
+bs._PUSH_PAIR_STATE.clear()   # Nov 25: per-pair window fresh per check
 bs._push_state["text"] = ""
 bs._push_state["ts"] = 0.0
 bs._push_to_phone("BUY NOW — SOL/USD looks ready! Entry 100.2")
@@ -159,6 +161,7 @@ check(2.1, len(rows) == 1 and rows[0]["event"] == "signal_buy",
 
 print("== 3. GET OUT, EMITTED ==")
 pc.SPOOL.write_text("", encoding="utf-8")
+bs._PUSH_PAIR_STATE.clear()   # Nov 25: per-pair window fresh per check
 bs._push_state["text"] = ""
 bs._push_state["ts"] = 0.0
 bs._push_to_phone("GET OUT NOW — Sell SOL/USD! Down 60 dollars")
@@ -169,6 +172,7 @@ check(3.1, len(rows) == 1 and rows[0]["event"] == "signal_exit",
 
 print("== 4. THE THROTTLE GOVERNS BOTH LEGS ==")
 pc.SPOOL.write_text("", encoding="utf-8")
+bs._PUSH_PAIR_STATE.clear()   # Nov 25: per-pair window fresh per check
 bs._push_state["text"] = ""
 bs._push_state["ts"] = 0.0
 bs._push_to_phone("GET OUT NOW — Sell SOL/USD! Down 61 dollars")
@@ -182,6 +186,7 @@ check(4.1, len(rows) == 1 and _ntfy_calls == [],
 
 print("== 5. ONLY THE SIGNAL CLASSES EMIT ==")
 pc.SPOOL.write_text("", encoding="utf-8")
+bs._PUSH_PAIR_STATE.clear()   # Nov 25: per-pair window fresh per check
 bs._push_state["text"] = ""
 bs._push_state["ts"] = 0.0
 bs._push_to_phone("Warning: the tide is turning, get out or hold!")
@@ -225,6 +230,7 @@ check(6.2, handed_unpaid == 0 and unpaid_sends == []
 print("== 7. FAIL-SOFT BY CONTRACT ==")
 pc.SPOOL = SANDBOX / "no_dir_here" / "x" / "spool.jsonl"   # unwritable
 try:
+    bs._PUSH_PAIR_STATE.clear()   # Nov 25: per-pair window fresh per check
     bs._push_state["text"] = ""
     bs._push_state["ts"] = 0.0
     bs._push_to_phone("GET OUT NOW — Sell DOGE/USD! Down 10 dollars")
@@ -324,6 +330,7 @@ print("== 9. THE TOPIC GATES ONLY THE NTFY LEG (review triage, Sep 25) ==")
 # answer to its own gate only.
 pc.SPOOL = SANDBOX / "twolegs_spool.jsonl"
 pc.SPOOL.write_text("", encoding="utf-8")
+bs._PUSH_PAIR_STATE.clear()   # Nov 25: per-pair window fresh per check
 bs._push_state["text"] = ""
 bs._push_state["ts"] = 0.0
 bs._push_to_phone("BUY NOW — SOL/USD looks ready! Entry 100.3")
@@ -337,6 +344,7 @@ check(9.1, len(rows) == 1 and rows[0]["event"] == "signal_buy"
 bs._push_topic = lambda: "sandbox-topic"      # now the ntfy leg is armed
 _ntfy_calls.clear()
 pc.SPOOL.write_text("", encoding="utf-8")
+bs._PUSH_PAIR_STATE.clear()   # Nov 25: per-pair window fresh per check
 bs._push_state["text"] = ""
 bs._push_state["ts"] = 0.0
 bs._push_to_phone("GET OUT NOW — Sell SOL/USD! Down 62 dollars")
@@ -357,6 +365,7 @@ _emits = []
 _orig_emit = pc.emit
 pc.emit = (lambda event, extra=None, user_id=None:
            (_emits.append(event), {"ok": False, "via": "spool"})[1])
+bs._PUSH_PAIR_STATE.clear()   # Nov 25: per-pair window fresh per check
 bs._push_state["text"] = ""
 bs._push_state["ts"] = 0.0
 bs._push_to_phone("GET OUT NOW — Sell SOL/USD! Down 63 dollars")

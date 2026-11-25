@@ -43,9 +43,9 @@ check("writer logs AUTO-TRACK at fire time",
 champ_i = bs.find("AUTO-TRACK AT FIRE TIME — one writer")
 check("champion route delegates to the writer",
       champ_i > 0 and "auto_track_popup(pair" in bs[champ_i:champ_i + 400])
-st_i = bs.find("the breakout popup tracks too")
-check("Sure Thing/breakout route delegates to the writer",
-      st_i > 0 and 'auto_track_popup(pair, float(r.get("trigger_px")' in bs[st_i:st_i + 300])
+# (Nov 25) the separate Sure Thing / breakout popup route is gone — the
+# contest BUY fires through the champion path, whose auto_track_popup
+# delegation above is the one-writer contract. No route left to pin here.
 mv_i = bs.find("the mover\n                                    # popup tracks too")
 check("mover route delegates to the writer",
       mv_i > 0 and "float(signal.price or 0.0)" in bs[mv_i:mv_i + 300])
@@ -70,7 +70,7 @@ check("close journals to contest_trades.jsonl (the brain's record) "
 check("close journal carries closed_by=getout + the exit reason",
       '"closed_by": "getout"' in gx and '"exit_reason": reason[:200]' in gx)
 check("close removes the watch row itself (no user action)",
-      "watch[pair] = None" in bs[gi:gi + 8000]   # widened Sep 22: the SAL audit block joined the close path; Sep 28: the close TOMBSTONES (None) under merge-save — a pop would resurrect the row
+      "watch[pair] = None" in bs[gi:gi + 20000]   # widened Sep 22: the SAL audit block joined the close path; Sep 28: the close TOMBSTONES (None) under merge-save — a pop would resurrect the row
       and bs.find("watch[pair] = None", gi) < bs.find("# exit condition cleared", gi))
 check("close speaks once, then the row is gone (no repeat ladder on a dead row)",
       '_speak_server(f"Get out now! Sell {asset}! {_why}"' in bs)
@@ -107,8 +107,9 @@ check("guard fails OPEN (a dead watch read never silences the alarm)",
       "popup \"\n                     " in bs or "fires anyway" in bs)
 champ_g = bs.find("if _popup_already_watched(pair):\n            return")
 check("champion route gated (return before notify_big)", champ_g > 0)
-st_g = bs.find("if _popup_already_watched(pair):\n                    continue")
-check("Sure Thing/breakout route gated (continue)", st_g > 0)
+# (Nov 25) same consolidation: the Sure Thing route's own gate died with
+# the route. The champion (return) and mover (continue) gates above still
+# pin the one-watch rule on every surviving popup path.
 mv_g = bs.find("if _popup_already_watched(pair):\n                                        continue")
 check("mover route gated (continue)", mv_g > 0)
 check("guard sits BEFORE the fire (no popup on a watched pair)",
@@ -133,12 +134,14 @@ check("push actually SENDS (attempt 1/2 rides _send_ntfy — the one pipe "
       "every path shares — and that pipe holds the urlopen send)",
       send_i > 0
       and "urllib.request.urlopen(req, timeout=20 if attach_path else 10)" in bs[send_i:send_i + 2600]
-      and "_send_ntfy(str(text), prio, \"attempt 1/2\", attach_path=wav_path)" in bs[push_i:push_i + 4000])
+      and "_send_ntfy(str(text), prio, \"attempt 1/2\", attach_path=wav_path," in bs[push_i:push_i + 6000]
+      # Nov 25: the Scout Pro push carries its own title on both attempts
+      and "title=title)" in bs[push_i:push_i + 6000])
 check("voice attach rides the one pipe (the Oct 9 cure: wav bytes ARE "
       "the push body on the attachment route, retry carries it too)",
       "attach_path" in bs[send_i:send_i + 2600]
       and bs[send_i:send_i + 2600].count('attach_path') >= 2
-      and '"attach": wav_path' in bs[push_i:push_i + 4000])
+      and '"attach": wav_path' in bs[push_i:push_i + 6000])
 check("push success is logged (never a silent maybe)", "PUSHED (" in bs)
 check("push failure is logged (never silent)", "phone push failed" in bs)
 

@@ -67,7 +67,7 @@ check(2.1, "min(_trail, _cap)" in SRC
 #      small loss. The armed stop is PRICE-floored at entry + 2x the RT
 #      cost — net-positive by one cost unit — in BOTH the enforcement and
 #      the voice (what she says is what closes).
-check("2.1b", "COST_ROUNDTRIP_PCT as _rt_pct" in SRC
+check("2.1b", SRC.count("_rt_pct = _st_sp.roundtrip_pct(pair)") >= 2
       and SRC.count("(1.0 - entry") + SRC.count("(1.0 - entry*") >= 2
       and "_cap = min(_cap, round(_lock_w, 3))" in SRC
       and "_cap_now = min(_cap_now, round(_lock_wv, 3))" in SRC,

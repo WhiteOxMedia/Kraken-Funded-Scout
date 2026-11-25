@@ -29,6 +29,7 @@ import threading
 import os
 import sys
 import time
+import re
 from datetime import datetime, timezone, timedelta
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
@@ -4175,7 +4176,7 @@ def _economics_plan_for(pair: str, goal_pct: float, stop_pct: float):
 
 
 def _paying_tranche(pair: str, base_spend: float, goal_pct: float,
-                    ceiling_usd=None) -> dict | None:
+                    ceiling_usd=None, cap_usd=None) -> dict | None:
     """THE TRANCHE-TO-PAY, WIRED (Nov 7): the live account, the console's
     worth-floor dial, the book already carried, this coin's beta and the
     -3% guard's own ceiling are handed to
@@ -4185,6 +4186,9 @@ def _paying_tranche(pair: str, base_spend: float, goal_pct: float,
 
     The allowance handed over is what is LEFT of the day's, net of the open
     book's stressed worst case, exactly as the gap-stress gate prices it.
+    `cap_usd` is the funnel's own sized entry (the configured ceiling): the
+    raise may reach it, never pass it (Nov 24 — a $9 spend became $1,061 on
+    an $898 configured entry).
     Returns None when the account or the watch cannot be read: the caller
     then leaves the base exactly as the funnel sized it. Fail-soft in the
     SAFE direction — an unreadable account can never inflate a tranche."""
@@ -4212,7 +4216,7 @@ def _paying_tranche(pair: str, base_spend: float, goal_pct: float,
                       - _open_exposure_usd(_rows_p))
         return _ca_p.paying_tranche_usd(
             base_spend, goal_pct=goal_pct, pace_bar_usd=_bar_p,
-            ceiling_usd=ceiling_usd,
+            ceiling_usd=ceiling_usd, max_usd=cap_usd,
             allowance_usd=max(0.0, _allow_p - _used_p),
             beta=_ca_p.stress_beta(pair), book_room_usd=_room_p)
     except Exception as exc:
@@ -4716,21 +4720,24 @@ def _strict_fire_refusal(pair: str, asset: str, spend: float,
                          win_min: float | None = None,
                          family: str | None = None,
                          weak_paid: bool = False,
-                         go_big: bool = False) -> bool:
-    """THE RISK-ENVELOPE GATE (Nov 6; brakes re-audited Nov 12).
-    The remaining hard refusals are the aggregate book cap, the gap-stress
-    cap and the death-line mandate.  The daily fire count and the weak-fire
-    verdict are advisory now: they are logged, but they no longer suppress
-    the fire.  This keeps the measurable risk limits without letting the
-    old strict-fire envelope veto entries on churn or a min-size mark.
+                         go_big: bool = False) -> str | None:
+    """THE RISK-ENVELOPE GATE (Nov 6; brakes re-audited Nov 12; ADVISORY
+    Nov 24).
 
-    `weak_paid` is retained for callers and reporting; it no longer changes
-    whether the fire is admitted.  Returns True only when one of the
-    remaining hard risk limits refuses.  Never raises: a broken read falls
-    through to the ordinary funnel."""
+    The aggregate book cap, the gap-stress cap and the death-line mandate
+    were mine, shipped in the Nov 13 worktree snapshot (`01d3a88`) with no
+    instruction behind them, and they sat ABOVE the popup write — so each
+    one silently deleted a BUY popup.  They are MEASUREMENTS now: this
+    returns the reason the book objects to the fire's SIZE, the caller books
+    the minimum viable size (the Oct 9 decree: "if anything is weak -> fire
+    minimum size"), and the popup lands.  Nothing here can refuse a buy.
+    The daily fire count and the weak-fire verdict stay advisory.
+
+    Returns the advisory reason (a string) when a limit objects, None when
+    the fire is clean.  Never raises: a broken read falls through."""
     try:
         if not _strict_fires():
-            return False
+            return None
         _spend = float(spend or 0.0)
         _bal = float(balance or 0.0)
         if _bal <= 0:
@@ -4741,28 +4748,21 @@ def _strict_fire_refusal(pair: str, asset: str, spend: float,
             _fires_today = 0
         if go_big:
             # GO BIG carries its own hard $30 net stop; the old per-trade
-            # envelope is superseded for this qualified entry. The only
-            # refusals left are arithmetic: never spend more than the account,
-            # and never add a second correlated all-in row to an open book.
+            # envelope is superseded for this qualified entry.  The only
+            # arithmetic left is "never spend more than the account" — and
+            # even that lands at minimum size rather than deleting the buy.
+            # (The "flat book" refusal that used to live here was mine, from
+            # the Nov 13 snapshot with no user rule behind it: GO BIG now
+            # declines inside send_alert and the fire lands at its own size.)
             if _spend > _bal + 1e-9:
-                logger.info("  GO BIG REFUSED: $%.0f does not fit $%.0f",
-                            _spend, _bal)
-                return True
-            try:
-                _gb_book = _open_exposure_usd(_load_contest_watch())
-            except Exception:
-                _gb_book = 0.0
-            if _gb_book > 0.0:
-                _log_suppression(pair, "go-big-book",
-                                 f"${_gb_book:,.0f} is already open — GO BIG "
-                                 "waits for the flat book")
-                logger.info("  GO BIG: %s waits — $%.0f already open",
-                            asset, _gb_book)
-                return True
+                logger.info("  GO BIG OVER-SPEND: %s — $%.0f does not fit "
+                            "$%.0f", asset, _spend, _bal)
+                return (f"go-big: ${_spend:,.0f} does not fit the "
+                        f"${_bal:,.0f} account")
             logger.info("  GO BIG: %s admitted — $%.0f all-in, hard $30 net "\
                         "stop, momentum exit; the old envelope does not apply",
                         asset, _spend)
-            return False
+            return None
         if _fires_today >= MAX_FIRES_PER_DAY:
             # The daily count is now advisory only.  The count remains for
             # the death-mandate probe, but it no longer suppresses a fire.
@@ -4789,14 +4789,12 @@ def _strict_fire_refusal(pair: str, asset: str, spend: float,
             _book_usd = 0.0
         _cap_usd = MAX_AGGREGATE_EXPOSURE_FRAC * _bal
         if _book_usd + _spend > _cap_usd:
-            _log_suppression(pair, "aggregate-exposure",
-                             f"${_book_usd:,.0f} already open + ${_spend:,.0f} "
-                             f"would pass the ${_cap_usd:,.0f} book cap "
-                             f"({MAX_AGGREGATE_EXPOSURE_FRAC:.0%} of "
-                             f"${_bal:,.0f}) — correlated rows are one trade")
-            logger.info("  EXPOSURE CAP: %s refused — book $%.0f + $%.0f > $%.0f",
-                        asset, _book_usd, _spend, _cap_usd)
-            return True
+            logger.info("  EXPOSURE CAP (ADVISORY — minimum size): %s — book "
+                        "$%.0f + $%.0f > $%.0f", asset, _book_usd, _spend,
+                        _cap_usd)
+            return (f"aggregate-exposure: ${_book_usd:,.0f} open + "
+                    f"${_spend:,.0f} would pass the ${_cap_usd:,.0f} book cap"
+                    f" ({MAX_AGGREGATE_EXPOSURE_FRAC:.0%} of ${_bal:,.0f})")
         # ── THE GAP-STRESS CAP (Nov 7, the Nov 5 flush): the notional cap
         #    above counts DOLLARS of book; a flush does not care about
         #    notional — it asks what each row LOSES when the whole market
@@ -4831,19 +4829,15 @@ def _strict_fire_refusal(pair: str, asset: str, spend: float,
             _gs_loss, _gs_allow = None, 0.0
             logger.debug("gap-stress cap unavailable: %s", _gs_exc)
         if _gs_loss is not None and _gs_loss > _gs_allow:
-            _log_suppression(pair, "gap-stress",
-                             f"the book's worst case ${_gs_loss:,.0f} (this "
-                             f"row's beta {_gs_cand_beta:.2f} against a "
-                             f"{_ca_g.GAP_STRESS_PCT:g}% flush) passes the "
-                             f"${_gs_allow:,.0f} stress allowance — half the "
-                             f"buffer left above the death line")
-            logger.info("  GAP STRESS: %s refused — book $%.0f + this row "
-                        "$%.0f (beta %.2f) = $%.0f > the $%.0f allowance "
-                        "(a %.1f%% flush across $%.0f of book)",
+            logger.info("  GAP STRESS (ADVISORY — minimum size): %s — "
+                        "book $%.0f + this row $%.0f (beta %.2f) = $%.0f "
+                        "> the $%.0f allowance (a %.1f%% flush across "
+                        "$%.0f of book)",
                         asset, _gs_book_loss, _gs_loss - _gs_book_loss,
                         _gs_cand_beta, _gs_loss, _gs_allow,
                         _ca_g.GAP_STRESS_PCT, _book_usd + _spend)
-            return True
+            return (f"gap-stress: the book's worst case ${_gs_loss:,.0f} "
+                    f"passes the ${_gs_allow:,.0f} stress allowance")
         # ── THE DEATH-LINE MANDATE (Nov 6): after a breach the autopsy's
         #    flip is the admission rule — the condemned shape is refused and
         #    the day's single probe is the only fire that may land.
@@ -4873,14 +4867,14 @@ def _strict_fire_refusal(pair: str, asset: str, spend: float,
                                           f"be computed ({_dm_exc}) — the "
                                           f"lesson fails CLOSED")
             if not _dm_ok:
-                _log_suppression(pair, "death-mandate", _dm_why)
-                logger.info("  DEATH MANDATE: %s refused — %s", asset, _dm_why)
-                return True
+                logger.info("  DEATH MANDATE (ADVISORY — minimum size): "
+                            "%s — %s", asset, _dm_why)
+                return f"death-mandate: {_dm_why}"
             logger.info("  DEATH MANDATE: %s — %s", asset, _dm_why)
-        return False
+        return None
     except Exception as exc:
         logger.debug("strict-fire gate skipped for %s: %s", asset, exc)
-        return False
+        return None
 
 
 def _recent_signal_events(window_min: float = 10.0) -> int:
@@ -5072,8 +5066,154 @@ def _danger_zone_panel(exchange, pair: str, spend: float, goal_pct: float,
         return f"{'─' * 30}\nDANGER ZONE: metrics unavailable ({exc})\n"
 
 
+# ── THE SCOUT PRO TIMING BAR (user rule, Nov 25) ─────────────────────
+# A BUY is TRACKED the instant its signal fires, but its popup and its phone
+# push now wait for THIS bar: the coin's real net PnL reaching +$1.00. Two
+# stamps come out of it — the signal's and the crossing's — and the crossing
+# is the entry time the console and the balance tracker use, so the ledger can
+# measure how long a signal took to become profitable instead of guessing.
+# The PnL is contest_account's own arithmetic (the pair's measured round trip
+# included), i.e. exactly the dollars apply_pnl books into the balance.
+# SCOUT_PRO_PNL_USD = 0.0 disables the hold (popups fire at signal time).
+SCOUT_PRO_PNL_USD = 1.00
+SCOUT_PRO_TITLE = "Scout Pro"
+_PENDING_BUY_POPUPS: dict = {}   # pair -> the BUY popup held for the bar
+_PENDING_BUY_MAX = 50
+_PENDING_BUY_TTL_S = 6 * 3600    # a held call nobody ever priced is not news
+_PENDING_BUY_GRACE_S = 120        # hold -> track is two steps; let them land
+
+
+def _net_pnl_usd(entry, live, size, pair: str | None = None):
+    """THE REAL PnL for a live row — the same dollars the balance books."""
+    try:
+        import contest_account as _ca_pnl
+        _gross, _cost, _net = _ca_pnl.pnl_net_usd(
+            float(entry), float(live), float(size), pair)
+        return float(_net)
+    except Exception as exc:
+        logger.debug("real PnL unavailable (%s): %s", pair, exc)
+        return None
+
+
+def _popup_box(title: str, message: str) -> None:
+    """The persistent desktop modal (TOPMOST, 3 minutes or until clicked)."""
+    try:
+        import subprocess
+        _t = str(title).replace("'", "").replace('"', "").replace("\n", " ")
+        _m = (str(message).replace("'", "").replace('"', "")
+              .replace("\n", " | ")[:180])
+        ps_cmd = (f"$w = New-Object -ComObject WScript.Shell; "
+                  f"$r = $w.Popup('{_m}', 180, '{_t}', 4096 + 48)")
+        subprocess.Popen(['powershell', '-WindowStyle', 'Hidden', '-Command', ps_cmd],
+                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    except Exception as exc:
+        logger.debug("popup box failed: %s", exc)
+
+
+def _hold_buy_popup(pair: str, title: str, message: str, spoken) -> bool:
+    """Hold a BUY popup for +$1.00. True = held, so the caller must not fire
+    it now. Only BUY-class titles are held — a SELL never waits on PnL."""
+    if not pair or SCOUT_PRO_PNL_USD <= 0:
+        return False
+    if not _PUSH_BUY_RE.search(str(title).lower()):
+        return False
+    now = time.time()
+    for _p in [p for p, v in _PENDING_BUY_POPUPS.items()
+               if now - float(v.get("epoch") or 0) > _PENDING_BUY_TTL_S]:
+        _PENDING_BUY_POPUPS.pop(_p, None)
+        logger.info("BUY popup hold expired un-priced: %s (never reached "
+                    "+$%.2f net)", _p, SCOUT_PRO_PNL_USD)
+    if len(_PENDING_BUY_POPUPS) >= _PENDING_BUY_MAX:
+        _old = min(_PENDING_BUY_POPUPS,
+                   key=lambda p: float(_PENDING_BUY_POPUPS[p].get("epoch") or 0))
+        _PENDING_BUY_POPUPS.pop(_old, None)
+        logger.warning("BUY popup hold queue full — dropped the oldest call "
+                       "(%s, never reached +$%.2f net)", _old, SCOUT_PRO_PNL_USD)
+    _PENDING_BUY_POPUPS[pair] = {"title": title, "message": message,
+                                 "spoken": spoken, "epoch": now,
+                                 "ts": _now_mst().isoformat()}
+    logger.info("⏳ BUY NOW HELD for +$%.2f: %s — the signal is tracked NOW; "
+                "the popup and the %s push fire when the coin's real net PnL "
+                "reaches the bar", SCOUT_PRO_PNL_USD, pair, SCOUT_PRO_TITLE)
+    return True
+
+
+def _scout_pro_profit_stamp(w: dict, pair: str, live) -> dict | None:
+    """Stamp the row the first moment its real net PnL reaches +$1.00.
+
+    Latched: one stamp per entry. Returns the stamp on that crossing, else
+    None. This is the timestamp the balance tracking and the console use.
+    """
+    if not isinstance(w, dict) or w.get("profit_ts"):
+        return None
+    net = _net_pnl_usd(w.get("entry"), live, w.get("size"), pair)
+    if net is None or net < SCOUT_PRO_PNL_USD:
+        return None
+    now = _now_mst()
+    stamp = {"profit_ts": now.isoformat(), "profit_pnl_usd": round(net, 2)}
+    try:
+        added = datetime.fromisoformat(str(w.get("added")))
+        stamp["profit_min"] = round((now - added).total_seconds() / 60.0, 1)
+    except (TypeError, ValueError):
+        stamp["profit_min"] = None      # no signal stamp: the crossing stands
+    w.update(stamp)
+    return stamp
+
+
+def _fire_pending_buy(pair: str, w: dict, stamp: dict) -> None:
+    """Deliver the BUY popup / Scout Pro push that +$1.00 just earned."""
+    pend = _PENDING_BUY_POPUPS.pop(pair, None)
+    mins = stamp.get("profit_min")
+    when = f"{mins:.0f} min after the signal" if mins else "after the signal"
+    logger.info("🎯 %s +$%.2f NET: %s — signal %s → profit %s (%s)",
+                SCOUT_PRO_TITLE, stamp["profit_pnl_usd"], pair, w.get("added"),
+                stamp["profit_ts"], when)
+    if not pend:
+        return                      # never held, or another path delivered it
+    asset = pair.split("/")[0]
+    msg = (f"{pend['message']}\n{'-' * 30}\n"
+           f" +${stamp['profit_pnl_usd']:,.2f} NET {when}\n"
+           f" signal {pend['ts']} → +$1.00 {stamp['profit_ts']}")
+    _popup_box(pend["title"], msg)
+    popup_journal("BUY", pend["title"], msg)
+    _push_to_phone(
+        f"Buy {asset} now! +${stamp['profit_pnl_usd']:,.2f} net {when} "
+        f"(signal {pend['ts']}, profit {stamp['profit_ts']}).",
+        title=SCOUT_PRO_TITLE)
+
+
+def _drop_held_buy(pair: str, why: str, force: bool = False) -> bool:
+    """A held BUY whose position is closed can never fire — drop it, loudly.
+
+    force skips the grace: a close this process performed itself is not a
+    race. Without force a hold younger than the grace is kept, because the
+    hold -> track pair lands in two steps inside one fire.
+    """
+    pend = _PENDING_BUY_POPUPS.get(pair)
+    if not pend:
+        return False
+    if not force and time.time() - float(pend.get("epoch") or 0) < _PENDING_BUY_GRACE_S:
+        return False
+    _PENDING_BUY_POPUPS.pop(pair, None)
+    logger.info("BUY popup DROPPED CLOSED: %s — %s; the held %s call never "
+                "reached +$%.2f net (signal %s)", pair, why, SCOUT_PRO_TITLE,
+                SCOUT_PRO_PNL_USD, pend.get("ts"))
+    return True
+
+
+def _reconcile_held_buys(watch) -> None:
+    """A held BUY never outlives its row: every close path (the console's
+    SOLD tap, a GET OUT tombstone, a wipe) deletes the row in the watch
+    file, and none of them can reach this process's hold dict — so absence
+    is the witness. The grace lets the hold -> track pair land first."""
+    for _p in list(_PENDING_BUY_POPUPS):
+        if _p not in (watch or {}):
+            _drop_held_buy(_p, "its watch row is gone from the book (closed "
+                               "outside this cycle — SOLD, tombstone or wipe)")
+
+
 def _speak_server(text: str, rate: int = 2, push_text: str | None = None,
-                  voice: str = ""):
+                  voice: str = "", push_title: str | None = None):
     """Zira out loud from the SCANNER process — runs whether or not any
     browser is open. Same amplified speak script the console uses.
     Every line ALSO goes to the phone as a push notification (ntfy).
@@ -5144,7 +5284,8 @@ def _speak_server(text: str, rate: int = 2, push_text: str | None = None,
     # render landed (the file IS the push body on ntfy's attach route);
     # a stale/absent render ships the text alone.
     _push_to_phone(push_text if push_text else text,
-                   wav_path=_wav_path if _render_fresh else None)
+                   wav_path=_wav_path if _render_fresh else None,
+                   title=push_title)
 
 
 def _push_topic() -> str | None:
@@ -5194,6 +5335,28 @@ def _push_channel_boot() -> dict:
 # until SOLD) push at most every 5 minutes so one stuck exit can't burn
 # the ntfy.sh quota either.
 _push_state = {"text": "", "ts": 0.0}
+
+# ── THE PER-PAIR PUSH DEDUPE (Nov 25) ──────────────────────────────
+# Nov 25 logged 86 popups (43 BUY / 43 GET OUT) across 30 pairs. The
+# identical-text throttle below only stops ONE exact sentence — a re-fire
+# with a new reason line is a different string and buzzed the phone
+# again (WLD and MOODENG each fired 4 BUYs and 4 GET OUTs that day).
+# Keyed on (side, symbol): a BUY and its GET OUT are two different events
+# and BOTH pass; a second BUY of the same coin inside the window is the
+# same call twice. PnL never enters this gate — it is a noise filter, not
+# a signal gate (the Oct 9 decree: nothing blocks QC).
+_PUSH_PAIR_STATE: dict = {}       # "BUY:XPL" -> epoch of the last push
+PUSH_PAIR_WINDOW_S = 600.0        # 10 min; Nov 25 same-pair gaps p10 8.7
+_PUSH_SYM_RE = re.compile(r"(?:buy|sell)\s+['\"]?([a-z0-9]{2,12})", re.I)
+
+
+def _push_pair_key(text: str, is_sell: bool) -> str | None:
+    """(side, symbol) for the dedupe, or None when the text names no
+    coin — an unreadable alert is never suppressed."""
+    m = _PUSH_SYM_RE.search(text or "")
+    if not m:
+        return None
+    return ("SELL:" if is_sell else "BUY:") + m.group(1).upper()
 
 # GET OUT retry queue (Sep 21, the 16:05 lesson: ntfy accepted the push
 # with a 200 but the phone app never showed it — ntfy has NO delivery
@@ -5278,7 +5441,7 @@ def _process_push_retries():
         _push_retry_q.remove(_r)
         _send_ntfy(_r["text"], _r["prio"],
                    f"attempt 2/2, first sent {now - _r['why']:.0f}s earlier",
-                   attach_path=_r.get("attach"))
+                   attach_path=_r.get("attach"), title=_r.get("title"))
     if len(_push_retry_q) > 8:
         del _push_retry_q[8:]
 
@@ -5412,7 +5575,8 @@ def _charter_push(event: str) -> bool:
         return False
 
 
-def _push_to_phone(text: str, wav_path: str | None = None):
+def _push_to_phone(text: str, wav_path: str | None = None,
+                   title: str | None = None):
     """BUY NOW / GET OUT NOW only on the phone (user rule, Aug 30: 'Just
     have the ntfy.sh do the buy now and sell now priority alerts only';
     tightened Aug 31: ".ntfy doesn't need the 'take it' alerts. Just
@@ -5440,8 +5604,32 @@ def _push_to_phone(text: str, wav_path: str | None = None):
                                 or _t.startswith("go!"))
     if not (is_buy or is_sell):
         return  # not a BUY NOW / GET OUT NOW alert — don't push
-    # same text (a repeating GET OUT) pushes at most every 5 minutes
     now = time.time()
+    # THE PER-PAIR WINDOW (Nov 25): the same coin cannot buzz the phone
+    # twice on the same side inside PUSH_PAIR_WINDOW_S, however different
+    # the wording. Checked BEFORE the identical-text throttle so the log
+    # names the pair it muted.
+    _pk = _push_pair_key(str(text), is_sell)
+    _pp = _PUSH_PAIR_STATE.get(_pk) if _pk else None
+    if _pp and (now - _pp) < PUSH_PAIR_WINDOW_S:
+        logger.info("📵 PUSH DEDUPE: %s %s suppressed — the last phone push "
+                    "for this pair was %.1f min ago",
+                    _pk.split(":", 1)[1], "GET OUT" if is_sell else "BUY",
+                    (now - _pp) / 60.0)
+        return
+    if _pk:
+        _PUSH_PAIR_STATE[_pk] = now
+        if is_sell:
+            # Nov 25: the GET OUT closes the position, so the pair's BUY
+            # window is spent — a genuine re-entry inside the ten minutes
+            # is a NEW position and must buzz. Clearing it can only ever
+            # let a BUY through, never mute one (the decree's direction).
+            _PUSH_PAIR_STATE.pop("BUY:" + _pk.split(":", 1)[1], None)
+        if len(_PUSH_PAIR_STATE) > 64:   # tiny, bounded — 30 pairs a day
+            for _dk in [k for k, v in _PUSH_PAIR_STATE.items()
+                        if now - v > PUSH_PAIR_WINDOW_S * 6]:
+                _PUSH_PAIR_STATE.pop(_dk, None)
+    # same text (a repeating GET OUT) pushes at most every 5 minutes
     if _t == _push_state["text"] and (now - _push_state["ts"]) < 300:
         return
     _push_state["text"] = _t
@@ -5455,10 +5643,13 @@ def _push_to_phone(text: str, wav_path: str | None = None):
         if not native_ok:
             _push_state["text"] = ""   # REVIEW TRIAGE (Sep 25, the hook's own major):
             _push_state["ts"] = 0.0    # reached nowhere — un-arm the throttle, retry allowed
+            if _pk:
+                _PUSH_PAIR_STATE.pop(_pk, None)   # and the pair window too
         return  # the ntfy leg needs its topic — the native leg already went
     try:
         prio = "urgent" if is_sell else "high"
-        _send_ntfy(str(text), prio, "attempt 1/2", attach_path=wav_path)
+        _send_ntfy(str(text), prio, "attempt 1/2", attach_path=wav_path,
+                   title=title)
         # THE BUY GETS THE SAME DOUBT (Sep 29, her ask): the retry queue
         # used to be GET-OUT-only, but a missed BUY is the missed entry —
         # the one call the desk can least afford to never hear. A missed
@@ -5473,7 +5664,7 @@ def _push_to_phone(text: str, wav_path: str | None = None):
         _push_retry_q.append({"text": str(text), "prio": prio,
                               "due": now + 60.0,
                               "why": now,
-                              "attach": wav_path})
+                              "attach": wav_path, "title": title})
     except Exception as exc:
         # push is best-effort — the PC voice already spoke — but it is
         # never SILENT: the scanner log carries every failure
@@ -5713,6 +5904,12 @@ def _save_contest_watch(watch: dict, fresh_keys=None):
         with open(tmp, "w", encoding="utf-8") as fh:
             json.dump(merged, fh, indent=2)
         replace_atomic(tmp, CONTEST_WATCH_JSON)
+        # A HELD BUY DIES WITH ITS ROW (Nov 25): a save that tombstones a
+        # pair is a close — the held call must never fire on a position
+        # that no longer exists.
+        for _p in [k for k in list(_PENDING_BUY_POPUPS) if merged.get(k) is None]:
+            _drop_held_buy(_p, "its watch row was closed (tombstoned or "
+                               "removed) by a watch save")
         return True    # THE REPORT (the re-add triage, Sep 29): the
                        # caller can tell 'landed' from 'lost the
                        # race' — a truth-print needs a truth to print
@@ -5802,11 +5999,14 @@ def _entry_timing_stamp(pair, entry, exchange=None) -> dict:
     return out
 
 
-def _timing_fields(w, entry) -> dict:
+def _timing_fields(w, entry, pair=None) -> dict:
     """Carry the fire's timing stamp (and its peak) onto the closed row.
 
     mfe_pct is what the row actually reached before it was booked, so the
-    giveback question stops needing bars to answer.
+    giveback question stops needing bars to answer. The Scout Pro pair —
+    signal time, the +$1.00 crossing time and the minutes between — rides
+    here too, so every close can be grouped by how long its signal took to
+    become profitable.
     """
     out: dict = {}
     try:
@@ -5814,10 +6014,36 @@ def _timing_fields(w, entry) -> dict:
                   "timing_above_day_low_pct", "timing_bars"):
             if w.get(k) is not None:
                 out[k] = w.get(k)
+        if w.get("added"):
+            out["signal_ts"] = w.get("added")
+        if w.get("profit_ts"):
+            out["profit_ts"] = w.get("profit_ts")
+            out["min_to_profit"] = w.get("profit_min")
+            out["profit_pnl_usd"] = w.get("profit_pnl_usd")
         peak = float(w.get("high") or 0.0)
         e = float(entry or 0.0)
         if peak > 0 and e > 0:
             out["mfe_pct"] = round((peak / e - 1.0) * 100.0, 3)
+            # THE PEAK IN DOLLARS (Nov 25): the same real PnL the balance
+            # books, taken at the row's running high, so the +$1.00 census
+            # is answerable from the ledger alone — every row from here on
+            # carries it, whatever closed it.
+            size = float(w.get("size") or 0.0)
+            if size > 0:
+                _pk = _net_pnl_usd(e, peak, size, pair)
+                if _pk is not None:
+                    out["peak_net_usd"] = round(_pk, 2)
+                    out["peak_src"] = "watch"
+            if w.get("high_ts"):
+                out["peak_ts"] = w.get("high_ts")
+                if w.get("added"):
+                    try:
+                        out["min_to_peak"] = round(
+                            (datetime.fromisoformat(str(w["high_ts"]))
+                             - datetime.fromisoformat(str(w["added"]))
+                             ).total_seconds() / 60.0, 1)
+                    except (TypeError, ValueError):
+                        pass
     except Exception:
         return out
     return out
@@ -7235,6 +7461,14 @@ def contest_light(exchange, cfg):
         logger.warning("auto-adjust canary hook failed (%s) — the "
                        "rotation boundary proceeds without it", _aa_exc)
     watch = _load_contest_watch()
+    # ── A HELD BUY NEVER OUTLIVES ITS ROW (Nov 25): the console's SOLD tap
+    #    and every tombstone close happen in OTHER processes; none of them
+    #    can touch this hold dict, so a row that is simply gone is the
+    #    witness that the call must be dropped.
+    try:
+        _reconcile_held_buys(watch)
+    except Exception as _rh_exc:
+        logger.debug("held BUY reconcile skipped: %s", _rh_exc)
     if not watch:
         return
     # every gate below still runs; a narrow scope only decides WHICH rows it
@@ -7376,7 +7610,25 @@ def contest_light(exchange, cfg):
         high = max(old_high, live)
         if high > old_high:
             w["high"] = high
+            # WHEN the high was set (Nov 25): the close stamps the peak in
+            # dollars and the minutes it took to get there, so the book can
+            # answer "how many signals ever reach +$1.00, and how fast"
+            # without a per-cycle price archive.
+            w["high_ts"] = _now_mst().isoformat()
             dirty = True
+
+        # ── THE SCOUT PRO +$1.00 STAMP (user rule, Nov 25): the first tick
+        # this row's REAL net PnL reaches +$1.00 is the entry time the
+        # console and the balance tracker use, and it is when the BUY popup
+        # held at signal time finally fires. Priced off this cycle's `live`.
+        try:
+            _spro = _scout_pro_profit_stamp(w, pair, live)
+            if _spro:
+                dirty = True
+                _fire_pending_buy(pair, w, _spro)
+        except Exception as _spro_exc:
+            logger.warning("Scout Pro +$1.00 stamp failed for %s: %s",
+                           pair, _spro_exc)
 
         # ── 1. profit guard: trail off the peak, RATCHETED by run size, ──
         # then SCALED BY THE ADAPTIVE GUARD FACTOR (user spec, Sep 22:
@@ -7945,11 +8197,20 @@ def contest_light(exchange, cfg):
                 try:
                     _gx_pct = (float(live) / float(entry) - 1.0) * 100.0
                     _gx_usd = _gx_pct / 100.0 * float(w.get("size") or 0.0)
+                    # THE REAL PnL ON THE CALL (Nov 25): the same net dollars
+                    # the balance books, plus the +$1.00 crossing stamp when
+                    # the row reached it — the exit call and the balance agree.
+                    _gx_net = _net_pnl_usd(entry, live, w.get("size"), pair)
+                    _gx_net_txt = (f" · {_gx_net:+,.2f} net" if _gx_net is not None
+                                   else "")
+                    _gx_profit = ""
+                    if w.get("profit_min") is not None:
+                        _gx_profit = (f" · +$1.00 net at {float(w['profit_min']):.0f} min")
                     _gx_held = ""
                     if w.get("added"):
                         _gx_held = (f" · held {(_now_mst() - datetime.fromisoformat(w['added'])).total_seconds() / 60.0:.0f} min")
                     _push_txt += (f"POSITION: entered {float(entry):.4f} · now {float(live):.4f} · "
-                                  f"{_gx_pct:+.1f}% ({_gx_usd:+,.0f} dollars){_gx_held}\n"
+                                  f"{_gx_pct:+.1f}% ({_gx_usd:+,.0f} gross){_gx_net_txt}{_gx_profit}{_gx_held}\n"
                                   f"GOAL was +{_close_goal_pct(w, pair):.1f}% — "
                                   f"the watch auto-closed; the grade is journaled.")
                 except Exception:
@@ -7957,13 +8218,16 @@ def contest_light(exchange, cfg):
                 # THE POPUP LEDGER first (Sep 21): the exit call is journaled
                 # even if the voice/push delivery dies — what fired is history.
                 popup_journal("GET OUT", f"Get out now — Sell {asset}!", _push_txt)
+                # a held BUY popup whose row is closing never fires stale
+                _drop_held_buy(pair, "the GET OUT call closed the position",
+                               force=True)
                 # one mouth (Oct 9 revert: user prefers Mira for
                 # everything): GET OUT stays Mira's voice, the urgency
                 # rides the rate and the exclamation marks — "Get out
                 # now!" — nothing more.
                 _speak_server(f"Get out now! Sell {asset}! {_why}"
                               f"I'll base-call the next one the moment it sets up — no clock-waiting!", rate=1,
-                              push_text=_push_txt)
+                              push_text=_push_txt, push_title=SCOUT_PRO_TITLE)
             # ── AUTO-CLOSE AT FIRE TIME (Sep 21, user rule: "after the
             # 'Get out Now' fires a popup, it closes the virtual trade and
             # counts the PnL so the brain can learn from the results every
@@ -8050,7 +8314,7 @@ def contest_light(exchange, cfg):
                             **_family_fields(w),
                             # the fire's timing features + what it peaked at,
                             # so the entry/exit split is readable per row
-                            **_timing_fields(w, _entry_x),
+                            **_timing_fields(w, _entry_x, pair),
                         }) + "\n")
                     _journaled = True   # the receipt is on disk — the row may go
                     # THE PACE GOVERNOR RECOMPUTES ON THE CLOSE ANNOTATION:
@@ -8591,7 +8855,13 @@ def main():
         logger.info("  Climb-out hindsight driver: OFF (%s)", _dch_exc)
 
     # ── Notification ──────────────────────────────────────────────────
-    def notify_big(title: str, message: str, spoken: str | None = None):
+    def notify_big(title: str, message: str, spoken: str | None = None,
+                   pair: str | None = None):
+        # ── THE SCOUT PRO HOLD (Nov 25 user rule): the row is already
+        # tracked at signal time; the BUY popup and its phone push wait for
+        # the coin's real net PnL to reach +$1.00 (contest_light fires it).
+        if _hold_buy_popup(pair or "", title, message, spoken):
+            return
         # THE DEATH FLOOR is advisory for popups: it never silences a BUY.
         # At/below the halt line it says its piece and the signal still lands.
         try:
@@ -8622,9 +8892,6 @@ def main():
         always-on-top bit), and the voice spawn is WATCHED below (the
         _speak_server hardening logs 'died before speaking') instead of
         being mined 20 minutes later."""
-        import subprocess
-        safe_title = title.replace("'", "").replace('"', "")
-        safe_msg = message.replace("'", "").replace('"', "").replace("\n", " | ")[:180]
 
         # 1) Zira announces it (amplified — heard across the room)
         try:
@@ -8642,17 +8909,7 @@ def main():
         #    TOPMOST force (4096 = MB_TOPMOST in the FSNAV bitfield): the
         #    modal now BEATS the fullscreen console instead of sitting
         #    behind it unseen.
-        try:
-            _t = safe_title.replace("\n", " ")
-            _m = safe_msg.replace("\n", " ")
-            ps_cmd = (
-                f"$w = New-Object -ComObject WScript.Shell; "
-                f"$r = $w.Popup('{_m}', 180, '{_t}', 4096 + 48)"
-            )
-            subprocess.Popen(['powershell', '-WindowStyle', 'Hidden', '-Command', ps_cmd],
-                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        except Exception as exc:
-            logger.debug("Popup notification failed: %s", exc)
+        _popup_box(title, message)
 
         # 3) Console log (always works)
         logger.info("🔔 ALERT: %s", title)
@@ -8735,12 +8992,17 @@ def main():
                              quick=float(signal.confidence))
             return
 
-        # ── THE EDGE REGISTRY (mission, Nov 12): the ONLY research-to-live
-        #    route. With no promoted policy this returns inactive immediately
-        #    and changes nothing. With one, the scanner takes that policy's
-        #    signals and nothing else; a demoted/retired row stops matching on
-        #    the very next scan because the registry is read here every time.
-        _edge_plan = {"active": False, "allow": True, "size_frac": None}
+        # ── THE EDGE REGISTRY (mission, Nov 12; SIZING-ONLY, Nov 24): the
+        #    ONLY research-to-live route. With no promoted policy this returns
+        #    inactive immediately and changes nothing. With one, the registry
+        #    sizes only the buys that policy itself would have taken: a
+        #    non-match, an underwater paper lane, an unusable row or a failed
+        #    feature read STEPS ASIDE (PASS) and the normal scanner path
+        #    continues at its own size. It is never a scanner-wide veto, so one
+        #    promoted row can no longer starve the popup funnel (Nov 21: 275
+        #    gate-approved buys, 275 refusals, 0 popups).
+        _edge_plan = {"active": False, "allow": True, "applies": False,
+                      "size_frac": None}
         if is_buy:
             try:
                 import edge_live as _edge_live
@@ -8753,16 +9015,21 @@ def main():
                     pair, signal, exchange=exchange, cfg=cfg,
                     account=_edge_acct)
                 if _edge_plan.get("active"):
+                    if not _edge_plan.get("allow"):
+                        _edge_word = "REFUSE"
+                    elif _edge_plan.get("applies"):
+                        _edge_word = "ALLOW"
+                    else:
+                        _edge_word = "PASS"
                     logger.info("  EDGE POLICY: %s — %s%s",
-                                _edge_plan.get("policy"),
-                                "ALLOW" if _edge_plan.get("allow")
-                                else "REFUSE",
+                                _edge_plan.get("policy"), _edge_word,
                                 (" (" + _edge_plan.get("reason", "") + ")")
                                 if _edge_plan.get("reason") else "")
                 if _edge_plan.get("active") and not _edge_plan.get("allow"):
                     _log_suppression(
                         pair, "edge-policy",
-                        _edge_plan.get("reason") or "promoted policy did not match",
+                        _edge_plan.get("reason")
+                        or "promoted policy declined to size",
                         quick=float(signal.confidence))
                     return
             except Exception as _edge_exc:
@@ -8773,7 +9040,7 @@ def main():
                                "the normal scanner path continues", pair,
                                _edge_exc)
                 _edge_plan = {"active": False, "allow": True,
-                              "size_frac": None}
+                              "applies": False, "size_frac": None}
 
         # ── THE CONTEST CONTROLLER (Nov 16): the Overwatch's OWN decision.
         #    The controller answers trade / size / stop / restart from measured
@@ -10073,6 +10340,12 @@ def main():
             # 9031: the SIZED SPEND line is a report of a decision already
             # made; a formatting failure is traced, never silent
             logger.debug("  SIZED SPEND line skipped: %s", exc)
+        # THE FIRE'S OWN SIZE (Nov 24): the funnel's decided entry is the
+        # CEILING every later raise is judged against — captured here, before
+        # the brain / tide / weaken multipliers shrink the working spend. A
+        # weakened fire may never book more than this (WEAKENED_MAX_FRAC is
+        # "never MORE than the funnel would risk").
+        _sized_ceiling = float(_spend or 0.0)
         # ── THE SURVIVABILITY GUARD (Nov 10 — the enforced brake): the
         #    per-entry backtest showed the exits win 56.8% of starts and
         #    still touch the -3% line on 38.8% of them, because the death
@@ -10086,17 +10359,16 @@ def main():
             import survival_guard as _sg
             _sg_gate = _sg.entry_gate(locals().get("_acct"))
             if _sg_gate.get("blocked"):
-                logger.info("  SURVIVABILITY GUARD: %s — no buy popup",
-                            _sg_gate.get("reason"))
-                _log_suppression(pair, "survivability-guard",
-                                 f"guard pause: {_sg_gate.get('reason')}",
-                                 quick=float(signal.confidence),
-                                 brain=(float(_deep.confidence) if _deep is not None else None),
-                                 floor=float(DESKTOP_ALERT_MIN),
-                                 tide=(f"{_df_state} {_df_pct:.0f}%" if _df_pct is not None else _df_state),
-                                 rot=_rot_now_key)
-                return
-            _sg_mult = float(_sg_gate.get("size_multiplier") or 1.0)
+                # ADVISORY (Nov 24). The pause was mine — the Nov 13 snapshot
+                # shipped it from a backtest with no user rule behind it, and
+                # it returned above the popup. The pause now books the
+                # minimum size; the popup lands.
+                logger.info("  SURVIVABILITY GUARD: %s — ADVISORY, fire lands "
+                            "at minimum size", _sg_gate.get("reason"))
+                _spend = _spend * 0.10
+                _sg_mult = 1.0
+            else:
+                _sg_mult = float(_sg_gate.get("size_multiplier") or 1.0)
             if _sg_mult < 1.0:
                 _spend = _spend * _sg_mult
                 logger.info("  SURVIVABILITY GUARD: probe size %.2fx → $%.0f "
@@ -10149,13 +10421,13 @@ def main():
                 route=_learn_route, tide=_df_state,
                 conviction=signal.confidence, goal_pct=_goal_pct)
             if _learn_mult <= 0.0:
-                logger.info("  MISTAKE MEMORY: BLOCKED — %s", _learn_why)
-                _log_suppression(pair, "mistake-memory", _learn_why,
-                                 quick=float(signal.confidence),
-                                 tide=(f"{_df_state} {_df_pct:.0f}%"
-                                       if _df_pct is not None else _df_state))
-                return
-            if _learn_mult < 1.0:
+                # ADVISORY (Nov 24): mine, from the Nov 13 snapshot, and it
+                # sat above the popup. The repeated context now books the
+                # minimum size instead of deleting the buy.
+                logger.info("  MISTAKE MEMORY: %s — ADVISORY, fire lands at "
+                            "minimum size", _learn_why)
+                _spend = _spend * 0.10
+            elif _learn_mult < 1.0:
                 _spend = _spend * _learn_mult
                 logger.info("  MISTAKE MEMORY: %.2fx -> $%.0f (%s)",
                             _learn_mult, _spend, _learn_why)
@@ -10225,13 +10497,24 @@ def main():
         #    still judges the raised fire in full.
         try:
             _pt = _paying_tranche(pair, _base_spend, _goal_pct,
-                                  ceiling_usd=locals().get("_risk_cap"))
+                                  ceiling_usd=locals().get("_risk_cap"),
+                                  cap_usd=_sized_ceiling)
             if _pt is not None and _pt.get("ok") and _pt.get("raised"):
                 logger.info("  TRANCHE RAISED: $%.0f → $%.0f — %s",
                             _base_spend, float(_pt["size"]), _pt["why"])
                 _base_spend = _spend = float(_pt["size"])
             elif _pt is not None and not _pt.get("ok"):
                 logger.info("  TRANCHE CANNOT PAY: %s", _pt.get("why"))
+                # THE CONFIGURED CEILING STOOD (Nov 24): when the funnel's own
+                # size is what forbids the raise, the fire is judged against
+                # that size — never the spend the weaken markers gutted — and
+                # it keeps the documented 10% min floor of it, so a weak fire
+                # books SMALL and never above the configured spend.
+                if (float(_pt.get("capped") or 0.0) > 0
+                        and _sized_ceiling > 0
+                        and _sized_ceiling > _base_spend):
+                    _base_spend = _sized_ceiling
+                    _spend = max(float(_spend or 0.0), _base_spend * 0.10)
         except Exception as _pt_exc:
             logger.debug("tranche-to-pay skipped: %s", _pt_exc)
         _weak_min_usd = _base_spend * 0.10   # the MIN shown in the title
@@ -10537,12 +10820,13 @@ def main():
                     conviction=signal.confidence,
                     base_bar=DESKTOP_ALERT_MIN)
                 if not _entry_ok:
-                    logger.info("  ENTRY RULE: %s — %s", asset, _entry_why)
-                    _log_suppression(pair, "learned-entry-rule", _entry_why,
-                                     quick=float(signal.confidence),
-                                     tide=(f"{_df_state} {_df_pct:.0f}%"
-                                           if _df_pct is not None else _df_state))
-                    return
+                    # ADVISORY (Nov 24): the learned bar was mine, shipped in
+                    # the Nov 13 snapshot with no instruction behind it, and
+                    # it returned above the popup. It now weakens the fire to
+                    # the minimum size; the buy still lands.
+                    logger.info("  ENTRY RULE: %s — %s — ADVISORY, minimum "
+                                "size", asset, _entry_why)
+                    _min_size_weaken("learned-entry-rule", _entry_why)
                 if _entry_bar and _entry_bar > float(DESKTOP_ALERT_MIN):
                     logger.info("  ENTRY RULE: %s — learned bar %.0f clears "
                                 "at %.0f", asset, _entry_bar,
@@ -10564,16 +10848,25 @@ def main():
                 # The ledger follows the book: a flat contest watch closes a
                 # recorded open all-in, so the slot cannot stay spent on a
                 # position the exit monitor already sold.
-                _gbw.reconcile(book_open=bool(_load_contest_watch()))
+                _gb_book_open = bool(_load_contest_watch())
+                _gbw.reconcile(book_open=_gb_book_open)
                 _gb_ok, _gb_why = _ca_gb.go_big_supported(
                     action=signal.action, tide_state=_df_state,
                     tide_pct=_df_pct,
                     carry_usd=_carry, balance=float(_bal or 0.0),
                     conviction=float(_dc or 0.0),
                     floor=float(DESKTOP_ALERT_MIN),
-                    slot_open=bool(_load_contest_watch()),
+                    slot_open=_gb_book_open,
                     now_ts=time.time(),
                     last_fire_ts=_gbw.last_fire_ts())
+                if _gb_ok and _gb_book_open:
+                    # THE FLAT-BOOK REFUSAL IS GONE (Nov 24): mine, from the
+                    # Nov 13 snapshot, with no user rule — and it deleted the
+                    # whole fire, not just the all-in. GO BIG declines here;
+                    # the fire lands at its normal size and its popup fires.
+                    _gb_ok = False
+                    _gb_why = ("the book is already open — GO BIG declines, "
+                               "the fire lands at its normal size")
                 _gb_start = float(
                     _ca_gb.load_state().get("start_balance") or 0.0)
                 _gb_stop, _gb_take = _ca_gb.go_big_marks(_gb_start)
@@ -10608,17 +10901,20 @@ def main():
                 fast=_fast_route,
                 reentry=_is_reentry, hail=_hail_mary,
                 probe=_econ_probe)
-            if _strict_fire_refusal(pair, asset, _spend, _bal,
-                                    _weak_fire_reason,
-                                    win_min=float(_win_min or 0.0),
-                                    family=_setup_family(_fire_setup),
-                                    weak_paid=_weak_paid,
-                                    go_big=_go_big):
-                logger.info("  BRIDGE: no write for %s — the contest book "
-                            "refused this fire (%s)", asset,
-                            (_weak_fire_reason.split(":", 1)[0]
-                             or "exposure/count cap"))
-                return
+            _book_advisory = _strict_fire_refusal(
+                pair, asset, _spend, _bal, _weak_fire_reason,
+                win_min=float(_win_min or 0.0),
+                family=_setup_family(_fire_setup),
+                weak_paid=_weak_paid, go_big=_go_big)
+            if _book_advisory:
+                # ADVISORY, NOT A VETO (Nov 24): the book's cap / stress / man-
+                # date measurements shrink the size; the fire AND its popup
+                # still land. The `return` that used to be here is what
+                # deleted gate-approved buys without a user rule behind it.
+                logger.info("  BRIDGE: %s lands at minimum size — %s",
+                            asset, _book_advisory)
+                _min_size_weaken(_book_advisory.split(":", 1)[0],
+                                 _book_advisory.split(":", 1)[-1].strip())
             if not gate_notes:
                 signal_written = _bridge_write_now(signal.action)
             # THE WEEKLY SLOT IS SPENT ONLY WHEN THE ALL-IN ACTUALLY WROTE:
@@ -10693,7 +10989,8 @@ def main():
         # message build — one decision, then both side effects)
         if _popup_already_watched(pair):
             return
-        notify_big(title, message, spoken=_spoken if is_buy else None)
+        notify_big(title, message, spoken=_spoken if is_buy else None,
+                   pair=pair)
         if is_buy:
             # ROTATION LOCKOUT: the alert fired — this asset is now cold
             # until the next rotation boundary (no back-to-back re-entry).
@@ -11490,14 +11787,17 @@ def main():
                                 conviction=signal.confidence,
                                 base_bar=MOVER_MIN_CONF)
                             if not _m_entry_ok:
-                                logger.info("  MOVER ENTRY RULE: %s — %s",
-                                            asset, _m_entry_why)
-                                _log_suppression(pair, "learned-entry-rule",
-                                                 f"mover: {_m_entry_why}",
-                                                 quick=float(signal.confidence),
-                                                 tide=f"{_tsw} {_tpw or 0:.0f}%",
-                                                 rot=rot_key)
-                                continue
+                                # ADVISORY (Nov 24): minimum size, not a veto.
+                                logger.info("  MOVER ENTRY RULE: %s — %s — "
+                                            "ADVISORY, minimum size", asset,
+                                            _m_entry_why)
+                                try:
+                                    _m_weak = (f"learned-entry-rule: "
+                                               f"{_m_entry_why}")
+                                    _m_spend = _weakened_spend(_m_spend,
+                                                               _m_base_spend)
+                                except Exception:
+                                    pass
                             if _m_entry_bar and _m_entry_bar > float(MOVER_MIN_CONF):
                                 logger.info("  MOVER ENTRY RULE: %s — learned bar "
                                             "%.0f clears at %.0f", asset,
@@ -12020,16 +12320,25 @@ def main():
                                     # THE ONE-WATCH RULE (Sep 21): already
                                     # watched → no popup, no tracking — the
                                     # mover loop just moves on.
-                                    if _strict_fire_refusal(pair, asset, _m_spend,
-                                                            _m_bal, _m_weak,
-                                                            weak_paid=_m_weak_paid):
-                                        continue
+                                    _m_book_adv = _strict_fire_refusal(
+                                        pair, asset, _m_spend, _m_bal,
+                                        _m_weak, weak_paid=_m_weak_paid)
+                                    if _m_book_adv:
+                                        logger.info("  MOVER BOOK ADVISORY: "
+                                                    "%s — %s (minimum size)",
+                                                    asset, _m_book_adv)
+                                        try:
+                                            _m_spend = _weakened_spend(
+                                                _m_spend, _m_base_spend)
+                                        except Exception:
+                                            pass
                                     if _popup_already_watched(pair):
                                         continue
                                     # (the breakout gate already judged this
                                     # mover above, before its bridge write —
                                     # one judgement per fire, no second choke)
-                                    notify_big(_m_title, _m_msg, spoken=_m_spoken)
+                                    notify_big(_m_title, _m_msg, spoken=_m_spoken,
+                                               pair=pair)
                                     # AUTO-TRACK AT FIRE TIME — the mover
                                     # popup tracks too (the ZEC lesson: a
                                     # fired mover must never sit unwatched)
@@ -12234,7 +12543,10 @@ def main():
                                             f"Position dipped {dip_pct:.1f}% but trend intact\n"
                                             f"Strategy: BUY ({exit_sig.confidence:.0f}%)\n"
                                             f"Adding a tranche to lower the entry\n"
-                                            f"Time: {_fmt_mst(_now_mst())}"
+                                            f"Time: {_fmt_mst(_now_mst())}",
+                                            # NOT held: a DCA is an add to a
+                                            # position that may already be
+                                            # past +$1.00 — it fires now.
                                         )
                                         continue  # skip exit logic this round — we just added
                         except Exception as exc:

@@ -54,6 +54,7 @@ def sent_texts():
 
 # 1. BUY lines push (HIGH)
 sent.clear()
+bs._PUSH_PAIR_STATE.clear()   # Nov 25: per-pair window fresh per check
 bs._push_state = {"text": "", "ts": 0.0}
 bs._push_to_phone("Buy PUMP! 92 percent sure! The twenty comes in 45 minutes!")
 t = sent_texts()
@@ -62,6 +63,7 @@ check("buy priority high", sent[0].headers.get("Priority") == "high" if sent els
 
 # 2. GET OUT pushes (URGENT)
 sent.clear()
+bs._PUSH_PAIR_STATE.clear()   # Nov 25: per-pair window fresh per check
 bs._push_state = {"text": "", "ts": 0.0}
 bs._push_to_phone("Get out now! Sell ARB! It gave back too much from the top!")
 t = sent_texts()
@@ -71,28 +73,33 @@ check("get out pushes urgent", len(t) == 1 and sent[0].headers.get("Priority") =
 # 'take it' alerts. Just 'buy now' and 'Get out now'" — the take-profit
 # nudges repeat every minute during a run and spam the phone)
 sent.clear()
+bs._PUSH_PAIR_STATE.clear()   # Nov 25: per-pair window fresh per check
 bs._push_state = {"text": "", "ts": 0.0}
 bs._push_to_phone("Take it! ARB! Plus 20 dollars!")
 check("take it NOT pushed (Aug 31 rule)", len(sent) == 0, sent_texts())
 sent.clear()
+bs._PUSH_PAIR_STATE.clear()   # Nov 25: per-pair window fresh per check
 bs._push_state = {"text": "", "ts": 0.0}
 bs._push_to_phone("Take it! 120 dollars up!")
 check("take it (dollar form) NOT pushed", len(sent) == 0)
 
 # 4. routine position update does NOT push
 sent.clear()
+bs._PUSH_PAIR_STATE.clear()   # Nov 25: per-pair window fresh per check
 bs._push_state = {"text": "", "ts": 0.0}
 bs._push_to_phone("ARB, plus 19 dollars, about 40 minutes left, stay close")
 check("routine update NOT pushed", len(sent) == 0)
 
 # 5. tide warning does NOT push
 sent.clear()
+bs._PUSH_PAIR_STATE.clear()   # Nov 25: per-pair window fresh per check
 bs._push_state = {"text": "", "ts": 0.0}
 bs._push_to_phone("Warning! The tide is going out! All ships sink together!")
 check("tide warning NOT pushed", len(sent) == 0)
 
 # 6. trade done does NOT push
 sent.clear()
+bs._PUSH_PAIR_STATE.clear()   # Nov 25: per-pair window fresh per check
 bs._push_state = {"text": "", "ts": 0.0}
 bs._push_to_phone("Trade done! Let's find the next one!")
 check("trade done NOT pushed", len(sent) == 0)
@@ -105,6 +112,7 @@ import time as _time
 # armed whether or not ntfy accepted attempt 1.
 sent.clear()
 bs._push_retry_q.clear()
+bs._PUSH_PAIR_STATE.clear()   # Nov 25: per-pair window fresh per check
 bs._push_state = {"text": "", "ts": 0.0}
 bs._push_to_phone("Buy FIL! 91 percent sure! The recovery leg is on!")
 check("a BUY arms exactly ONE retry in the queue",
@@ -115,6 +123,7 @@ check("the BUY retry rides ~60s out at HIGH priority (a second shot, "
       59.0 <= _r["due"] - _r["why"] <= 61.0 and _r["prio"] == "high", _r)
 sent.clear()
 bs._push_retry_q.clear()
+bs._PUSH_PAIR_STATE.clear()   # Nov 25: per-pair window fresh per check
 bs._push_state = {"text": "", "ts": 0.0}
 bs._push_to_phone("Get out now! Sell ARB! It gave back too much!")
 check("a GET OUT still arms its retry at URGENT (the Sep 21 contract "
@@ -143,16 +152,19 @@ bs._push_retry_q.clear()
 # 7. identical GET OUT repeats throttle to 5 min
 import time as _time
 sent.clear()
+bs._PUSH_PAIR_STATE.clear()   # Nov 25: per-pair window fresh per check
 bs._push_state = {"text": "get out now! sell arb!", "ts": _time.time()}
 bs._push_to_phone("Get out now! Sell ARB!")
 check("identical repeat within 5min throttled", len(sent) == 0)
 # but after 5+ min it pushes again
+bs._PUSH_PAIR_STATE.clear()   # Nov 25: per-pair window fresh per check
 bs._push_state = {"text": "get out now! sell arb!", "ts": _time.time() - 301}
 sent.clear()
 bs._push_to_phone("Get out now! Sell ARB!")
 check("identical after 5min pushes", len(sent) == 1)
 
 # 8. different text pushes immediately even if recent
+bs._PUSH_PAIR_STATE.clear()   # Nov 25: per-pair window fresh per check
 bs._push_state = {"text": "get out now! sell arb!", "ts": _time.time()}
 sent.clear()
 bs._push_to_phone("Buy NEAR! 100 percent sure!")
@@ -170,6 +182,7 @@ check("push failure logged (never silent)", "phone push failed" in
 
 # 10. the full-reasons GET OUT body pushes as one URGENT message
 sent.clear()
+bs._PUSH_PAIR_STATE.clear()   # Nov 25: per-pair window fresh per check
 bs._push_state = {"text": "", "ts": 0.0}
 bs._push_to_phone("GET OUT NOW — Sell MOODENG!\nWHY: Profit guard — it gave back 60 percent of the peak!\n"
                   "POSITION: entered 0.1500 · now 0.1600 · +6.7% (+54 dollars) · held 42 min\n"
@@ -206,6 +219,7 @@ _MATRIX_SELL = [
 ]
 for _txt in _MATRIX_BUY:
     sent.clear()
+    bs._PUSH_PAIR_STATE.clear()   # Nov 25: per-pair window fresh per check
     bs._push_state = {"text": "", "ts": 0.0}
     bs._push_to_phone(_txt)
     check(f"BUY class pushes HIGH: {_txt[:30]!r}",
@@ -213,6 +227,7 @@ for _txt in _MATRIX_BUY:
           f"n={len(sent)}")
 for _txt in _MATRIX_SELL:
     sent.clear()
+    bs._PUSH_PAIR_STATE.clear()   # Nov 25: per-pair window fresh per check
     bs._push_state = {"text": "", "ts": 0.0}
     bs._push_to_phone(_txt)
     check(f"SELL class pushes URGENT: {_txt[:30]!r}",
@@ -231,6 +246,7 @@ _MATRIX_WARN = [
 ]
 for _txt in _MATRIX_WARN:
     sent.clear()
+    bs._PUSH_PAIR_STATE.clear()   # Nov 25: per-pair window fresh per check
     bs._push_state = {"text": "", "ts": 0.0}
     bs._push_to_phone(_txt)
     check(f"WARNING never pushes: {_txt[:38]!r}", len(sent) == 0)
@@ -241,9 +257,65 @@ for _txt in ("the buyer stepped in", "we resell nothing",
              "Take it! ARB! Plus 20 dollars!",
              "ARB, plus 19 dollars, about 40 minutes left, stay close"):
     sent.clear()
+    bs._PUSH_PAIR_STATE.clear()   # Nov 25: per-pair window fresh per check
     bs._push_state = {"text": "", "ts": 0.0}
     bs._push_to_phone(_txt)
     check(f"chatter never pushes: {_txt[:36]!r}", len(sent) == 0)
+
+# 12. THE PER-PAIR PUSH DEDUPE (Nov 25): the same coin cannot buzz the
+#     phone twice on the same side inside the window, whatever the wording
+#     (the identical-text throttle missed a re-fire with a new reason
+#     line). A BUY and its GET OUT are separate events and both pass.
+bs._PUSH_PAIR_STATE.clear()
+sent.clear()
+bs._push_state = {"text": "", "ts": 0.0}
+bs._push_to_phone("BUY XPL! 91 percent sure! Room 3.1%!")
+check("the first BUY of a pair pushes", len(sent) == 1, sent_texts())
+sent.clear()
+bs._push_state = {"text": "", "ts": 0.0}
+bs._push_to_phone("BUY XPL! 88 percent sure! Room 2.4%, a NEW reason line!")
+check("a second BUY of the same pair inside 10 min is muted",
+      len(sent) == 0, sent_texts())
+sent.clear()
+bs._push_state = {"text": "", "ts": 0.0}
+bs._push_to_phone("Get out now! Sell XPL! Trend broke!")
+check("the pair's GET OUT still pushes (side is part of the key)",
+      len(sent) == 1, sent_texts())
+# Nov 25: BUY -> GET OUT -> BUY. The exit closes the position, so the
+# pair's spent BUY window is cleared — a re-entry inside ten minutes is a
+# new position. The pair cannot be silenced by its own exit.
+sent.clear()
+bs._push_state = {"text": "", "ts": 0.0}
+bs._push_to_phone("BUY XPL! 93 percent sure! Back in, the dip held!")
+check("a re-entry BUY buzzes after the pair's GET OUT cleared its window",
+      len(sent) == 1, sent_texts())
+sent.clear()
+bs._push_state = {"text": "", "ts": 0.0}
+bs._push_to_phone("BUY XPL! 89 percent sure! Yet another reason line!")
+check("the re-entered BUY re-arms its own 10 min window",
+      len(sent) == 0, sent_texts())
+sent.clear()
+bs._push_state = {"text": "", "ts": 0.0}
+bs._push_to_phone("Get out now! Sell XPL! Second exit, different words!")
+check("the GET OUT's own window survives the BUY clear",
+      len(sent) == 0, sent_texts())
+sent.clear()
+bs._push_state = {"text": "", "ts": 0.0}
+bs._push_to_phone("BUY WLD! 90 percent sure!")
+check("another pair is untouched by XPL's window", len(sent) == 1, sent_texts())
+sent.clear()
+bs._push_state = {"text": "", "ts": 0.0}
+_PAIR_KEY = bs._push_pair_key("BUY XPL! again", False)
+bs._PUSH_PAIR_STATE[_PAIR_KEY] = _time.time() - bs.PUSH_PAIR_WINDOW_S - 1
+bs._push_to_phone("BUY XPL! 95 percent sure! Back after the window!")
+check("the same pair pushes again once the window expires",
+      len(sent) == 1, sent_texts())
+_SRC = open("background_scanner.py", encoding="utf-8").read()
+check("the dedupe names the pair it muted (log contract)", "PUSH DEDUPE" in _SRC)
+check("the window never looks at PnL (pure noise gate)",
+      "PUSH_PAIR_WINDOW_S = 600.0" in _SRC
+      and "_net_pnl_usd" not in _SRC.split("PUSH_PAIR_WINDOW_S = 600.0")[1]
+          .split("def _push_pair_key")[0])
 
 lines.append(f"\nRESULT: {PASS} passed, {FAIL} failed")
 open(scratch_space.report_temp('_pushfilter_check.txt'), "w", encoding="utf-8").write("\n".join(lines))

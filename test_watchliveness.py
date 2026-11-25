@@ -228,13 +228,19 @@ check(5.4, (_p2 or {}).get("operator_key") == "keep-me" and (_p2 or {}).get("cyc
       "the beat MERGES — it never clobbers keys another writer added")
 # the freeze contract: the beat lives INSIDE the loop's try, AFTER the
 # contest_light call — a raise (or a dead thread) freezes the counter.
-_call = src_bs.find("contest_light(exchange, cfg)",
-                    src_bs.find("last_contest_light = 0"))
-_window = src_bs[_call:src_bs.find("sure thing scan error", _call)]
-_beat_at = _window.find("_pulse_beat()")
+# Nov 25: the pass moved into its own scheduler (_run_light_pass) so the
+# exit watch keeps its own tick. The freeze contract rides THERE: one
+# completed beat AFTER the contest_light call, inside the try, before the
+# except — the counter still only moves when a pass completes.
+_sched = src_bs[src_bs.find("def _run_light_pass"):
+                src_bs.find(chr(10) + "def ", src_bs.find("def _run_light_pass") + 10)]
+_BEAT = '_pulse_beat("light")'
+_call = src_bs.find("contest_light(exchange, cfg)", src_bs.find("def _run_light_pass"))
+_window = src_bs[_call:src_bs.find('_LIGHT_SCOPE["pairs"] = None', _call)]
+_beat_at = _window.find(_BEAT)
 _except_at = _window.find("except Exception as exc:")
-check(5.5, _window.count("_pulse_beat()") == 1,
-      f"exactly one beat site in the loop (got {_window.count('_pulse_beat()')})")
+check(5.5, _window.count(_BEAT) == 1,
+      f"exactly one beat site in the loop (got {_window.count(_BEAT)})")
 check(5.6, 0 < _beat_at < _except_at,
       "the beat sits AFTER the contest_light call, INSIDE the try — "
       "a crashed cycle never advances the counter (freeze = visible)")
@@ -314,10 +320,7 @@ check(6.7, 0 < _fin < _w6.find("except Exception as exc:\n                logger
       and "_pulse_beat()" in _w6[_fin:_fin + 200]
       and '_pulse_beat("busy")' not in _w6[_fin:_fin + 200],
       "the clear lives in the tournament's finally — idle on EVERY path, success or crash")
-_lw = src_bs[src_bs.find("contest_light(exchange, cfg)",
-                          src_bs.find("last_contest_light = 0")):
-             src_bs.find("sure thing scan error")]
-check(6.8, "_pulse_beat()" in _lw and '_pulse_beat("busy")' not in _lw,
+check(6.8, _BEAT in _window and '_pulse_beat("busy")' not in _window,
       "the per-cycle completed beat is untouched — cycles still count light cycles only")
 # THE FREEZE CONTRACT'S NEGATIVE SPACE (Sep 23): the light's BODY sits
 # BEFORE the call site, so every post-call window census above stays green
@@ -451,21 +454,22 @@ try:
           "after the light block's reset the NEXT slow episode announces again")
     # wiring census: the call sits between the light block and the exit gate,
     # the completion timestamp rides the light try, the reset rides the finally
-    _w7 = src_bs[src_bs.find("contest_light(exchange, cfg)",
-                              src_bs.find("last_contest_light = 0")):
+    # Nov 25: the light block IS _run_light_pass now; main calls it, reads
+    # the completed pass's stamp, then alarms before the exit gate.
+    _w7 = src_bs[src_bs.find('_run_light_pass(exchange, cfg, source="loop"'):
                  src_bs.find("(every 5 minutes on open positions)")]
     _call7 = _w7.find("_cycle_slow_alarm(_slow_episode")
-    _fin7 = _w7.find("finally:")
     _exit7 = _w7.find("# ── Exit check")
-    check(7.10, 0 < _fin7 < _call7 < _exit7,
-          "the watch runs between light passes — after the light block's "
-          "finally, before the exit gate")
-    check(7.11, "last_cycle_done = time.time()" in _w7
-          and _w7.find("last_cycle_done = time.time()") < _w7.find("except Exception as exc:"),
+    check(7.10, 0 < _call7 < _exit7,
+          "the watch runs between the light pass and the exit gate")
+    check(7.11, '_LIGHT_CLOCK["last_done"] = time.time()' in _sched
+          and _sched.find('_LIGHT_CLOCK["last_done"] = time.time()')
+          < _sched.find("except Exception as exc:")
+          and 'last_cycle_done = float(_LIGHT_CLOCK["last_done"])' in _w7,
           "the completion timestamp is set INSIDE the light try — only a real "
           "completed pass moves the clock")
-    _lf7 = _w7.find("finally:")
-    check(7.12, 0 < _lf7 and "_slow_episode.update(start=0.0" in _w7[_lf7:_lf7 + 150],
+    _lf7 = _sched.find("finally:")
+    check(7.12, 0 < _lf7 and "episode.update(start=0.0" in _sched[_lf7:_lf7 + 250],
           "the light block's finally resets the episode — announce-once, not announce-ever")
     check(7.13, "_SLOW_CYCLE_S = 180.0" in src_bs,
           "the 3-minute bar is one named constant")
@@ -601,7 +605,7 @@ check(9.3, bool(_src9) and "_push_to_phone" not in _src9
       "the ops page rides its own ntfy leg — the trade-push rule admits "
       "only BUY NOW / GET OUT NOW and stays untouched")
 check(9.4, src_bs.count("_aa_box_watermark_watch()") == 1
-      and src_bs.find("_aa_box_watermark_watch()") > src_bs.find("_pulse_beat()"),
+      and src_bs.find("_aa_box_watermark_watch()") > src_bs.find('_pulse_beat("light")'),
       "the watch is called once per completed pass, after the beat (the "
       "stamp advances inside contest_light — a pre-pass call would page "
       "one pass early)")
