@@ -5347,7 +5347,15 @@ _push_state = {"text": "", "ts": 0.0}
 # a signal gate (the Oct 9 decree: nothing blocks QC).
 _PUSH_PAIR_STATE: dict = {}       # "BUY:XPL" -> epoch of the last push
 PUSH_PAIR_WINDOW_S = 600.0        # 10 min; Nov 25 same-pair gaps p10 8.7
-_PUSH_SYM_RE = re.compile(r"(?:buy|sell)\s+['\"]?([a-z0-9]{2,12})", re.I)
+# THE ASSET, NOT THE ADVERB (Nov 26): "BUY NOW — SOL/USD" used to capture
+# "now" and collapse every such alert onto BUY:NOW, muting unrelated coins
+# for ten minutes. Skip a bare "now" and its separator, and never mistake
+# a filler word for the symbol.
+_PUSH_SYM_RE = re.compile(
+    r"\b(?:buy|sell)\s+(?:now\b[\s—–:!.,'\"-]*)?['\"]?"
+    r"(?!(?:now|the|this|that|it|and|at|for|in|on|of|a|an)\b)"
+    r"([a-z0-9]{2,12})",
+    re.I)
 
 
 def _push_pair_key(text: str, is_sell: bool) -> str | None:
@@ -5357,6 +5365,36 @@ def _push_pair_key(text: str, is_sell: bool) -> str | None:
     if not m:
         return None
     return ("SELL:" if is_sell else "BUY:") + m.group(1).upper()
+
+
+def _push_arm_pair(pk: str | None, is_sell: bool, now: float) -> None:
+    """COMMIT the pair's window (Nov 26). Called only once every gate has
+    passed, so a muted, unsent or failed alert never spends the pair's ten
+    minutes and a real re-fire is still allowed to buzz."""
+    if not pk:
+        return
+    _PUSH_PAIR_STATE[pk] = now
+    if is_sell:
+        # Nov 25: the GET OUT closes the position, so the pair's BUY
+        # window is spent — a genuine re-entry inside the ten minutes
+        # is a NEW position and must buzz. Clearing it can only ever
+        # let a BUY through, never mute one (the decree's direction).
+        _PUSH_PAIR_STATE.pop("BUY:" + pk.split(":", 1)[1], None)
+    if len(_PUSH_PAIR_STATE) > 64:   # tiny, bounded — 30 pairs a day
+        for _dk in [k for k, v in _PUSH_PAIR_STATE.items()
+                    if now - v > PUSH_PAIR_WINDOW_S * 6]:
+            _PUSH_PAIR_STATE.pop(_dk, None)
+
+
+def _push_unarm(pk: str | None) -> None:
+    """THE ALERT REACHED NOWHERE (Nov 26): both failure paths re-arm
+    alike — the identical-text throttle and the pair window are released
+    so the retry is allowed to buzz."""
+    _push_state["text"] = ""
+    _push_state["ts"] = 0.0
+    if pk:
+        _PUSH_PAIR_STATE.pop(pk, None)
+
 
 # GET OUT retry queue (Sep 21, the 16:05 lesson: ntfy accepted the push
 # with a 200 but the phone app never showed it — ntfy has NO delivery
@@ -5608,7 +5646,9 @@ def _push_to_phone(text: str, wav_path: str | None = None,
     # THE PER-PAIR WINDOW (Nov 25): the same coin cannot buzz the phone
     # twice on the same side inside PUSH_PAIR_WINDOW_S, however different
     # the wording. Checked BEFORE the identical-text throttle so the log
-    # names the pair it muted.
+    # names the pair it muted. READ-ONLY here (Nov 26): the window is
+    # committed at the bottom, once every gate has passed, so a muted or
+    # unsent alert never spends the pair's ten minutes.
     _pk = _push_pair_key(str(text), is_sell)
     _pp = _PUSH_PAIR_STATE.get(_pk) if _pk else None
     if _pp and (now - _pp) < PUSH_PAIR_WINDOW_S:
@@ -5617,18 +5657,6 @@ def _push_to_phone(text: str, wav_path: str | None = None,
                     _pk.split(":", 1)[1], "GET OUT" if is_sell else "BUY",
                     (now - _pp) / 60.0)
         return
-    if _pk:
-        _PUSH_PAIR_STATE[_pk] = now
-        if is_sell:
-            # Nov 25: the GET OUT closes the position, so the pair's BUY
-            # window is spent — a genuine re-entry inside the ten minutes
-            # is a NEW position and must buzz. Clearing it can only ever
-            # let a BUY through, never mute one (the decree's direction).
-            _PUSH_PAIR_STATE.pop("BUY:" + _pk.split(":", 1)[1], None)
-        if len(_PUSH_PAIR_STATE) > 64:   # tiny, bounded — 30 pairs a day
-            for _dk in [k for k, v in _PUSH_PAIR_STATE.items()
-                        if now - v > PUSH_PAIR_WINDOW_S * 6]:
-                _PUSH_PAIR_STATE.pop(_dk, None)
     # same text (a repeating GET OUT) pushes at most every 5 minutes
     if _t == _push_state["text"] and (now - _push_state["ts"]) < 300:
         return
@@ -5641,10 +5669,11 @@ def _push_to_phone(text: str, wav_path: str | None = None,
     if not topic:
         _warn_push_no_topic("_push_to_phone")
         if not native_ok:
-            _push_state["text"] = ""   # REVIEW TRIAGE (Sep 25, the hook's own major):
-            _push_state["ts"] = 0.0    # reached nowhere — un-arm the throttle, retry allowed
-            if _pk:
-                _PUSH_PAIR_STATE.pop(_pk, None)   # and the pair window too
+            _push_unarm(_pk)   # REVIEW TRIAGE (Sep 25, the hook's own major):
+                               # reached nowhere — un-arm the throttle and the
+                               # pair window, retry allowed
+        else:
+            _push_arm_pair(_pk, is_sell, now)   # the native leg carried it
         return  # the ntfy leg needs its topic — the native leg already went
     try:
         prio = "urgent" if is_sell else "high"
@@ -5670,6 +5699,12 @@ def _push_to_phone(text: str, wav_path: str | None = None,
         # never SILENT: the scanner log carries every failure
         logger.warning("phone push failed (%s) — the phone missed: %s",
                        exc, str(text)[:90])
+        # Nov 26: re-arm exactly like the no-topic path — an alert that
+        # reached NO destination may not silence its own retry
+        if not native_ok:
+            _push_unarm(_pk)
+        return
+    _push_arm_pair(_pk, is_sell, now)   # every gate passed: commit
 
 
 # THE AA-BOX WATERMARK WATCH (Oct 3): grace past the watermark's
